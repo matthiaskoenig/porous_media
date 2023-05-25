@@ -1,3 +1,7 @@
 pandas
 openpyxl
 rich
+meshio
+pyvista
+mayavi
+PyQt5
