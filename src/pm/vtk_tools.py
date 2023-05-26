@@ -82,8 +82,15 @@ class MeshTimecourse(MeshTimepoint):
     @classmethod
     def from_vtk_directory(cls, vtk_dir: Path, show: bool = False) -> MeshTimecourse:
         """Read MeshTimecourse from directory of VTKs."""
+        if not vtk_dir.exists():
+            raise IOError(f"VTK directory does not exist '{vtk_dir}'")
+
+        console.print("vtk_paths:")
         vtk_paths = sorted(vtk_dir.glob("**/*.vtk"))
-        return cls.from_vtks(vtk_paths=vtk_paths, show=show)
+
+        console.print(vtk_paths)
+        mesh_tc = cls.from_vtks(vtk_paths=vtk_paths, show=show)
+        return mesh_tc
 
     @classmethod
     def from_vtks(cls, vtk_paths: Iterable[Path], show: bool = False) -> MeshTimecourse:
@@ -95,20 +102,20 @@ class MeshTimecourse(MeshTimepoint):
         console.print(vtk_paths)
         mres_dict: Dict[str, MeshTimepoint] = {}
 
-        Nt: int = len(vtk_paths)
-        time = np.zeros(shape=(Nt,))
+        # Nt: int = len(vtk_paths)
+        # time = np.zeros(shape=(Nt,))
 
         for k, path in enumerate(vtk_paths):
             console.print(path)
-            time[k] = int(str(path).split(".")[-1][1:])
+            # time[k] = int(str(path).split(".")[-1][1:])
 
             mres: MeshTimepoint = cls.from_vtk(vtk_path=path, show=False)
-            mres_dict[path.name] = mres
+            # mres_dict[path.name] = mres
+            #
+            # if k > 5:
+            #     break
 
-            if k > 5:
-                break
-
-        print(time)
+        # print(time)
 
 
 if __name__ == "__main__":
@@ -116,12 +123,14 @@ if __name__ == "__main__":
     vtk_path = EXAMPLE_VTK2
 
     mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=True)
-    console.print("cell_orientation")
-    console.print(mesh_tp.cell_data["cell_orientation"])
+    console.print("cell_type")
+    console.print(mesh_tp.cell_data["cell_type"])
 
     console.rule(style="white")
-    # sim_dir: Path = DATA_DIR / "sim001"
-    # mesh_tc: MeshTimecourse.from_vtk_directory(sim_dir)
+
+    sim_dir: Path = DATA_DIR / "sim001_neu"
+    print(sim_dir)
+    mesh_tc: MeshTimecourse.from_vtk_directory(vtk_dir=sim_dir)
 
     # 'cell_type':
     #   0: internal node
