@@ -82,7 +82,7 @@ class MeshTimecourse(MeshTimepoint):
     @classmethod
     def from_vtk_directory(cls, vtk_dir: Path, show: bool = False) -> MeshTimecourse:
         """Read MeshTimecourse from directory of VTKs."""
-        vtk_paths = sorted(sim_dir.glob("**/*.vtk"))
+        vtk_paths = sorted(vtk_dir.glob("**/*.vtk"))
         return cls.from_vtks(vtk_paths=vtk_paths, show=show)
 
     @classmethod
@@ -111,18 +111,20 @@ class MeshTimecourse(MeshTimepoint):
         print(time)
 
 
-
-
 if __name__ == "__main__":
     from pm import EXAMPLE_VTK, EXAMPLE_VTK2, DATA_DIR
     vtk_path = EXAMPLE_VTK2
 
     mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=True)
+    console.print("cell_orientation")
+    console.print(mesh_tp.cell_data["cell_orientation"])
 
     console.rule(style="white")
     # sim_dir: Path = DATA_DIR / "sim001"
     # mesh_tc: MeshTimecourse.from_vtk_directory(sim_dir)
 
-
-
+    # 'cell_type':
+    #   0: internal node
+    #   1: periportal (outside)
+    #   2: perivenous (inside)
 
