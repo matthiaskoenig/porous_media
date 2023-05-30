@@ -5,3 +5,5 @@ meshio
 pyvista
 mayavi
 PyQt5
+vedo
+scipy
