@@ -43,7 +43,7 @@ mkdir build
 cd build
 
 cmake -DCMAKE_INSTALL_PREFIX="../../../llvm-13.x-release" -DCMAKE_BUILD_TYPE="Release" ..
-cmake --build . --parallel 10 --target install --config Release
+cmake --build . --target install --config Release
 cd ../../../
 ```
 
