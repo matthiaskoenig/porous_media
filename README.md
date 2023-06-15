@@ -6,6 +6,11 @@
 https://github.com/nschloe/meshio
 There are various mesh formats available for representing unstructured meshes. meshio can read and write all of the following and smoothly converts between them
 
+There are various mesh formats available for representing unstructured meshes. meshio can read and write all of the following and smoothly converts between them:
+
+    Abaqus (.inp), ANSYS msh (.msh), AVS-UCD (.avs), CGNS (.cgns), DOLFIN XML (.xml), Exodus (.e, .exo), FLAC3D (.f3grid), H5M (.h5m), Kratos/MDPA (.mdpa), Medit (.mesh, .meshb), MED/Salome (.med), Nastran (bulk data, .bdf, .fem, .nas), Netgen (.vol, .vol.gz), Neuroglancer precomputed format, Gmsh (format versions 2.2, 4.0, and 4.1, .msh), OBJ (.obj), OFF (.off), PERMAS (.post, .post.gz, .dato, .dato.gz), PLY (.ply), STL (.stl), Tecplot .dat, TetGen .node/.ele, SVG (2D output only) (.svg), SU2 (.su2), UGRID (.ugrid), VTK (.vtk), VTU (.vtu), WKT (TIN) (.wkt), XDMF (.xdmf, .xmf).
+
+
 ## Gmsh 
 A three-dimensional finite element mesh generator with built-in pre- and post-processing facilities
 https://gmsh.info/
@@ -13,6 +18,10 @@ https://gmsh.info/
 ## pymesh
 https://pymesh.readthedocs.io/en/latest/
 PyMesh is a rapid prototyping platform focused on geometry processing. It provides a set of common mesh processing functionalities and interfaces with a number of state-of-the-art open source packages to combine their power seamlessly under a single developing environment.
+
+
+## FeBio mesh formats
+FEBioStudio can convert some other formats to the FEBio input specification. For instance, `NIKE3D [54]` and `Abaqus` input files can be imported in FEBioStudio and can be exported as a FEBio input file.
 
 
 ## mesh manipulation
