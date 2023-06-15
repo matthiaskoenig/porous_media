@@ -1,4 +1,16 @@
-# Working with meshes
+# porous media
+Helper code in python for working with porous media simulations.
+
+## Installation
+```bash
+mkvirtualenv porous_media --python=python3.9
+pip install -r requirements.txt
+```
+
+
+
+
+## Working with meshes
 - meshes are stored as a collection of `points` and `cells`, which are objects made from `points`
 - data can be associated either with the `points` or the cells of the mesh
 

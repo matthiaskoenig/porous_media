@@ -7,3 +7,4 @@ mayavi
 PyQt5
 vedo
 scipy
+jinja2>=3.1.2
