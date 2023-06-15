@@ -19,6 +19,7 @@ https://gmsh.info/
 https://pymesh.readthedocs.io/en/latest/
 PyMesh is a rapid prototyping platform focused on geometry processing. It provides a set of common mesh processing functionalities and interfaces with a number of state-of-the-art open source packages to combine their power seamlessly under a single developing environment.
 
+## pymeshlab
 
 ## FeBio mesh formats
 FEBioStudio can convert some other formats to the FEBio input specification. For instance, `NIKE3D [54]` and `Abaqus` input files can be imported in FEBioStudio and can be exported as a FEBio input file.
@@ -27,11 +28,19 @@ FEBioStudio can convert some other formats to the FEBio input specification. For
 ## mesh manipulation
 
 # Visualization
-https://examples.vtk.org/site/
 
- I suggest using a dedicated vtk library, either bare vtk, the higher-level mayavi.mlab or my recently acquired favourite, pyvista. I'll elaborate on all this in detail.
- ## https://pypi.org/project/vtk/
+## VTK
+https://examples.vtk.org/site/
+https://pypi.org/project/vtk/
 https://vtk.org/
+
+- python interface/library
+- very low-level, complicated to write
+
+## Visit 
+https://visit-dav.github.io/visit-website/
+Python scripting:
+https://visit-sphinx-github-user-manual.readthedocs.io/en/develop/python_scripting/index.html
 
 ## pyvista
 https://github.com/pyvista/pyvista
@@ -52,10 +61,23 @@ https://vedo.embl.es/
 Integration with many external libraries like FEniCS for PDE and finite element solutions
 
 
+## vtkplotter
+Interactive tools in notebooks
+https://www.youtube.com/watch?v=raiIft8VeRU
+
 ## paraview
 
 ## 3D slicer
 
+# Algorithms
+## scipy.spatial
+*Delauny* triangulation
+- scipy.spatial: https://docs.scipy.org/doc/scipy/reference/spatial.html; 
+
+- Delaunay triangulation, convex hulls, and Voronoi diagrams
+- Spatial transformations: https://docs.scipy.org/doc/scipy/reference/spatial.transform.html#module-scipy.spatial.transform
+
+- Morphometrics
 
 # Finite element simulation
 https://fenicsproject.org/

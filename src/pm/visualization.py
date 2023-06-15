@@ -28,7 +28,7 @@ def visualize_vtk_mayavi(vtk_path: Path):
     engine = mlab.get_engine()
 
     # open the vtk file, let mayavi figure it all out
-    vtk_file_reader = engine.open(vtk_path)
+    vtk_file_reader = engine.open(str(vtk_path))
 
     # plot surface corresponding to the data
     surface = Surface()
@@ -40,5 +40,5 @@ def visualize_vtk_mayavi(vtk_path: Path):
 
 if __name__ == "__main__":
     from pm import EXAMPLE_VTK
-    visualize_vtk_pyvista(vtk_path=EXAMPLE_VTK)
+    # visualize_vtk_pyvista(vtk_path=EXAMPLE_VTK)
     visualize_vtk_mayavi(vtk_path=EXAMPLE_VTK)
