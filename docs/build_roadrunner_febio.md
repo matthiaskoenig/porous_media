@@ -1,25 +1,17 @@
 # Build roadrunner and FEBio
-Setup information for cluster/workstation to run FEBio simulations with roadrunner.
+Setup information for cluster/workstation to run FEBio simulations with integrated roadrunner.
 
+For roadrunner instructions see
 https://libroadrunner.readthedocs.io/en/latest/Installation/installation.html
-
-## TODO
-- [ ] install and use newer gcc version for compilation 11.2
-
 
 ## requirements
 - cmake => 3.18
 - gcc => 9.4
 - Intel MKL (Math Kernel library), https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html; intel-mkl:amd64 (2020.0.166-1)
 
+## cmake
+Install latest cmake version
 ```bash
-# latest gcc version
-# sudo add-apt-repository ppa:ubuntu-toolchain-r/ppa -y
-# sudo apt-get update
-# sudo apt-get install g++-10 gcc-10
-
-
-# latest cmake version
 wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
 sudo apt-add-repository "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main"
 sudo apt update

@@ -1,6 +1,6 @@
 """Visualization of MeshResults."""
 
-from pm.vtk_tools import MeshTimepoint
+from pm.mesh_tools import MeshTimepoint
 from pathlib import Path
 
 def visualize_vtk_pyvista(vtk_path: Path) -> None:
@@ -33,6 +33,13 @@ def visualize_vtk_mayavi(vtk_path: Path):
     # plot surface corresponding to the data
     surface = Surface()
     engine.add_filter(surface, vtk_file_reader)
+
+    scene = engine.scenes[0]
+    scene.scene.background = (1.0, 1.0, 1.0)
+    scene.scene.z_minus_view()
+    scene.scene.show_axes = False
+    module_manager = engine.scenes[0].children[0].children[0]
+    module_manager.scalar_lut_manager.lut_mode = 'RdBu'
 
     # block until figure is closed
     mlab.show()
