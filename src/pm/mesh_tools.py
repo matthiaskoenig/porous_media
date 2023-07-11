@@ -146,9 +146,6 @@ if __name__ == "__main__":
     # t = 0, 30, 60, 90, 120, 150, 180
 
 
-
-
-
     # 'cell_type':
     #   0: internal node
     #   1: periportal (outside)
