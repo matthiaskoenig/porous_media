@@ -2,7 +2,7 @@ pandas
 openpyxl
 rich
 meshio
-pyvista
+pyvista>=0.40.1
 mayavi
 PyQt5
 vedo
