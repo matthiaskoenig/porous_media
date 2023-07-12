@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     for vtk_path in [
         "lobule_BCflux.t006.vtk",
-        # "t2793.vtk",
+        "t2793.vtk",
     ]:
         # TODO: load mesh data with content
         mtp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=True)
@@ -161,20 +161,20 @@ if __name__ == "__main__":
         console.print(mtp)
         console.rule()
 
-        # we want to read VTK in an UnstructuredGrid object
-        from mayavi.sources import vtk_file_reader
-        r = vtk_file_reader.VTKFileReader()
-        r.initialize(str(vtk_path))
-
-        r.
-
-        # use the source
-
-
-        # open the vtk file, let mayavi figure it all out
-        vtk_file_reader = engine.open(file_name)
-
-
-        visualize_lobulus(mtp=mtp)
+        # # we want to read VTK in an UnstructuredGrid object
+        # from mayavi.sources import vtk_file_reader
+        # r = vtk_file_reader.VTKFileReader()
+        # r.initialize(str(vtk_path))
+        #
+        # r.
+        #
+        # # use the source
+        #
+        #
+        # # open the vtk file, let mayavi figure it all out
+        # vtk_file_reader = engine.open(file_name)
+        #
+        #
+        # visualize_lobulus(mtp=mtp)
 
         # TODO: get the x, y, z data for the mesh
