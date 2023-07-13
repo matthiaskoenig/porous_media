@@ -9,6 +9,7 @@ import numpy as np
 from pm import DATA_DIR
 from pm.console import console
 from pm.mesh.mesh_tools import MeshTimepoint
+from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
 
 vtk_dirs: Dict[str, Path] = {
     'sim_T277': DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk",
@@ -28,30 +29,39 @@ for sim_key, vtk_paths in vtks_all.items():
         with open(p, "r") as f_vtk:
             f_vtk.readline()  # skip first line
             line = f_vtk.readline()
-            t = line.strip().split(" ")[-1]
+            t = float(line.strip().split(" ")[-1])
             times.append(t)
     times_all[sim_key] = times
 
 for sim_key, times in times_all.items():
-    console.print(f"{sim_key}: {times}")
+    console.print(f"{sim_key}: time: [{times[0]}, {times[-1]}]")
 
-# filter vtk
-console.rule(title="Number of filtered VTKs", align="left", style="white")
+# filter vtk by times
+times_wanted = np.linspace(0, 600*60, 11)  # [s] (21 points in 600 min)
+
 vtks: Dict[str, List[Path]] = {}
+times: Dict[str, List[float]] = {}
 for sim_key, vtk_paths in vtks_all.items():
-    vtk_paths_filtered = []
-    k = 0
-    for p in vtk_paths:
-        if k == 0:
-            vtk_paths_filtered.append(p)
-        k = k+1
-        # filter every 100
-        if k == 100:
-            k = 0
-    vtks[sim_key] = vtk_paths_filtered
+    tps = times_all[sim_key]
+    paths_wanted = []
+    times_actual = []
 
+    for t_wanted in times_wanted:
+        for k, t in enumerate(tps):
+            if t >= t_wanted:
+                paths_wanted.append(vtk_paths[k])
+                times_actual.append(t)
+                break
+
+    vtks[sim_key] = paths_wanted
+    times[sim_key] = times_actual
+
+
+# filter vtk by index
+console.rule(title="Number of filtered VTKs", align="left", style="white")
+console.print(f"{times_wanted=}")
 for sim_key, vtk_paths in vtks.items():
-    console.print(f"{sim_key}: {len(vtk_paths)}")
+    console.print(f"{sim_key}: {len(vtk_paths)}, times: {times[sim_key]}")
 
 scalars_iri = {
     'necrosis': {"title": "Necrosis (0: alive, 1: death)", "cmap": "binary"},
@@ -67,7 +77,6 @@ scalars_iri = {
     'ALT': {"title": "ALT (mM)", "cmap": "RdBu"},
     'AST': {"title": "AST (mM)", "cmap": "RdBu"},
 }
-
 
 def calculate_limits(vtks: Dict[str, List[Path]]):
     """Calculate the limits from given VTKs for scalars."""
@@ -124,26 +133,26 @@ console.rule(title="Scalars", align="left", style="white")
 console.print(scalars_iri)
 
 
+
 def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
     # Create figures for all simulation timepoints of relevance (skip some results)
     for sim_key, vtk_paths in vtks.items():
 
-        panels_path = output_path / "panels" / sim_key
+        panels_path = output_path / sim_key / "panels"
         panels_path.mkdir(exist_ok=True, parents=True)
 
         # Create all figures for all variables
-        from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
-
-        k = 0
-        for vtk_path in vtk_paths:
+        for k, vtk_path in enumerate(vtk_paths):
+            show_scalar_bar = False
+            if k == 0 or k == (len(vtk_paths)-1):
+                show_scalar_bar = True
             visualize_lobulus_vtk(
                 vtk_path=vtk_path,
                 scalars=scalars,
                 output_dir=panels_path,
+                window_size=(600, 600),
+                scalar_bar=show_scalar_bar,
             )
-            # k = k + 1
-            # if k>5:
-            #     break
 
 
 if __name__ == "__main__":
@@ -152,8 +161,26 @@ if __name__ == "__main__":
     output_path = BASE_DIR / "results" / "simliva_publication"
     visualize_panels(vtks=vtks, scalars=scalars_iri, output_path=output_path)
 
-
-
     # Create combined figures for variables and timepoints
+    from pm.visualization.image_manipulation import merge_images
 
+    scalars_plot = ["GLC", "ATP", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
 
+    for sim_key, vtk_paths in vtks.items():
+        row_dir: Path = output_path / sim_key / "rows"
+        row_dir.mkdir(parents=True, exist_ok=True)
+
+        rows: List[Path] = []
+        for p in vtk_paths:
+            row: List[Path] = []
+            for scalar in scalars_plot:
+                img_path = output_path / sim_key / "panels" / scalar / f"{p.stem}.png"
+                row.append(img_path)
+
+            row_image: Path = output_path / sim_key / "rows" / f"{p.stem}.png"
+            merge_images(paths=row, direction="horizontal", output_path=row_image)
+            rows.append(row_image)
+
+        console.print(rows)
+        image: Path = output_path / sim_key / f"{sim_key}.png"
+        merge_images(paths=rows, direction="vertical", output_path=image)

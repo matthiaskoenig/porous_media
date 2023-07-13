@@ -31,7 +31,7 @@ def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "ver
         y_offset = 0
         for im in images:
             new_im.paste(im, (0, y_offset))
-            y_offset += im.size[0]
+            y_offset += im.size[1]
 
     new_im.save(output_path)
 

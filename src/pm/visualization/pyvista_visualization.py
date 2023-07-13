@@ -19,7 +19,7 @@ pv.global_theme.font.label_size = 30
 pv.global_theme.font.color = 'black'
 
 
-def visualize_lobulus_vtk(vtk_path: Path, scalars: Dict, output_dir: Path):
+def visualize_lobulus_vtk(vtk_path: Path, scalars: Dict, output_dir: Path, window_size=(1000, 1000), scalar_bar: bool = True):
     """Visualize single lobulus time point."""
     console.print(vtk_path)
 
@@ -40,7 +40,7 @@ def visualize_lobulus_vtk(vtk_path: Path, scalars: Dict, output_dir: Path):
     n_scalars = len(scalars)
     for k, scalar_id in enumerate(scalars):
         p = pv.Plotter(
-            window_size=(1000, 1000),
+            window_size=window_size,
             title="TPM lobulus",
             # shape=(1, n_scalars), border=False,
             off_screen=True
@@ -60,24 +60,26 @@ def visualize_lobulus_vtk(vtk_path: Path, scalars: Dict, output_dir: Path):
             line_width=1.0,
             cmap=scalar_info["cmap"],
             show_scalar_bar=False,
-            edge_color="darkgray"
-            # specular=0.5, specular_power=15
+            edge_color="darkgray",
+            # specular=0.5, specular_power=15,
+            clim=scalar_info["clim"]
         )
+        if scalar_bar:
+            p.add_scalar_bar(
+                title=scalar_info["title"],
+                n_labels=5,
+                bold=True,
+                # height=0.6,
+                width=0.6,
+                vertical=False,
+                position_y=0.0,
+                position_x=0.2,
+                mapper=actor.mapper,
+                fmt=".1f"
+            )
 
-        p.add_scalar_bar(
-            title=scalar_info["title"],
-            n_labels=5,
-            bold=True,
-            # height=0.6,
-            width=0.6,
-            vertical=False,
-            position_y=0.0,
-            position_x=0.2,
-            mapper=actor.mapper,
-        )
-
-        # set the color limits
-        p.update_scalar_bar_range(clim=scalar_info["clim"], name=scalar_info["title"])
+            # set the color limits
+            p.update_scalar_bar_range(clim=scalar_info["clim"], name=scalar_info["title"])
 
         # Camera position to zoom to face
         p.camera_position = (0, 3E-4, 1E-3)
