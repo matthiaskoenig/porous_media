@@ -37,7 +37,9 @@ for sim_key, times in times_all.items():
     console.print(f"{sim_key}: time: [{times[0]}, {times[-1]}]")
 
 # filter vtk by times
-times_wanted = np.linspace(0, 600*60, 11)  # [s] (21 points in 600 min)
+times_wanted = np.linspace(0, 600*60, 11)  # [s] (21 points in 600 min) # static image
+# times_wanted = np.linspace(0, 600*60, 201)  # [s] (21 points in 600 min) # gifs
+
 
 vtks: Dict[str, List[Path]] = {}
 times: Dict[str, List[float]] = {}
@@ -143,9 +145,9 @@ def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
 
         # Create all figures for all variables
         for k, vtk_path in enumerate(vtk_paths):
-            show_scalar_bar = False
-            if k == 0 or k == (len(vtk_paths)-1):
-                show_scalar_bar = True
+            show_scalar_bar = True
+            # if k == 0 or k == (len(vtk_paths)-1):
+            #     show_scalar_bar = True
             visualize_lobulus_vtk(
                 vtk_path=vtk_path,
                 scalars=scalars,
@@ -166,12 +168,34 @@ if __name__ == "__main__":
 
     scalars_plot = ["GLC", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
 
-    for sim_key, vtk_paths in vtks.items():
-        row_dir: Path = output_path / sim_key / "rows"
-        row_dir.mkdir(parents=True, exist_ok=True)
+    # static images
+    # for sim_key, vtk_paths in vtks.items():
+    #     row_dir: Path = output_path / sim_key / "rows"
+    #     row_dir.mkdir(parents=True, exist_ok=True)
+    #
+    #     rows: List[Path] = []
+    #     for p in vtk_paths:
+    #         row: List[Path] = []
+    #         for scalar in scalars_plot:
+    #             img_path = output_path / sim_key / "panels" / scalar / f"{p.stem}.png"
+    #             row.append(img_path)
+    #
+    #         row_image: Path = output_path / sim_key / "rows" / f"{p.stem}.png"
+    #         merge_images(paths=row, direction="horizontal", output_path=row_image)
+    #         rows.append(row_image)
+    #
+    #     console.print(rows)
+    #     image: Path = output_path / sim_key / f"{sim_key}.png"
+    #     merge_images(paths=rows, direction="vertical", output_path=image)
 
+    # gifs
+    for k in range(len(times_wanted)):
         rows: List[Path] = []
-        for p in vtk_paths:
+        for sim_key, vtk_paths in vtks.items():
+            row_dir: Path = output_path / sim_key / "rows"
+            row_dir.mkdir(parents=True, exist_ok=True)
+
+            vtk_path = vtk_paths[k]
             row: List[Path] = []
             for scalar in scalars_plot:
                 img_path = output_path / sim_key / "panels" / scalar / f"{p.stem}.png"
@@ -182,5 +206,5 @@ if __name__ == "__main__":
             rows.append(row_image)
 
         console.print(rows)
-        image: Path = output_path / sim_key / f"{sim_key}.png"
+        image: Path = output_path / sim_key / "gifs" / f"{k:<03}.png"
         merge_images(paths=rows, direction="vertical", output_path=image)
