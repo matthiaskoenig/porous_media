@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # Create combined figures for variables and timepoints
     from pm.visualization.image_manipulation import merge_images
 
-    scalars_plot = ["GLC", "ATP", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
+    scalars_plot = ["GLC", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
 
     for sim_key, vtk_paths in vtks.items():
         row_dir: Path = output_path / sim_key / "rows"

@@ -75,7 +75,7 @@ def visualize_lobulus_vtk(vtk_path: Path, scalars: Dict, output_dir: Path, windo
                 position_y=0.0,
                 position_x=0.2,
                 mapper=actor.mapper,
-                fmt=".1f"
+                fmt="%.1f"
             )
 
             # set the color limits

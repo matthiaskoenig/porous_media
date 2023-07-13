@@ -36,6 +36,9 @@ def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "ver
     new_im.save(output_path)
 
 
+
+
+
 if __name__ == "__main__":
     paths = ["test_pyvista_rr_(S).png", "test_pyvista_rr_(P).png", "test_pyvista_rr_necrosis.png"]
     merge_images(paths=paths, output_path="test_vertical.png", direction="vertical")
