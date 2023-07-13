@@ -76,8 +76,8 @@ def visualize_lobulus_vtk(vtk_path: Path, scalars: Dict, output_dir: Path):
             mapper=actor.mapper,
         )
 
-        # TODO: set global min and max values on colormap (clim on Dat
-        # p.update_scalar_bar_range(clim=scalar_info["clim"], name=scalar_info["title"])
+        # set the color limits
+        p.update_scalar_bar_range(clim=scalar_info["clim"], name=scalar_info["title"])
 
         # Camera position to zoom to face
         p.camera_position = (0, 3E-4, 1E-3)
@@ -106,17 +106,17 @@ if __name__ == "__main__":
         "rr_(S)": {
             "title": "Substrate S [mM]",
             "cmap": "RdBu",
-            "clim": (0.529, 0.530),
+            # "clim": (0.529, 0.530),
         },
         "rr_(P)": {
             "title": "Product P [mM]",
             "cmap": "RdBu",
-            "clim": (0.00829, 0.00897),
+            # "clim": (0.00829, 0.00897),
         },
         "rr_necrosis": {
             "title": "Necrosis",
             "cmap": "binary",
-            "clim": (0.0, 1.0),
+            # "clim": (0.0, 1.0),
         }
     }
     visualize_lobulus_vtk(

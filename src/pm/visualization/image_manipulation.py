@@ -1,6 +1,7 @@
-"""Crop and combine images."""
+"""Image manipulation.
 
-import sys
+Combine and annotate images using PIL.
+"""
 from pathlib import Path
 from typing import Iterable
 
@@ -8,9 +9,7 @@ from PIL import Image
 
 
 def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "vertical"):
-    """Merge images either vertical or horizontal.
-
-    """
+    """Merge images either vertical or horizontal."""
     images = [Image.open(x) for x in paths]
     widths, heights = zip(*(i.size for i in images))
 
@@ -21,7 +20,7 @@ def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "ver
 
         x_offset = 0
         for im in images:
-          new_im.paste(im, (x_offset,0))
+          new_im.paste(im, (x_offset, 0))
           x_offset += im.size[0]
 
     elif direction == "vertical":

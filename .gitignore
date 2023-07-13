@@ -2,3 +2,5 @@
 __pycache__
 buildroadrunner
 *.xplt
+data/simliva
+results
