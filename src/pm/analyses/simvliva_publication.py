@@ -15,12 +15,43 @@ vtk_dirs: Dict[str, Path] = {
     'sim_T310': DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk",
 }
 
-vtks: Dict[str, List[Path]] = {k: sorted(list(p.glob("*.vtk"))) for k, p in vtk_dirs.items()}
-# console.print(vtks)
-for sim_key, vtk_paths in vtks.items():
+# all vtk
+console.rule(title="Number of VTKs", align="left", style="white")
+vtks_all: Dict[str, List[Path]] = {k: sorted(list(p.glob("*.vtk"))) for k, p in vtk_dirs.items()}
+for sim_key, vtk_paths in vtks_all.items():
     console.print(f"{sim_key}: {len(vtk_paths)}")
 
+times_all: Dict[str, List[float]] = {}
+for sim_key, vtk_paths in vtks_all.items():
+    times = []
+    for p in vtk_paths:
+        with open(p, "r") as f_vtk:
+            f_vtk.readline()  # skip first line
+            line = f_vtk.readline()
+            t = line.strip().split(" ")[-1]
+            times.append(t)
+    times_all[sim_key] = times
 
+for sim_key, times in times_all.items():
+    console.print(f"{sim_key}: {times}")
+
+# filter vtk
+console.rule(title="Number of filtered VTKs", align="left", style="white")
+vtks: Dict[str, List[Path]] = {}
+for sim_key, vtk_paths in vtks_all.items():
+    vtk_paths_filtered = []
+    k = 0
+    for p in vtk_paths:
+        if k == 0:
+            vtk_paths_filtered.append(p)
+        k = k+1
+        # filter every 100
+        if k == 100:
+            k = 0
+    vtks[sim_key] = vtk_paths_filtered
+
+for sim_key, vtk_paths in vtks.items():
+    console.print(f"{sim_key}: {len(vtk_paths)}")
 
 scalars_iri = {
     'necrosis': {"title": "Necrosis (0: alive, 1: death)", "cmap": "binary"},
@@ -89,15 +120,11 @@ limits = {
 for scalar, lims in limits.items():
     scalars_iri[scalar]["clim"] = lims
 
+console.rule(title="Scalars", align="left", style="white")
 console.print(scalars_iri)
 
 
-from pm import BASE_DIR
-output_path = BASE_DIR / "results" / "simliva_publication"
-
-
-if __name__ == "__main__":
-
+def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
     # Create figures for all simulation timepoints of relevance (skip some results)
     for sim_key, vtk_paths in vtks.items():
 
@@ -111,12 +138,20 @@ if __name__ == "__main__":
         for vtk_path in vtk_paths:
             visualize_lobulus_vtk(
                 vtk_path=vtk_path,
-                scalars=scalars_iri,
+                scalars=scalars,
                 output_dir=panels_path,
             )
-            k = k + 1
-            if k>5:
-                break
+            # k = k + 1
+            # if k>5:
+            #     break
+
+
+if __name__ == "__main__":
+
+    from pm import BASE_DIR
+    output_path = BASE_DIR / "results" / "simliva_publication"
+    visualize_panels(vtks=vtks, scalars=scalars_iri, output_path=output_path)
+
 
 
     # Create combined figures for variables and timepoints
