@@ -91,7 +91,7 @@ def create_zonated_mesh(mesh: meshio.Mesh, remove_point_data: bool=True, remove_
             if d < dpp:
                 dpp = d
 
-        position[kc] = dpv/(dpv + dpp)
+        position[kc] = dpp/(dpv + dpp)
 
     console.print(f"{position=}")
     m.cell_data["position"] = [position]
@@ -127,9 +127,14 @@ class ZonationPatterns:
     """Definition of standard zonation patterns."""
 
     @staticmethod
+    def position(p: np.ndarray) -> np.ndarray:
+        """Position information."""
+        return p
+
+    @staticmethod
     def constant(p: np.ndarray) -> np.ndarray:
         """Constant zonation."""
-        return np.ones_like(p)
+        return 0.5 * np.ones_like(p)
 
     @staticmethod
     def random(p: np.ndarray) -> np.ndarray:
@@ -160,7 +165,7 @@ class ZonationPatterns:
     def sharp_periportal(p: np.ndarray) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
         data = np.zeros_like(p)
-        data[p<=0.2] = 1.0
+        data[p <= 0.2] = 1.0
         return data
 
     @staticmethod
@@ -188,7 +193,7 @@ def visualize_patterns(mesh: meshio.Mesh):
             dmin = data.min()
             dmax = data.max()
             scalars[key] = {
-                "title": f"Zonation {pattern.upper()} [-]",
+                "title": f"{pattern.upper()} [-]",
                 "cmap": "RdBu",
                 "clim": (dmin, dmax),
             }
@@ -200,13 +205,13 @@ def visualize_patterns(mesh: meshio.Mesh):
         output_dir=output_path
     )
     # combine images
-    row: List[Path] = []
+    images: List[Path] = []
     for scalar in scalars:
         img_path = output_path / scalar / f"{vtk_path.stem}.png"
-        row.append(img_path)
+        images.append(img_path)
 
-    row_image: Path = output_path / f"{vtk_path.stem}_row.png"
-    merge_images(paths=row, direction="horizontal", output_path=row_image)
+    image: Path = output_path / f"{vtk_path.stem}.png"
+    merge_images(paths=images, direction="square", output_path=image)
 
 
 if __name__ == "__main__":
@@ -215,13 +220,14 @@ if __name__ == "__main__":
     m: meshio.Mesh = create_zonated_mesh(mesh)
 
     for f in [
+        ZonationPatterns.position,
         ZonationPatterns.constant,
         ZonationPatterns.random,
         ZonationPatterns.linear_increase,
-        ZonationPatterns.linear_decrease,
         ZonationPatterns.exp_increase,
-        ZonationPatterns.exp_decrease,
         ZonationPatterns.sharp_pericentral,
+        ZonationPatterns.linear_decrease,
+        ZonationPatterns.exp_decrease,
         ZonationPatterns.sharp_periportal,
     ]:
         add_zonated_variable(
