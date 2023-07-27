@@ -1,13 +1,12 @@
 """Create zonated meshes for the analysis.
 """
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Dict
 
 import meshio
 import numpy as np
 
 from pm.console import console
-from pm.mesh.mesh_tools import MeshTimepoint
 from pm.visualization.image_manipulation import merge_images
 from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
 
@@ -42,22 +41,59 @@ def create_zonated_mesh(mesh: meshio.Mesh, remove_point_data: bool=True, remove_
     if remove_point_data:
         m.point_data = {}
 
-    # TODO: calculate the mesh point distance from periportal and perivenous
-    console.print(f"Cells {m.cells}")
-    for (k, cell_block) in enumerate(m.cells):
-        console.print(cell_block)
-        console.print(type(cell_block))
-
-    # periportal cells
-    # perivenous cells
-
-    # distance of cells
-    # 626 points
-
-    # store the position
+    # calculate positions based on cell_type info
     cell_type: np.ndarray = m.cell_data["cell_type"][0]
-    position = np.random.rand(*cell_type.shape)
-    console.print(f"{position}")
+    position = np.NaN * np.ones_like(cell_type)
+
+    pp_cells: Dict[int, np.ndarray] = {}
+    pv_cells: Dict[int, np.ndarray] = {}
+    inner_cells: Dict[int, np.ndarray] = {}
+    cell_block: meshio._mesh.CellBlock
+
+    for (_, cell_block) in enumerate(m.cells):
+        for kc, cell in enumerate(cell_block.data):
+            # console.print(cell)
+
+            # calculate the center of mass of cell
+            count = 0
+            center = np.zeros(shape=3)
+            for kp in cell:
+                center += m.points[kp]
+                count += 1
+            center = center / count
+
+            # periportal cell
+            if np.isclose(cell_type[kc], 1.0):
+                position[kc] = 0
+                pp_cells[kc] = center
+            # pericentral cell
+            elif np.isclose(cell_type[kc], 2.0):
+                position[kc] = 1.0
+                pv_cells[kc] = center
+            # inner cell
+            elif np.isclose(cell_type[kc], 0.0):
+                position[kc] = np.NaN
+                inner_cells[kc] = center
+
+    # calculate pp-pv position for all inner cells
+    for kc, center in inner_cells.items():
+        # shortest distance periportal
+        dpv = 1.0
+        for center_pv in pv_cells.values():
+            d = np.linalg.norm(center-center_pv)
+            if d < dpv:
+                dpv = d
+
+        # shortest distance pericentral
+        dpp = 1.0
+        for center_pp in pp_cells.values():
+            d = np.linalg.norm(center - center_pp)
+            if d < dpp:
+                dpp = d
+
+        position[kc] = dpv/(dpv + dpp)
+
+    console.print(f"{position=}")
     m.cell_data["position"] = [position]
     return m
 
@@ -131,8 +167,9 @@ class ZonationPatterns:
     def sharp_pericentral(p: np.ndarray) -> np.ndarray:
         """Sharp pericentral pattern in [0, 1]."""
         data = np.zeros_like(p)
-        data[p>=0.8] = 1.0
+        data[p >= 0.8] = 1.0
         return data
+
 
 def visualize_patterns(mesh: meshio.Mesh):
     # create vtk
@@ -199,7 +236,6 @@ if __name__ == "__main__":
     m2 = meshio.read(Path(__file__).parent / "mesh_zonation.xdmf")
     console.print(f"{m2=}")
 
-    console.rule(style="white")
     # mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=True)
     # console.rule(style="white")
 
