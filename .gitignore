@@ -3,4 +3,5 @@ __pycache__
 buildroadrunner
 *.xplt
 data/simliva
+data/spt
 results
