@@ -11,10 +11,11 @@ from pm.visualization.image_manipulation import merge_images
 from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
 
 
-def create_zonated_mesh(mesh: meshio.Mesh, remove_point_data: bool=True, remove_cell_data: bool = True, copy_mesh: bool = True) -> meshio.Mesh:
+def create_zonated_mesh(mesh: meshio.Mesh, remove_point_data: bool=True, remove_cell_data: bool = True,
+                        copy_mesh: bool = True) -> meshio.Mesh:
     """Calculates the distance from periportal and perivenous.
 
-    Uses the cell_type variable for determining the distances.
+    Uses the cell_type variable for determining the position in the lobulus (periportal, perivenous).
     'cell_type':
         0: internal node
         1: periportal (inflow)
@@ -66,10 +67,12 @@ def create_zonated_mesh(mesh: meshio.Mesh, remove_point_data: bool=True, remove_
             if np.isclose(cell_type[kc], 1.0):
                 position[kc] = 0
                 pp_cells[kc] = center
+
             # pericentral cell
             elif np.isclose(cell_type[kc], 2.0):
                 position[kc] = 1.0
                 pv_cells[kc] = center
+
             # inner cell
             elif np.isclose(cell_type[kc], 0.0):
                 position[kc] = np.NaN
@@ -110,7 +113,7 @@ def add_zonated_variable(
 
     position:
         0: periportal
-        1: perivenous
+        1: perivenous/pericentral
     """
     # check for variables
     m = mesh
@@ -211,23 +214,25 @@ def visualize_patterns(mesh: meshio.Mesh):
         images.append(img_path)
 
     image: Path = output_path / f"{vtk_path.stem}.png"
-    merge_images(paths=images, direction="square", output_path=image)
+    merge_images(paths=images, direction="horizontal", output_path=image)
+    console.print(f"Image created: {image}")
 
 
 if __name__ == "__main__":
+    # mesh
     vtk_path = Path(__file__).parent / "mesh_zonation.vtk"
     mesh: meshio.Mesh = meshio.read(vtk_path)
     m: meshio.Mesh = create_zonated_mesh(mesh)
 
     for f in [
-        ZonationPatterns.position,
+        # ZonationPatterns.position,
         ZonationPatterns.constant,
-        ZonationPatterns.random,
+        # ZonationPatterns.random,
         ZonationPatterns.linear_increase,
-        ZonationPatterns.exp_increase,
-        ZonationPatterns.sharp_pericentral,
         ZonationPatterns.linear_decrease,
-        ZonationPatterns.exp_decrease,
+        # ZonationPatterns.exp_increase,
+        ZonationPatterns.sharp_pericentral,
+        # ZonationPatterns.exp_decrease,
         ZonationPatterns.sharp_periportal,
     ]:
         add_zonated_variable(
