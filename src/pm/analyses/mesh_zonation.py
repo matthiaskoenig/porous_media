@@ -129,6 +129,8 @@ def add_zonated_variable(
 class ZonationPatterns:
     """Definition of standard zonation patterns."""
 
+    # FIXME: use new patterns with constant amount
+
     @staticmethod
     def position(p: np.ndarray) -> np.ndarray:
         """Position information."""
@@ -189,15 +191,21 @@ def visualize_patterns(mesh: meshio.Mesh):
 
     scalars = {}
     for key in mesh.cell_data:
-        if key.startswith("pattern__"):
+        if key.startswith("pattern__") or key == "cell_type":
             pattern = key.split("__")[-1]
             data = mesh.cell_data[key][0]
             # new min, max
             dmin = data.min()
             dmax = data.max()
+            # hardcoded for zonation patterns (FIXME: do on global data)
+            # dmin = 0.0
+            # dmax = 5.0
+
             scalars[key] = {
                 "title": f"{pattern.upper()} [-]",
+                # FIXME: better colormap
                 "cmap": "RdBu",
+                # "cmap": "Blues",
                 "clim": (dmin, dmax),
             }
 
