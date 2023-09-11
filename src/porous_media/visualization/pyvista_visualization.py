@@ -1,7 +1,7 @@
 """Visualization with pyvista."""
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import meshio
 import pyvista as pv
@@ -94,9 +94,9 @@ def visualize_lobulus_vtk(
     scalars: Dict,
     output_dir: Path,
     image_name: str,
-    window_size=(1000, 1000),
+    window_size: Tuple[float, float] = (1000, 1000),
     scalar_bar: bool = True,
-):
+) -> None:
     """Visualize single lobulus time point with pyvista.
 
     :param image_name: name of the created image, without extension.
@@ -106,7 +106,7 @@ def visualize_lobulus_vtk(
     import tempfile
 
     vtk_tmp = tempfile.NamedTemporaryFile(suffix=".vtk")
-    mesh_to_vtk(mesh, vtk_tmp.name, test_read=False)
+    mesh_to_vtk(mesh, Path(vtk_tmp.name), test_read=False)
 
     # read the data
     grid = pv.read(vtk_tmp.name)
@@ -181,8 +181,7 @@ def visualize_lobulus_vtk(
 if __name__ == "__main__":
     # TODO: get the clims for the scalars from all vtks or global settings
 
-    # TODO: process all files of simulation
-
+    # FIXME: make this in an example and add path to resources
     vtk_path_spt = Path("lobule_BCflux.t006.vtk")
     mesh_spt: meshio.Mesh = meshio.read(vtk_path_spt)
     output_path_spt = Path("./raw_spt/")
@@ -205,31 +204,8 @@ if __name__ == "__main__":
         },
     }
     visualize_lobulus_vtk(
-        mesh=mesh_spt, scalars=scalars_spt, output_dir=output_path_spt
-    )
-
-    console.rule(style="white")
-
-    vtk_path_iri = Path("t2793.vtk")
-    output_path_iri = Path("./raw_iri/")
-    output_path_iri.mkdir(exist_ok=True)
-    scalars_iri = {
-        "ATP": {
-            "title": "ATP [mM]",
-            "cmap": "RdBu",
-            # "clim": (0.529, 0.530),
-        },
-        "ADP": {
-            "title": "ADP [mM]",
-            "cmap": "RdBu",
-            # "clim": (0.00829, 0.00897),
-        },
-        "necrosis": {
-            "title": "Necrosis",
-            "cmap": "binary",
-            # "clim": (0.0, 1.0),
-        },
-    }
-    visualize_lobulus_vtk(
-        vtk_path=vtk_path_iri, scalars=scalars_iri, output_dir=output_path_iri
+        mesh=mesh_spt,
+        scalars=scalars_spt,
+        output_dir=output_path_spt,
+        image_name="example",
     )

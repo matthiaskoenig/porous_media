@@ -79,7 +79,7 @@ class ZonationPatterns:
 class ZonatedMesh:
     """Class for zonated meshes."""
 
-    patterns = [
+    patterns: List[Callable] = [
         # ZonationPatterns.position,
         ZonationPatterns.constant,
         # ZonationPatterns.random,
@@ -95,15 +95,14 @@ class ZonatedMesh:
     def create_zonated_mesh_from_vtk(
         cls,
         vtk_path: Path,
-        patterns: Optional[List[ZonationPatterns]] = None,
+        patterns: Optional[List[Callable]] = None,
         remove_point_data: bool = True,
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
     ) -> meshio.Mesh:
         """Create a zonated mesh from VTK and serialize results to XDMF."""
         # patterns
-        if patterns is None:
-            patterns = cls.patterns
+        f_patterns: List[Callable] = cls.patterns if patterns is None else patterns
 
         # mesh
         mesh: meshio.Mesh = meshio.read(vtk_path)
@@ -114,7 +113,7 @@ class ZonatedMesh:
             copy_mesh=copy_mesh,
         )
 
-        for f_pattern in patterns:
+        for f_pattern in f_patterns:
             cls._add_zonated_variable(
                 mesh=m,
                 variable_id=f"pattern__{f_pattern.__name__}",
@@ -241,7 +240,7 @@ class ZonatedMesh:
         return m
 
 
-def example_mesh_zonation(results_dir) -> None:
+def example_mesh_zonation(results_dir: Path) -> None:
     """Run example for mesh zonation."""
 
     results_path: Path = results_dir / "mesh_zonation"

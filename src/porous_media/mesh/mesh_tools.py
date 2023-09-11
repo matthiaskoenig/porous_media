@@ -12,7 +12,7 @@ import numpy as np
 from porous_media.console import console
 
 
-def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False):
+def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False) -> None:
     """Serialize mesh to XDMF."""
     console.rule(title="Mesh Serialization XDMF", style="white")
     console.print(f"{m=}")
@@ -22,7 +22,7 @@ def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False):
         _ = meshio.read(xdmf_path)
 
 
-def mesh_to_vtk(m: meshio.Mesh, vtk_path: Path, test_read: bool = False):
+def mesh_to_vtk(m: meshio.Mesh, vtk_path: Path, test_read: bool = False) -> None:
     """Serialize mesh to VTK."""
     console.rule(title="Mesh Serialization VTK", style="white")
     console.print(f"{m=}")
@@ -93,54 +93,6 @@ class MeshTimepoint:
         data = mesh.point_data[key]
         data = np.dstack(data)
         return data.squeeze()
-
-
-@dataclass
-class MeshTimecourse(MeshTimepoint):
-    """Class for storing VTK simulation results."""
-
-    time: np.ndarray
-    time_shape: np.ndarray
-
-    @classmethod
-    def from_vtk_directory(cls, vtk_dir: Path, show: bool = False) -> MeshTimecourse:
-        """Read MeshTimecourse from directory of VTKs."""
-        if not vtk_dir.exists():
-            raise IOError(f"VTK directory does not exist '{vtk_dir}'")
-
-        console.print("vtk_paths:")
-        vtk_paths = sorted(vtk_dir.glob("**/*.vtk"))
-
-        console.print(vtk_paths)
-        mesh_tc = cls.from_vtks(vtk_paths=vtk_paths, show=show)
-        return mesh_tc
-
-    @classmethod
-    def from_vtks(cls, vtk_paths: Iterable[Path], show: bool = False) -> MeshTimecourse:
-        """Read mesh timecourse from multiple VTKs.
-
-        :param vtk_paths: Path to VTK file.
-        :param show: boolean flag to show information.
-        """
-        console.print(vtk_paths)
-        # mres_dict: Dict[str, MeshTimepoint] = {}
-
-        # Nt: int = len(vtk_paths)
-        # time = np.zeros(shape=(Nt,))
-
-        for path in vtk_paths:
-            console.print(path)
-            _: MeshTimepoint = cls.from_vtk(vtk_path=path, show=False)
-
-
-def calculate_statistics(mp: MeshTimepoint, key: str):
-    """Calculate statistics for given mesh points."""
-
-    values: np.ndarray = mp.cell_data[key]
-    if len(values.shape) != 1:
-        raise ValueError("statistics can only be calculated on 1D data")
-
-    # mean, sd, min, max (over time)
 
 
 if __name__ == "__main__":

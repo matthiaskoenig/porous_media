@@ -1,6 +1,6 @@
 """Visualization of Simliva results."""
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import meshio
 import numpy as np
@@ -26,17 +26,17 @@ for sim_key, vtk_paths in vtks_all.items():
 
 times_all: Dict[str, List[float]] = {}
 for sim_key, vtk_paths in vtks_all.items():
-    times = []
+    tps = []
     for p in vtk_paths:
         with open(p, "r") as f_vtk:
             f_vtk.readline()  # skip first line
             line = f_vtk.readline()
             t = float(line.strip().split(" ")[-1])
-            times.append(t)
-    times_all[sim_key] = times
+            tps.append(t)
+    times_all[sim_key] = tps
 
-for sim_key, times in times_all.items():
-    console.print(f"{sim_key}: time: [{times[0]}, {times[-1]}]")
+for sim_key, timepoints in times_all.items():
+    console.print(f"{sim_key}: time: [{timepoints[0]}, {timepoints[-1]}]")
 
 # filter vtk by times
 times_wanted = np.linspace(0, 600 * 60, 11)  # [s] (21 points in 600 min) # static image
@@ -67,7 +67,7 @@ console.print(f"{times_wanted=}")
 for sim_key, vtk_paths in vtks.items():
     console.print(f"{sim_key}: {len(vtk_paths)}, times: {times[sim_key]}")
 
-scalars_iri = {
+scalars_iri: Dict[str, Dict[str, Any]] = {
     "necrosis": {"title": "Necrosis (0: alive, 1: death)", "cmap": "binary"},
     "ATP": {"title": "ATP (mM)", "cmap": "RdBu"},
     "GLC": {"title": "Glucose (mM)", "cmap": "RdBu"},
@@ -83,10 +83,10 @@ scalars_iri = {
 }
 
 
-def calculate_limits(vtks: Dict[str, List[Path]]):
+def calculate_limits(vtks: Dict[str, List[Path]]) -> Dict[str, List[float]]:
     """Calculate the limits from given VTKs for scalars."""
     # Get limits of variables
-    limits: Dict[str, List[float]] = {k: None for k in scalars_iri}
+    limits: Dict[str, List[float]] = {k: [] for k in scalars_iri}
 
     for _, vtk_paths in vtks.items():
         for vtk_path in vtk_paths:
@@ -141,7 +141,9 @@ console.rule(title="Scalars", align="left", style="white")
 console.print(scalars_iri)
 
 
-def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
+def visualize_panels(
+    vtks: Dict[str, List[Path]], output_path: Path, scalars: Dict
+) -> None:
     """Visualize the panels."""
 
     # Create figures for all simulation timepoints of relevance (skip some results)
@@ -158,6 +160,7 @@ def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
             visualize_lobulus_vtk(
                 mesh=mesh,
                 scalars=scalars,
+                image_name=vtk_path.stem,
                 output_dir=panels_path,
                 window_size=(600, 600),
                 scalar_bar=show_scalar_bar,

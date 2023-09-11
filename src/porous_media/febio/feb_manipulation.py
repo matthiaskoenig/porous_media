@@ -16,7 +16,9 @@ import numpy as np
 # from porous_media.console import console
 
 
-def create_feb_files(feb_template: Path, feb_data: Dict[str, Dict], output_dir: Path):
+def create_feb_files(
+    feb_template: Path, feb_data: Dict[str, Dict], output_dir: Path
+) -> None:
     """Create feb files from template by rendering the template tags with information.
 
     Tags are of the form: {{ boundary_pressure }}, {{ boundary_flux }}
@@ -92,7 +94,7 @@ if __name__ == "__main__":
             counter += 1
 
     feb_template = DATA_DIR / "febio" / "lobule_BCflux.feb.template"
-    feb_out_dir: Path = DATA_DIR / "febio" / "scanpf"
+    feb_out_dir = DATA_DIR / "febio" / "scanpf"
     create_feb_files(
         feb_template=feb_template,
         feb_data=feb_data,

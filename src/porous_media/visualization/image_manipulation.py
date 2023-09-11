@@ -16,7 +16,9 @@ def annotate_image_text(image_path: Path) -> None:
     console.print(f"Annotate: {image_path}")
 
 
-def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "vertical"):
+def merge_images(
+    paths: Iterable[Path], output_path: Path, direction: str = "vertical"
+) -> None:
     """Merge/combine images either vertical or horizontal or square.
 
     This creates larger images from individual panels.
