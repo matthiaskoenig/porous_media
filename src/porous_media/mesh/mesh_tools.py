@@ -14,22 +14,10 @@ from porous_media.console import console
 
 def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False) -> None:
     """Serialize mesh to XDMF."""
-    console.rule(title="Mesh Serialization XDMF", style="white")
-    console.print(f"{m=}")
     m.write(xdmf_path)
     if test_read:
         # check that the serialzed mesh can be read again
         _ = meshio.read(xdmf_path)
-
-
-def mesh_to_vtk(m: meshio.Mesh, vtk_path: Path, test_read: bool = False) -> None:
-    """Serialize mesh to VTK."""
-    console.rule(title="Mesh Serialization VTK", style="white")
-    console.print(f"{m=}")
-    m.write(vtk_path)
-    if test_read:
-        # check that the serialzed mesh can be read again
-        _ = meshio.read(vtk_path)
 
 
 @dataclass

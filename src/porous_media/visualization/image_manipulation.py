@@ -11,10 +11,6 @@ from PIL import Image
 from porous_media.console import console
 
 
-def annotate_image_text(image_path: Path) -> None:
-    """Annotate images with text."""
-    console.print(f"Annotate: {image_path}")
-
 
 def merge_images(
     paths: Iterable[Path], output_path: Path, direction: str = "vertical"

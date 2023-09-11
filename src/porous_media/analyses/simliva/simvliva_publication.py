@@ -1,4 +1,7 @@
-"""Visualization of Simliva results."""
+"""Visualization of Simliva results.
+
+Reading results and creating visualizations.
+"""
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -7,65 +10,29 @@ import numpy as np
 
 from porous_media import DATA_DIR
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import MeshTimepoint
+from porous_media.mesh.mesh_tools import MeshTimepoint, mesh_to_xdmf
 from porous_media.visualization.pyvista_visualization import visualize_lobulus_vtk
 
+# vtk_dirs: Dict[str, Path] = {
+#     "sim_T277": DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk",
+#     "sim_T310": DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk",
+# }
+# for sim_key, vtk_dir in vtk_dirs.items():
+#     vtks_to_xdmf(vtk_dir, xdmf_path=vtk_dir.parent / "results.xdmf")
 
-vtk_dirs: Dict[str, Path] = {
-    "sim_T277": DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk",
-    "sim_T310": DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk",
+
+xdmfs: Dict[str, Path] = {
+    "sim_T277": DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
+    "sim_T310": DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "results.xdmf",
 }
 
-# all vtk
-console.rule(title="Number of VTKs", align="left", style="white")
-vtks_all: Dict[str, List[Path]] = {
-    k: sorted(list(p.glob("*.vtk"))) for k, p in vtk_dirs.items()
-}
-for sim_key, vtk_paths in vtks_all.items():
-    console.print(f"{sim_key}: {len(vtk_paths)}")
-
-times_all: Dict[str, List[float]] = {}
-for sim_key, vtk_paths in vtks_all.items():
-    tps = []
-    for p in vtk_paths:
-        with open(p, "r") as f_vtk:
-            f_vtk.readline()  # skip first line
-            line = f_vtk.readline()
-            t = float(line.strip().split(" ")[-1])
-            tps.append(t)
-    times_all[sim_key] = tps
-
-for sim_key, timepoints in times_all.items():
-    console.print(f"{sim_key}: time: [{timepoints[0]}, {timepoints[-1]}]")
-
-# filter vtk by times
-times_wanted = np.linspace(0, 600 * 60, 11)  # [s] (21 points in 600 min) # static image
-# times_wanted = np.linspace(0, 600*60, 201)  # [s] (21 points in 600 min) # gifs
-
-
-vtks: Dict[str, List[Path]] = {}
-times: Dict[str, List[float]] = {}
-for sim_key, vtk_paths in vtks_all.items():
-    tps = times_all[sim_key]
-    paths_wanted = []
-    times_actual = []
-
-    for t_wanted in times_wanted:
-        for k, t in enumerate(tps):
-            if t >= t_wanted:
-                paths_wanted.append(vtk_paths[k])
-                times_actual.append(t)
-                break
-
-    vtks[sim_key] = paths_wanted
-    times[sim_key] = times_actual
 
 
 # filter vtk by index
 console.rule(title="Number of filtered VTKs", align="left", style="white")
 console.print(f"{times_wanted=}")
-for sim_key, vtk_paths in vtks.items():
-    console.print(f"{sim_key}: {len(vtk_paths)}, times: {times[sim_key]}")
+for sim_key, paths in vtks.items():
+    console.print(f"{sim_key}: {len(paths)}, times: {times[sim_key]}")
 
 scalars_iri: Dict[str, Dict[str, Any]] = {
     "necrosis": {"title": "Necrosis (0: alive, 1: death)", "cmap": "binary"},
@@ -157,6 +124,7 @@ def visualize_panels(
             # if k == 0 or k == (len(vtk_paths)-1):
             #     show_scalar_bar = True
             mesh: meshio.Mesh = meshio.read(vtk_path)
+            console.print(mesh)
             visualize_lobulus_vtk(
                 mesh=mesh,
                 scalars=scalars,
@@ -201,17 +169,18 @@ if __name__ == "__main__":
     # gifs
     for k in range(len(times_wanted)):
         rows: List[Path] = []
-        for sim_key, vtk_paths in vtks.items():
+        for sim_key, paths in vtks.items():
             row_dir: Path = output_path / sim_key / "rows"
             row_dir.mkdir(parents=True, exist_ok=True)
 
-            vtk_path = vtk_paths[k]
+            vtk_path = paths[k]
             row: List[Path] = []
             for scalar in scalars_plot:
                 img_path = output_path / sim_key / "panels" / scalar / f"{p.stem}.png"
                 row.append(img_path)
 
             row_image: Path = output_path / sim_key / "rows" / f"{p.stem}.png"
+            print(row)
             merge_images(paths=row, direction="horizontal", output_path=row_image)
             rows.append(row_image)
 

@@ -1,4 +1,5 @@
 """Visualization with pyvista."""
+import tempfile
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -7,7 +8,7 @@ import meshio
 import pyvista as pv
 
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import mesh_to_vtk
+from porous_media.mesh.mesh_tools import mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 
 
@@ -103,15 +104,9 @@ def visualize_lobulus_vtk(
     """
 
     # create VTK from mesh to read for pyvista
-    import tempfile
-
-    vtk_tmp = tempfile.NamedTemporaryFile(suffix=".vtk")
-    mesh_to_vtk(mesh, Path(vtk_tmp.name), test_read=False)
-
-    # read the data
-    grid = pv.read(vtk_tmp.name)
-    # console.print(grid)
-    # console.print(grid.cell_data)
+    xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
+    mesh_to_xdmf(m=mesh, xdmf_path=Path(xdmf_tmp.name), test_read=False)
+    grid = pv.read(xdmf_tmp.name)
 
     # deactivate active sets
     # grid.set_active_tensors(None)
