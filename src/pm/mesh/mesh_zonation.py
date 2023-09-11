@@ -1,5 +1,6 @@
 """Create zonated meshes for the analysis.
 """
+from pm import RESOURCES_DIR
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
@@ -7,9 +8,10 @@ import meshio
 import numpy as np
 
 from pm.console import console
-from pm.mesh.mesh_tools import mesh_to_xdmf
-from pm.visualization.image_manipulation import merge_images
-from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
+from pm.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
+from pm.visualization.pyvista_visualization import (
+    visualize_scalars,
+)
 
 
 class ZonationPatterns:
@@ -94,7 +96,7 @@ class ZonatedMesh:
     def create_zonated_mesh_from_vtk(
         cls,
         vtk_path: Path,
-        patterns: Optional[List[ZonationPatterns]],
+        patterns: Optional[List[ZonationPatterns]] = None,
         remove_point_data: bool = True,
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
@@ -239,67 +241,29 @@ class ZonatedMesh:
         m.cell_data[variable_id] = [data]
         return m
 
-    @staticmethod
-    def visualize_patterns(mesh: meshio.Mesh):
 
-        # FIXME: handle paths consistently
+def example_mesh_zonation(results_dir) -> None:
+    """Example with mesh zonation."""
 
-        # create vtk
-        vtk_path = Path("../resources/zonation/mesh_zonation.vtk")
-        mesh.write(vtk_path)
-
-        output_path = Path("../../../results/zonation/raw_patterns/")
-        output_path.mkdir(exist_ok=True)
-
-        scalars = {}
-        for key in mesh.cell_data:
-            if key.startswith("pattern__") or key == "cell_type":
-                pattern = key.split("__")[-1]
-                data = mesh.cell_data[key][0]
-                # new min, max
-                dmin = data.min()
-                dmax = data.max()
-                # hardcoded for zonation patterns (FIXME: do on global data)
-                # dmin = 0.0
-                # dmax = 5.0
-
-                scalars[key] = {
-                    "title": f"{pattern.upper()} [-]",
-                    # FIXME: better colormap
-                    "cmap": "RdBu",
-                    # "cmap": "Blues",
-                    "clim": (dmin, dmax),
-                }
-
-        # create raw images
-        visualize_lobulus_vtk(
-            vtk_path=vtk_path, scalars=scalars, output_dir=output_path
-        )
-        # combine images
-        images: List[Path] = []
-        for scalar in scalars:
-            img_path = output_path / scalar / f"{vtk_path.stem}.png"
-            images.append(img_path)
-
-        image: Path = output_path / f"{vtk_path.stem}.png"
-        merge_images(paths=images, direction="horizontal", output_path=image)
-        console.print(f"Image created: {image}")
-
-
-if __name__ == "__main__":
-    from pm import RESULTS_DIR
-
-    results_path: Path = RESULTS_DIR / "mesh_zonation"
-    vtk_path = Path(__file__).parent / "mesh_zonation.vtk"
+    results_path: Path = results_dir / "mesh_zonation"
+    results_path.mkdir(parents=True, exist_ok=True)
+    vtk_path = RESOURCES_DIR / "zonation" / "mesh_zonation.vtk"
 
     # create zonated mesh
     zm = ZonatedMesh()
     m: meshio.Mesh = zm.create_zonated_mesh_from_vtk(vtk_path=vtk_path)
 
+    # serialize mesh with results
+    xdmf_path = results_path / "mesh_zonation.xdmf"
+    mesh_to_xdmf(m=m, xdmf_path=xdmf_path)
+    vtk_path = results_path / "mesh_zonation.vtk"
+    mesh_to_vtk(m=m, vtk_path=vtk_path)
+
     # visualize mesh
     console.rule(title="Mesh Visualization", style="white")
-    zm.visualize_patterns(m)
+    visualize_scalars(m, results_path=results_path, image_name="mesh_zonation")
 
-    # serialize mesh with results
-    xdmf_path = Path(__file__).parent / "mesh_zonation.xdmf"
-    mesh_to_xdmf(m=m, xdmf_path=xdmf_path)
+
+if __name__ == "__main__":
+    from pm import RESULTS_DIR
+    example_mesh_zonation(results_dir=RESULTS_DIR)

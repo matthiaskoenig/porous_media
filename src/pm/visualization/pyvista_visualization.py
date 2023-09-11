@@ -1,10 +1,14 @@
 """Visualization with pyvista"""
+from enum import Enum
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
+import meshio
 import pyvista as pv
 
 from pm.console import console
+from pm.mesh.mesh_tools import mesh_to_vtk
+from pm.visualization.image_manipulation import merge_images
 
 
 # global configuration
@@ -21,19 +25,91 @@ pv.global_theme.font.label_size = 30
 pv.global_theme.font.color = "black"
 
 
+class DataRangeType(str, Enum):
+    """Enum for handling the data range.
+
+    Local: use the data range of every individual variable
+    GLOBAL: use the global range over multiple variables
+    """
+
+    LOCAL = "LOCAL"
+    GLOBAL = "GLOBAL"
+
+
+def visualize_scalars(
+    mesh: meshio.Mesh,
+    results_path: Path,
+    image_name: str,
+    drange_type: DataRangeType = DataRangeType.LOCAL,
+) -> None:
+    """Visualize zonation patterns.
+
+    :param image_name: Name for the generated image in the output path.
+    """
+
+    # calculate the data ranges
+    dmins: Dict[str, float] = {}
+    dmaxs: Dict[str, float] = {}
+    for key in mesh.cell_data:
+        data = mesh.cell_data[key][0]
+        # min, max
+        dmins[key] = data.min()
+        dmaxs[key] = data.max()
+
+    # handle the case of global data ranges
+    if drange_type == DataRangeType.GLOBAL:
+        dmin_global = min(dmins.values())
+        dmax_global = max(dmaxs.values())
+        for key in mesh.cell_data:
+            dmins[key] = dmin_global
+            dmaxs[key] = dmax_global
+
+    scalars = {}
+    for key in mesh.cell_data:
+        if key.startswith("pattern__") or key == "cell_type":
+            pattern = key.split("__")[-1]
+            scalars[key] = {
+                "title": f"{pattern.upper()} [-]",
+                "cmap": "RdBu",  # "cmap": "Blues", # FIXME: better colormap
+                "clim": (dmins[key], dmaxs[key]),
+            }
+
+    # create raw images
+    visualize_lobulus_vtk(
+        mesh=mesh, scalars=scalars, output_dir=results_path, image_name=image_name
+    )
+    # combine images
+    images: List[Path] = []
+    for scalar in scalars:
+        img_path = results_path / scalar / f"{image_name}.png"
+        images.append(img_path)
+
+    image: Path = results_path / f"{image_name}.png"
+    merge_images(paths=images, direction="horizontal", output_path=image)
+    console.print(f"Image created: file://{image}")
+
+
 def visualize_lobulus_vtk(
-    vtk_path: Path,
+    mesh: meshio.Mesh,
     scalars: Dict,
     output_dir: Path,
+    image_name: str,
     window_size=(1000, 1000),
     scalar_bar: bool = True,
 ):
-    """Visualize single lobulus time point."""
-    console.print(vtk_path)
+    """Visualize single lobulus time point with pyvista.
+
+    :param image_name: name of the created image, without extension.
+    """
+
+    # create VTK from mesh to read for pyvista
+    import tempfile
+
+    vtk_tmp = tempfile.NamedTemporaryFile(suffix=".vtk")
+    mesh_to_vtk(mesh, vtk_tmp.name, test_read=False)
 
     # read the data
-    grid = pv.read(vtk_path)
-
+    grid = pv.read(vtk_tmp.name)
     # console.print(grid)
     # console.print(grid.cell_data)
 
@@ -101,7 +177,7 @@ def visualize_lobulus_vtk(
         output_subdir.mkdir(exist_ok=True)
         p.show(
             # cpos=top_view,
-            screenshot=Path(output_subdir / f"{vtk_path.stem}.png")
+            screenshot=Path(output_subdir / f"{image_name}.png")
         )
 
 
@@ -112,6 +188,7 @@ if __name__ == "__main__":
     # TODO: process all files of simulation
 
     vtk_path_spt = Path("lobule_BCflux.t006.vtk")
+    mesh_spt: meshio.Mesh = meshio.read(vtk_path_spt)
     output_path_spt = Path("./raw_spt/")
     output_path_spt.mkdir(exist_ok=True)
     scalars_spt = {
@@ -132,7 +209,7 @@ if __name__ == "__main__":
         },
     }
     visualize_lobulus_vtk(
-        vtk_path=vtk_path_spt, scalars=scalars_spt, output_dir=output_path_spt
+        mesh=mesh_spt, scalars=scalars_spt, output_dir=output_path_spt
     )
 
     console.rule(style="white")

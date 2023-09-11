@@ -7,6 +7,7 @@ data/spt
 results
 results/zonation/raw_patterns/
 
+src/porous_media.egg-info/
 .tox/
 .cache/
 .coverage
