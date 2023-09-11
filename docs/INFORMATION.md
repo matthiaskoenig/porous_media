@@ -1,12 +1,3 @@
-# porous media
-Helper code in python for working with porous media simulations.
-
-## Installation
-```bash
-mkvirtualenv porous_media --python=python3.9
-pip install -r requirements.txt
-```
-
 
 
 
