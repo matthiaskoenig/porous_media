@@ -240,7 +240,7 @@ class ZonatedMesh:
         return m
 
 
-def example_mesh_zonation(results_dir: Path) -> None:
+def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     """Run example for mesh zonation."""
 
     results_path: Path = results_dir / "mesh_zonation"
@@ -258,8 +258,9 @@ def example_mesh_zonation(results_dir: Path) -> None:
     mesh_to_vtk(m=m, vtk_path=vtk_path)
 
     # visualize mesh
-    console.rule(title="Mesh Visualization", style="white")
-    visualize_scalars(m, results_path=results_path, image_name="mesh_zonation")
+    if visualize:
+        console.rule(title="Mesh Visualization", style="white")
+        visualize_scalars(m, results_path=results_path, image_name="mesh_zonation")
 
 
 if __name__ == "__main__":

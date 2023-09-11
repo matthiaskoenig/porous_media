@@ -1,5 +1,5 @@
 include LICENSE
 include README.rst
-include src/protein_distribution/py.typed
-include src/protein_distribution/resources/*.xlsx
-include src/protein_distribution/resources/*.json
+include src/porous_media/py.typed
+
+recursive-include src/porous_media *.*
