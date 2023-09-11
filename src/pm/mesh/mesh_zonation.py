@@ -1,17 +1,15 @@
 """Create zonated meshes for the analysis.
 """
-from pm import RESOURCES_DIR
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 import meshio
 import numpy as np
 
+from pm import RESOURCES_DIR
 from pm.console import console
 from pm.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
-from pm.visualization.pyvista_visualization import (
-    visualize_scalars,
-)
+from pm.visualization.pyvista_visualization import visualize_scalars
 
 
 class ZonationPatterns:
@@ -79,7 +77,6 @@ class ZonationPatterns:
 
 
 class ZonatedMesh:
-
     patterns = [
         # ZonationPatterns.position,
         ZonationPatterns.constant,
@@ -167,7 +164,7 @@ class ZonatedMesh:
         inner_cells: Dict[int, np.ndarray] = {}
         cell_block: meshio._mesh.CellBlock
 
-        for (_, cell_block) in enumerate(m.cells):
+        for _, cell_block in enumerate(m.cells):
             for kc, cell in enumerate(cell_block.data):
                 # console.print(cell)
 
@@ -266,4 +263,5 @@ def example_mesh_zonation(results_dir) -> None:
 
 if __name__ == "__main__":
     from pm import RESULTS_DIR
+
     example_mesh_zonation(results_dir=RESULTS_DIR)

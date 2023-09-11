@@ -145,7 +145,6 @@ console.print(scalars_iri)
 def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
     # Create figures for all simulation timepoints of relevance (skip some results)
     for sim_key, vtk_paths in vtks.items():
-
         panels_path = output_path / sim_key / "panels"
         panels_path.mkdir(exist_ok=True, parents=True)
 
@@ -164,7 +163,6 @@ def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
 
 
 if __name__ == "__main__":
-
     from pm import BASE_DIR
 
     output_path = BASE_DIR / "results" / "simliva_publication"

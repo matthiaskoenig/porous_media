@@ -182,7 +182,6 @@ def visualize_lobulus_vtk(
 
 
 if __name__ == "__main__":
-
     # TODO: get the clims for the scalars from all vtks or global settings
 
     # TODO: process all files of simulation
