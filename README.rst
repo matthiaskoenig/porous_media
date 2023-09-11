@@ -21,8 +21,8 @@ porous_media: python utilities for porous media analysis and visualization
    :target: http://opensource.org/licenses/LGPL-3.0
    :alt: GNU Lesser General Public License 3
 
-.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.5308801.svg
-   :target: https://doi.org/10.5281/zenodo.5308801
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.8335487.svg
+   :target: https://doi.org/10.5281/zenodo.8335487
    :alt: Zenodo DOI
 
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
@@ -48,8 +48,8 @@ If you have any questions or issues please `open an issue <https://github.com/ma
 How to cite
 ===========
 
-.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.5308801.svg
-   :target: https://doi.org/10.5281/zenodo.5308801
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.8335487.svg
+   :target: https://doi.org/10.5281/zenodo.8335487
    :alt: Zenodo DOI
 
 Contributing
