@@ -13,11 +13,11 @@ import jinja2
 import numpy as np
 
 
-# from pm.console import console
+# from porous_media.console import console
 
 
 def create_feb_files(feb_template: Path, feb_data: Dict[str, Dict], output_dir: Path):
-    """Creates feb files from template by rendering the template tags with information.
+    """Create feb files from template by rendering the template tags with information.
 
     Tags are of the form: {{ boundary_pressure }}, {{ boundary_flux }}
     Uses jinja2 language for context rendering.
@@ -52,7 +52,7 @@ def create_feb_files(feb_template: Path, feb_data: Dict[str, Dict], output_dir: 
 
 
 if __name__ == "__main__":
-    from pm import DATA_DIR
+    from porous_media import DATA_DIR
 
     feb_template = DATA_DIR / "febio" / "lobule_BCflux.feb.template"
 

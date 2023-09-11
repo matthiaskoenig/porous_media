@@ -1,3 +1,5 @@
+"""Tools to manipulate and work with meshes."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,11 +9,11 @@ from typing import Dict, Iterable, Tuple
 import meshio
 import numpy as np
 
-from pm.console import console
+from porous_media.console import console
 
 
 def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False):
-    """Serial"""
+    """Serialize mesh to XDMF."""
     console.rule(title="Mesh Serialization XDMF", style="white")
     console.print(f"{m=}")
     m.write(xdmf_path)
@@ -21,7 +23,7 @@ def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False):
 
 
 def mesh_to_vtk(m: meshio.Mesh, vtk_path: Path, test_read: bool = False):
-    """Serial"""
+    """Serialize mesh to VTK."""
     console.rule(title="Mesh Serialization VTK", style="white")
     console.print(f"{m=}")
     m.write(vtk_path)
@@ -42,7 +44,7 @@ class MeshTimepoint:
 
     @classmethod
     def from_vtk(cls, vtk_path: Path, show: bool = False) -> MeshTimepoint:
-        """Reads mesh information and data from single VTK.
+        """Read mesh information and data from single VTK.
 
         :param vtk_path: Path to VTK file.
         :param show: boolean flag to show information.
@@ -115,31 +117,25 @@ class MeshTimecourse(MeshTimepoint):
 
     @classmethod
     def from_vtks(cls, vtk_paths: Iterable[Path], show: bool = False) -> MeshTimecourse:
-        """Reads mesh timecourse from multiple VTKs.
+        """Read mesh timecourse from multiple VTKs.
 
         :param vtk_paths: Path to VTK file.
         :param show: boolean flag to show information.
         """
         console.print(vtk_paths)
-        mres_dict: Dict[str, MeshTimepoint] = {}
+        # mres_dict: Dict[str, MeshTimepoint] = {}
 
         # Nt: int = len(vtk_paths)
         # time = np.zeros(shape=(Nt,))
 
-        for k, path in enumerate(vtk_paths):
+        for path in vtk_paths:
             console.print(path)
-            # time[k] = int(str(path).split(".")[-1][1:])
-
-            mres: MeshTimepoint = cls.from_vtk(vtk_path=path, show=False)
-            # mres_dict[path.name] = mres
-            #
-            # if k > 5:
-            #     break
-
-        # print(time)
+            _: MeshTimepoint = cls.from_vtk(vtk_path=path, show=False)
 
 
 def calculate_statistics(mp: MeshTimepoint, key: str):
+    """Calculate statistics for given mesh points."""
+
     values: np.ndarray = mp.cell_data[key]
     if len(values.shape) != 1:
         raise ValueError("statistics can only be calculated on 1D data")
@@ -147,12 +143,8 @@ def calculate_statistics(mp: MeshTimepoint, key: str):
     # mean, sd, min, max (over time)
 
 
-def calculate_zonated_statistics(mp: MeshTimepoint, key: str):
-    pass
-
-
 if __name__ == "__main__":
-    from pm import DATA_DIR, EXAMPLE_VTK
+    from porous_media import DATA_DIR, EXAMPLE_VTK
 
     vtk_path = EXAMPLE_VTK
 

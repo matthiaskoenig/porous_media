@@ -8,7 +8,7 @@ from typing import Iterable
 import numpy as np
 from PIL import Image
 
-from pm.console import console
+from porous_media.console import console
 
 
 def annotate_image_text(image_path: Path) -> None:

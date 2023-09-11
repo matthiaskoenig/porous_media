@@ -1,4 +1,4 @@
-"""Visualization with pyvista"""
+"""Visualization with pyvista."""
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List
@@ -6,9 +6,9 @@ from typing import Dict, List
 import meshio
 import pyvista as pv
 
-from pm.console import console
-from pm.mesh.mesh_tools import mesh_to_vtk
-from pm.visualization.image_manipulation import merge_images
+from porous_media.console import console
+from porous_media.mesh.mesh_tools import mesh_to_vtk
+from porous_media.visualization.image_manipulation import merge_images
 
 
 # global configuration
@@ -121,8 +121,7 @@ def visualize_lobulus_vtk(
     # plot the data with an automatically created Plotter
     # grid.plot(show_scalar_bar=False, show_axes=False)
 
-    n_scalars = len(scalars)
-    for k, scalar_id in enumerate(scalars):
+    for scalar_id in scalars:
         p = pv.Plotter(
             window_size=window_size,
             title="TPM lobulus",
@@ -131,8 +130,6 @@ def visualize_lobulus_vtk(
         )
 
         scalar_info = scalars[scalar_id]
-
-        # p.subplot(0, k)
         grid.set_active_scalars(name=scalar_id)
 
         actor = p.add_mesh(

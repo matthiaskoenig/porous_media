@@ -1,15 +1,14 @@
-"""
-Visualization of Simliva results.
-"""
+"""Visualization of Simliva results."""
 from pathlib import Path
 from typing import Dict, List
 
+import meshio
 import numpy as np
 
-from pm import DATA_DIR
-from pm.console import console
-from pm.mesh.mesh_tools import MeshTimepoint
-from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
+from porous_media import DATA_DIR
+from porous_media.console import console
+from porous_media.mesh.mesh_tools import MeshTimepoint
+from porous_media.visualization.pyvista_visualization import visualize_lobulus_vtk
 
 
 vtk_dirs: Dict[str, Path] = {
@@ -89,7 +88,7 @@ def calculate_limits(vtks: Dict[str, List[Path]]):
     # Get limits of variables
     limits: Dict[str, List[float]] = {k: None for k in scalars_iri}
 
-    for sim_key, vtk_paths in vtks.items():
+    for _, vtk_paths in vtks.items():
         for vtk_path in vtk_paths:
             console.print(vtk_path)
             mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(
@@ -143,18 +142,21 @@ console.print(scalars_iri)
 
 
 def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
+    """Visualize the panels."""
+
     # Create figures for all simulation timepoints of relevance (skip some results)
     for sim_key, vtk_paths in vtks.items():
         panels_path = output_path / sim_key / "panels"
         panels_path.mkdir(exist_ok=True, parents=True)
 
         # Create all figures for all variables
-        for k, vtk_path in enumerate(vtk_paths):
+        for vtk_path in vtk_paths:
             show_scalar_bar = True
             # if k == 0 or k == (len(vtk_paths)-1):
             #     show_scalar_bar = True
+            mesh: meshio.Mesh = meshio.read(vtk_path)
             visualize_lobulus_vtk(
-                vtk_path=vtk_path,
+                mesh=mesh,
                 scalars=scalars,
                 output_dir=panels_path,
                 window_size=(600, 600),
@@ -163,13 +165,13 @@ def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
 
 
 if __name__ == "__main__":
-    from pm import BASE_DIR
+    from porous_media import BASE_DIR
 
     output_path = BASE_DIR / "results" / "simliva_publication"
     visualize_panels(vtks=vtks, scalars=scalars_iri, output_path=output_path)
 
     # Create combined figures for variables and timepoints
-    from pm.visualization.image_manipulation import merge_images
+    from porous_media.visualization.image_manipulation import merge_images
 
     scalars_plot = ["GLC", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
 

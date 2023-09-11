@@ -4,10 +4,10 @@ from typing import Dict, List
 
 import numpy as np
 
-from pm import DATA_DIR
-from pm.console import console
-from pm.mesh.mesh_tools import MeshTimepoint
-from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
+from porous_media import DATA_DIR
+from porous_media.console import console
+from porous_media.mesh.mesh_tools import MeshTimepoint
+from porous_media.visualization.pyvista_visualization import visualize_lobulus_vtk
 
 
 # FIXME: range(1, 26),
@@ -193,12 +193,12 @@ Qli_neu = np.linspace(0.2, 1.0, num=5)
 #
 # if __name__ == "__main__":
 #
-#     from pm import BASE_DIR
+#     from porous_media import BASE_DIR
 #     output_path = BASE_DIR / "results" / "simliva_publication"
 #     visualize_panels(vtks=vtks, scalars=scalars_iri, output_path=output_path)
 #
 #     # Create combined figures for variables and timepoints
-#     from pm.visualization.image_manipulation import merge_images
+#     from porous_media.visualization.image_manipulation import merge_images
 #
 #     scalars_plot = ["GLC", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
 #

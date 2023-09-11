@@ -1,15 +1,15 @@
-"""Create zonated meshes for the analysis.
-"""
+"""Helpers for zonated meshes."""
+
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 import meshio
 import numpy as np
 
-from pm import RESOURCES_DIR
-from pm.console import console
-from pm.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
-from pm.visualization.pyvista_visualization import visualize_scalars
+from porous_media import RESOURCES_DIR
+from porous_media.console import console
+from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
+from porous_media.visualization.pyvista_visualization import visualize_scalars
 
 
 class ZonationPatterns:
@@ -77,6 +77,8 @@ class ZonationPatterns:
 
 
 class ZonatedMesh:
+    """Class for zonated meshes."""
+
     patterns = [
         # ZonationPatterns.position,
         ZonationPatterns.constant,
@@ -128,7 +130,7 @@ class ZonatedMesh:
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
     ) -> meshio.Mesh:
-        """Calculates the distance from periportal and perivenous.
+        """Calculate the distance from periportal and perivenous.
 
         Uses the cell_type variable for determining the position in the lobulus (periportal, perivenous).
         'cell_type':
@@ -217,10 +219,10 @@ class ZonatedMesh:
     def _add_zonated_variable(
         mesh: meshio.Mesh, variable_id: str, f_zonation: Callable
     ) -> meshio.Mesh:
-        """Uses the position variable in [0,1] to add a zonation variable to the mesh.
+        """Add zonation variable to the mesh based on the position variable in [0,1].
 
         :param variable_id: identifier in cell_data
-        :param f_zonation: function to calulcate zonation
+        :param f_zonation: function to calculate zonation
 
         position:
             0: periportal
@@ -240,7 +242,7 @@ class ZonatedMesh:
 
 
 def example_mesh_zonation(results_dir) -> None:
-    """Example with mesh zonation."""
+    """Run example for mesh zonation."""
 
     results_path: Path = results_dir / "mesh_zonation"
     results_path.mkdir(parents=True, exist_ok=True)
@@ -262,6 +264,6 @@ def example_mesh_zonation(results_dir) -> None:
 
 
 if __name__ == "__main__":
-    from pm import RESULTS_DIR
+    from porous_media import RESULTS_DIR
 
     example_mesh_zonation(results_dir=RESULTS_DIR)
