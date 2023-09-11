@@ -17,4 +17,5 @@ RESOURCES_DIR = Path(__file__).parent / "resources"
 EXAMPLE_VTK = DATA_DIR / "example.vtk"
 EXAMPLE_SIMULATION_XLSX = DATA_DIR / "simulation.xlsx"
 
-
+# results directory
+RESULTS_DIR = BASE_DIR / "results"

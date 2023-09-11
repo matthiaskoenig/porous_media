@@ -7,9 +7,11 @@ dependencies:
 
 
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
+
 import jinja2
 import numpy as np
+
 
 # from pm.console import console
 
@@ -51,6 +53,7 @@ def create_feb_files(feb_template: Path, feb_data: Dict[str, Dict], output_dir: 
 
 if __name__ == "__main__":
     from pm import DATA_DIR
+
     feb_template = DATA_DIR / "febio" / "lobule_BCflux.feb.template"
 
     # -----------------------------
@@ -61,14 +64,8 @@ if __name__ == "__main__":
     feb_out_dir: Path = DATA_DIR / "febio" / "febs_example1"
 
     feb_data = {
-        "sim1": {
-            "boundary_pressure": 133,
-            "boundary_flux": 1
-        },
-        "sim2": {
-            "boundary_pressure": 266,
-            "boundary_flux": 2
-        }
+        "sim1": {"boundary_pressure": 133, "boundary_flux": 1},
+        "sim2": {"boundary_pressure": 266, "boundary_flux": 2},
     }
     create_feb_files(
         feb_template=feb_template,
@@ -81,7 +78,7 @@ if __name__ == "__main__":
     # --------------------------------
     # console.rule(title="Example2", align="left", style="white")
     print("-" * 80)
-    boundary_pressure = np.linspace(start=1.37*133, stop=5*133, num=10)
+    boundary_pressure = np.linspace(start=1.37 * 133, stop=5 * 133, num=10)
     boundary_flow = np.linspace(start=0.00008441679, stop=0.00000422083951, num=10)
 
     feb_data = {}

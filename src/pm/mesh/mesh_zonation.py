@@ -1,165 +1,60 @@
 """Create zonated meshes for the analysis.
 """
 from pathlib import Path
-from typing import Callable, List, Dict
+from typing import Callable, Dict, List, Optional
 
 import meshio
 import numpy as np
 
 from pm.console import console
+from pm.mesh.mesh_tools import mesh_to_xdmf
 from pm.visualization.image_manipulation import merge_images
 from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
 
 
-def create_zonated_mesh(mesh: meshio.Mesh, remove_point_data: bool=True, remove_cell_data: bool = True,
-                        copy_mesh: bool = True) -> meshio.Mesh:
-    """Calculates the distance from periportal and perivenous.
-
-    Uses the cell_type variable for determining the position in the lobulus (periportal, perivenous).
-    'cell_type':
-        0: internal node
-        1: periportal (inflow)
-        2: perivenous (outflow)
-    """
-
-    # clone mesh
-    if copy_mesh:
-        m: meshio.Mesh = mesh.copy()
-    else:
-        m = mesh
-
-    # check for variables
-    if "cell_type" not in m.cell_data:
-        raise IOError("'cell_type' required in cell_data for zonation patterns")
-
-    # remove cell data
-    if remove_cell_data:
-        m.cell_data = {
-            "cell_type": m.cell_data["cell_type"]
-        }
-
-    # remove point data
-    if remove_point_data:
-        m.point_data = {}
-
-    # calculate positions based on cell_type info
-    cell_type: np.ndarray = m.cell_data["cell_type"][0]
-    position = np.NaN * np.ones_like(cell_type)
-
-    pp_cells: Dict[int, np.ndarray] = {}
-    pv_cells: Dict[int, np.ndarray] = {}
-    inner_cells: Dict[int, np.ndarray] = {}
-    cell_block: meshio._mesh.CellBlock
-
-    for (_, cell_block) in enumerate(m.cells):
-        for kc, cell in enumerate(cell_block.data):
-            # console.print(cell)
-
-            # calculate the center of mass of cell
-            count = 0
-            center = np.zeros(shape=3)
-            for kp in cell:
-                center += m.points[kp]
-                count += 1
-            center = center / count
-
-            # periportal cell
-            if np.isclose(cell_type[kc], 1.0):
-                position[kc] = 0
-                pp_cells[kc] = center
-
-            # pericentral cell
-            elif np.isclose(cell_type[kc], 2.0):
-                position[kc] = 1.0
-                pv_cells[kc] = center
-
-            # inner cell
-            elif np.isclose(cell_type[kc], 0.0):
-                position[kc] = np.NaN
-                inner_cells[kc] = center
-
-    # calculate pp-pv position for all inner cells
-    for kc, center in inner_cells.items():
-        # shortest distance periportal
-        dpv = 1.0
-        for center_pv in pv_cells.values():
-            d = np.linalg.norm(center-center_pv)
-            if d < dpv:
-                dpv = d
-
-        # shortest distance pericentral
-        dpp = 1.0
-        for center_pp in pp_cells.values():
-            d = np.linalg.norm(center - center_pp)
-            if d < dpp:
-                dpp = d
-
-        position[kc] = dpp/(dpv + dpp)
-
-    console.print(f"{position=}")
-    m.cell_data["position"] = [position]
-    return m
-
-
-def add_zonated_variable(
-    mesh: meshio.Mesh,
-    variable_id: str,
-    f_zonation: Callable
-) -> meshio.Mesh:
-    """Uses the position variable in [0,1] to add a zonation variable to the mesh.
-
-    :param variable_id: identifier in cell_data
-    :param f_zonation: function to calulcate zonation
-
-    position:
-        0: periportal
-        1: perivenous/pericentral
-    """
-    # check for variables
-    m = mesh
-    if "position" not in m.cell_data:
-        raise IOError("'position' required in calculate zonation patterns, 'create_zonated_mesh' first.")
-
-    position: np.ndarray = m.cell_data["position"][0]
-    data = f_zonation(position)
-    m.cell_data[variable_id] = [data]
-    return m
-
-
 class ZonationPatterns:
-    """Definition of standard zonation patterns."""
+    """Definition of standard zonation patterns.
 
-    # FIXME: use new patterns with constant amount
+    This calculates zonated variables based on the position of the mesh nodes.
+    """
+
+    # FIXME: allow to set range of patterns
 
     @staticmethod
     def position(p: np.ndarray) -> np.ndarray:
-        """Position information."""
+        """Pattern based on position information."""
         return p
 
     @staticmethod
-    def constant(p: np.ndarray) -> np.ndarray:
-        """Constant zonation."""
-        return 0.5 * np.ones_like(p)
+    def constant(p: np.ndarray, value: float = 0.5) -> np.ndarray:
+        """Constant zonation with value."""
+        return value * np.ones_like(p)
 
     @staticmethod
-    def random(p: np.ndarray) -> np.ndarray:
-        """Random zonation in [0, 1]."""
-        return np.random.rand(*p.shape)
+    def random(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
+        """Random zonation in [min_value, max_value]."""
+        return value_min + (value_max - value_min) * np.random.rand(*p.shape)
 
     @staticmethod
-    def linear_increase(p: np.ndarray) -> np.ndarray:
-        """Linear increasing pattern in [0, 1]."""
-        return p
+    def linear_increase(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
+        """Linear increasing pattern in [min_value, max_value]."""
+        return value_min + (value_max - value_min) * p
 
     @staticmethod
-    def linear_decrease(p: np.ndarray) -> np.ndarray:
-        """Linear decreasing pattern in [0, 1]."""
-        return 1.0 - ZonationPatterns.linear_increase(p)
+    def linear_decrease(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
+        """Linear decreasing pattern in [min_value, max_value]."""
+        return value_min + (value_max - value_min) * (1.0 - p)
 
     @staticmethod
     def exp_increase(p: np.ndarray) -> np.ndarray:
         """Exponential increasing pattern in [0, 1]."""
-        return (np.exp(p) - 1.0)/(np.exp(1.0) - 1.0)
+        return (np.exp(p) - 1.0) / (np.exp(1.0) - 1.0)
 
     @staticmethod
     def exp_decrease(p: np.ndarray) -> np.ndarray:
@@ -181,58 +76,9 @@ class ZonationPatterns:
         return data
 
 
-def visualize_patterns(mesh: meshio.Mesh):
-    # create vtk
-    vtk_path = Path('../resources/zonation/mesh_zonation.vtk')
-    mesh.write(vtk_path)
+class ZonatedMesh:
 
-    output_path = Path("../../../results/zonation/raw_patterns/")
-    output_path.mkdir(exist_ok=True)
-
-    scalars = {}
-    for key in mesh.cell_data:
-        if key.startswith("pattern__") or key == "cell_type":
-            pattern = key.split("__")[-1]
-            data = mesh.cell_data[key][0]
-            # new min, max
-            dmin = data.min()
-            dmax = data.max()
-            # hardcoded for zonation patterns (FIXME: do on global data)
-            # dmin = 0.0
-            # dmax = 5.0
-
-            scalars[key] = {
-                "title": f"{pattern.upper()} [-]",
-                # FIXME: better colormap
-                "cmap": "RdBu",
-                # "cmap": "Blues",
-                "clim": (dmin, dmax),
-            }
-
-    # create raw images
-    visualize_lobulus_vtk(
-        vtk_path=vtk_path,
-        scalars=scalars,
-        output_dir=output_path
-    )
-    # combine images
-    images: List[Path] = []
-    for scalar in scalars:
-        img_path = output_path / scalar / f"{vtk_path.stem}.png"
-        images.append(img_path)
-
-    image: Path = output_path / f"{vtk_path.stem}.png"
-    merge_images(paths=images, direction="horizontal", output_path=image)
-    console.print(f"Image created: {image}")
-
-
-if __name__ == "__main__":
-    # mesh
-    vtk_path = Path(__file__).parent / "mesh_zonation.vtk"
-    mesh: meshio.Mesh = meshio.read(vtk_path)
-    m: meshio.Mesh = create_zonated_mesh(mesh)
-
-    for f in [
+    patterns = [
         # ZonationPatterns.position,
         ZonationPatterns.constant,
         # ZonationPatterns.random,
@@ -242,21 +88,218 @@ if __name__ == "__main__":
         ZonationPatterns.sharp_pericentral,
         # ZonationPatterns.exp_decrease,
         ZonationPatterns.sharp_periportal,
-    ]:
-        add_zonated_variable(
-            mesh=m,
-            variable_id=f"pattern__{f.__name__}",
-            f_zonation=f,
+    ]
+
+    @classmethod
+    def create_zonated_mesh_from_vtk(
+        cls,
+        vtk_path: Path,
+        patterns: Optional[List[ZonationPatterns]],
+        remove_point_data: bool = True,
+        remove_cell_data: bool = True,
+        copy_mesh: bool = True,
+    ) -> meshio.Mesh:
+        """Create a zonated mesh from VTK and serialize results to XDMF."""
+        # patterns
+        if patterns is None:
+            patterns = cls.patterns
+
+        # mesh
+        mesh: meshio.Mesh = meshio.read(vtk_path)
+        m: meshio.Mesh = cls.create_zonated_mesh(
+            mesh,
+            remove_point_data=remove_point_data,
+            remove_cell_data=remove_cell_data,
+            copy_mesh=copy_mesh,
         )
 
-    console.rule(title="Mesh Serialization", style="white")
-    console.print(f"{m=}")
-    m.write(Path(__file__).parent / "mesh_zonation.xdmf")
-    m2 = meshio.read(Path(__file__).parent / "mesh_zonation.xdmf")
-    console.print(f"{m2=}")
+        for f_pattern in patterns:
+            cls._add_zonated_variable(
+                mesh=m,
+                variable_id=f"pattern__{f_pattern.__name__}",
+                f_zonation=f_pattern,
+            )
 
-    # mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=True)
-    # console.rule(style="white")
+        return m
 
+    @staticmethod
+    def create_zonated_mesh(
+        mesh: meshio.Mesh,
+        remove_point_data: bool = True,
+        remove_cell_data: bool = True,
+        copy_mesh: bool = True,
+    ) -> meshio.Mesh:
+        """Calculates the distance from periportal and perivenous.
+
+        Uses the cell_type variable for determining the position in the lobulus (periportal, perivenous).
+        'cell_type':
+            0: internal node
+            1: periportal (inflow)
+            2: perivenous (outflow)
+        """
+
+        # clone mesh
+        if copy_mesh:
+            m: meshio.Mesh = mesh.copy()
+        else:
+            m = mesh
+
+        # check for variables
+        if "cell_type" not in m.cell_data:
+            raise IOError("'cell_type' required in cell_data for zonation patterns")
+
+        # remove cell data
+        if remove_cell_data:
+            m.cell_data = {"cell_type": m.cell_data["cell_type"]}
+
+        # remove point data
+        if remove_point_data:
+            m.point_data = {}
+
+        # calculate positions based on cell_type info
+        cell_type: np.ndarray = m.cell_data["cell_type"][0]
+        position = np.NaN * np.ones_like(cell_type)
+
+        pp_cells: Dict[int, np.ndarray] = {}
+        pv_cells: Dict[int, np.ndarray] = {}
+        inner_cells: Dict[int, np.ndarray] = {}
+        cell_block: meshio._mesh.CellBlock
+
+        for (_, cell_block) in enumerate(m.cells):
+            for kc, cell in enumerate(cell_block.data):
+                # console.print(cell)
+
+                # calculate the center of mass of cell
+                count = 0
+                center = np.zeros(shape=3)
+                for kp in cell:
+                    center += m.points[kp]
+                    count += 1
+                center = center / count
+
+                # periportal cell
+                if np.isclose(cell_type[kc], 1.0):
+                    position[kc] = 0
+                    pp_cells[kc] = center
+
+                # pericentral cell
+                elif np.isclose(cell_type[kc], 2.0):
+                    position[kc] = 1.0
+                    pv_cells[kc] = center
+
+                # inner cell
+                elif np.isclose(cell_type[kc], 0.0):
+                    position[kc] = np.NaN
+                    inner_cells[kc] = center
+
+        # calculate pp-pv position for all inner cells
+        for kc, center in inner_cells.items():
+            # shortest distance periportal
+            dpv = 1.0
+            for center_pv in pv_cells.values():
+                d = np.linalg.norm(center - center_pv)
+                if d < dpv:
+                    dpv = d
+
+            # shortest distance pericentral
+            dpp = 1.0
+            for center_pp in pp_cells.values():
+                d = np.linalg.norm(center - center_pp)
+                if d < dpp:
+                    dpp = d
+
+            position[kc] = dpp / (dpv + dpp)
+
+        console.print(f"{position=}")
+        m.cell_data["position"] = [position]
+        return m
+
+    @staticmethod
+    def _add_zonated_variable(
+        mesh: meshio.Mesh, variable_id: str, f_zonation: Callable
+    ) -> meshio.Mesh:
+        """Uses the position variable in [0,1] to add a zonation variable to the mesh.
+
+        :param variable_id: identifier in cell_data
+        :param f_zonation: function to calulcate zonation
+
+        position:
+            0: periportal
+            1: perivenous/pericentral
+        """
+        # check for variables
+        m = mesh
+        if "position" not in m.cell_data:
+            raise IOError(
+                "'position' required in calculate zonation patterns, 'create_zonated_mesh' first."
+            )
+
+        position: np.ndarray = m.cell_data["position"][0]
+        data = f_zonation(position)
+        m.cell_data[variable_id] = [data]
+        return m
+
+    @staticmethod
+    def visualize_patterns(mesh: meshio.Mesh):
+
+        # FIXME: handle paths consistently
+
+        # create vtk
+        vtk_path = Path("../resources/zonation/mesh_zonation.vtk")
+        mesh.write(vtk_path)
+
+        output_path = Path("../../../results/zonation/raw_patterns/")
+        output_path.mkdir(exist_ok=True)
+
+        scalars = {}
+        for key in mesh.cell_data:
+            if key.startswith("pattern__") or key == "cell_type":
+                pattern = key.split("__")[-1]
+                data = mesh.cell_data[key][0]
+                # new min, max
+                dmin = data.min()
+                dmax = data.max()
+                # hardcoded for zonation patterns (FIXME: do on global data)
+                # dmin = 0.0
+                # dmax = 5.0
+
+                scalars[key] = {
+                    "title": f"{pattern.upper()} [-]",
+                    # FIXME: better colormap
+                    "cmap": "RdBu",
+                    # "cmap": "Blues",
+                    "clim": (dmin, dmax),
+                }
+
+        # create raw images
+        visualize_lobulus_vtk(
+            vtk_path=vtk_path, scalars=scalars, output_dir=output_path
+        )
+        # combine images
+        images: List[Path] = []
+        for scalar in scalars:
+            img_path = output_path / scalar / f"{vtk_path.stem}.png"
+            images.append(img_path)
+
+        image: Path = output_path / f"{vtk_path.stem}.png"
+        merge_images(paths=images, direction="horizontal", output_path=image)
+        console.print(f"Image created: {image}")
+
+
+if __name__ == "__main__":
+    from pm import RESULTS_DIR
+
+    results_path: Path = RESULTS_DIR / "mesh_zonation"
+    vtk_path = Path(__file__).parent / "mesh_zonation.vtk"
+
+    # create zonated mesh
+    zm = ZonatedMesh()
+    m: meshio.Mesh = zm.create_zonated_mesh_from_vtk(vtk_path=vtk_path)
+
+    # visualize mesh
     console.rule(title="Mesh Visualization", style="white")
-    visualize_patterns(m2)
+    zm.visualize_patterns(m)
+
+    # serialize mesh with results
+    xdmf_path = Path(__file__).parent / "mesh_zonation.xdmf"
+    mesh_to_xdmf(m=m, xdmf_path=xdmf_path)

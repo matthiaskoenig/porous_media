@@ -1,12 +1,23 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, Tuple, Iterable
-
-import numpy as np
-from pm.console import console
-import meshio
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, Iterable, Tuple
+
+import meshio
+import numpy as np
+
+from pm.console import console
+
+
+def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False):
+    """Serial"""
+    console.rule(title="Mesh Serialization", style="white")
+    console.print(f"{m=}")
+    m.write(xdmf_path)
+    if test_read:
+        # check that the serialzed mesh can be read again
+        _ = meshio.read(xdmf_path)
 
 
 @dataclass
@@ -131,7 +142,8 @@ def calculate_zonated_statistics(mp: MeshTimepoint, key: str):
 
 
 if __name__ == "__main__":
-    from pm import EXAMPLE_VTK, DATA_DIR
+    from pm import DATA_DIR, EXAMPLE_VTK
+
     vtk_path = EXAMPLE_VTK
 
     mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=True)
@@ -145,9 +157,7 @@ if __name__ == "__main__":
     # glc, oxygen, lactate, atp, ros, cell death, alt, ast
     # t = 0, 30, 60, 90, 120, 150, 180
 
-
     # 'cell_type':
     #   0: internal node
     #   1: periportal (outside)
     #   2: perivenous (inside)
-

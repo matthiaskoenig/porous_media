@@ -1,10 +1,12 @@
 """Scripts for processing simulation results."""
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pandas as pd
+
 from pm.console import console
 from pm.log import get_logger
+
 
 # FIXME: minor changes simulation file
 # -> Simulation_id -> simulation_id
@@ -53,9 +55,7 @@ def validate_simulation_df(df):
     suffixes = ["_unit"]
     for suffix in suffixes:
         required_column_names = [
-            col[: -len(suffix)]
-            for col in columns
-            if col.endswith(suffix)
+            col[: -len(suffix)] for col in columns if col.endswith(suffix)
         ]
         for rcol in required_column_names:
             if rcol not in columns:

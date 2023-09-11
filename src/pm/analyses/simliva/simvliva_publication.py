@@ -11,14 +11,17 @@ from pm.console import console
 from pm.mesh.mesh_tools import MeshTimepoint
 from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
 
+
 vtk_dirs: Dict[str, Path] = {
-    'sim_T277': DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk",
-    'sim_T310': DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk",
+    "sim_T277": DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk",
+    "sim_T310": DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk",
 }
 
 # all vtk
 console.rule(title="Number of VTKs", align="left", style="white")
-vtks_all: Dict[str, List[Path]] = {k: sorted(list(p.glob("*.vtk"))) for k, p in vtk_dirs.items()}
+vtks_all: Dict[str, List[Path]] = {
+    k: sorted(list(p.glob("*.vtk"))) for k, p in vtk_dirs.items()
+}
 for sim_key, vtk_paths in vtks_all.items():
     console.print(f"{sim_key}: {len(vtk_paths)}")
 
@@ -37,7 +40,7 @@ for sim_key, times in times_all.items():
     console.print(f"{sim_key}: time: [{times[0]}, {times[-1]}]")
 
 # filter vtk by times
-times_wanted = np.linspace(0, 600*60, 11)  # [s] (21 points in 600 min) # static image
+times_wanted = np.linspace(0, 600 * 60, 11)  # [s] (21 points in 600 min) # static image
 # times_wanted = np.linspace(0, 600*60, 201)  # [s] (21 points in 600 min) # gifs
 
 
@@ -66,19 +69,20 @@ for sim_key, vtk_paths in vtks.items():
     console.print(f"{sim_key}: {len(vtk_paths)}, times: {times[sim_key]}")
 
 scalars_iri = {
-    'necrosis': {"title": "Necrosis (0: alive, 1: death)", "cmap": "binary"},
-    'ATP': {"title": "ATP (mM)", "cmap": "RdBu"},
-    'GLC': {"title": "Glucose (mM)", "cmap": "RdBu"},
-    'LAC': {"title": "Lactate (mM)", "cmap": "RdBu"},
-    'O2': {"title": "Oxygen (mM)", "cmap": "RdBu"},
-    'PYR': {"title": "Pyruvate (mM)", "cmap": "RdBu"},
-    'ADP': {"title": "ADP (mM)", "cmap": "RdBu"},
-    'NADH': {"title": "NADH (mM)", "cmap": "RdBu"},
-    'NAD': {"title": "NAD (mM)", "cmap": "RdBu"},
-    'ROS': {"title": "ROS (mM)", "cmap": "RdBu"},
-    'ALT': {"title": "ALT (mM)", "cmap": "RdBu"},
-    'AST': {"title": "AST (mM)", "cmap": "RdBu"},
+    "necrosis": {"title": "Necrosis (0: alive, 1: death)", "cmap": "binary"},
+    "ATP": {"title": "ATP (mM)", "cmap": "RdBu"},
+    "GLC": {"title": "Glucose (mM)", "cmap": "RdBu"},
+    "LAC": {"title": "Lactate (mM)", "cmap": "RdBu"},
+    "O2": {"title": "Oxygen (mM)", "cmap": "RdBu"},
+    "PYR": {"title": "Pyruvate (mM)", "cmap": "RdBu"},
+    "ADP": {"title": "ADP (mM)", "cmap": "RdBu"},
+    "NADH": {"title": "NADH (mM)", "cmap": "RdBu"},
+    "NAD": {"title": "NAD (mM)", "cmap": "RdBu"},
+    "ROS": {"title": "ROS (mM)", "cmap": "RdBu"},
+    "ALT": {"title": "ALT (mM)", "cmap": "RdBu"},
+    "AST": {"title": "AST (mM)", "cmap": "RdBu"},
 }
+
 
 def calculate_limits(vtks: Dict[str, List[Path]]):
     """Calculate the limits from given VTKs for scalars."""
@@ -88,7 +92,9 @@ def calculate_limits(vtks: Dict[str, List[Path]]):
     for sim_key, vtk_paths in vtks.items():
         for vtk_path in vtk_paths:
             console.print(vtk_path)
-            mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(vtk_path=vtk_path, show=False)
+            mesh_tp: MeshTimepoint = MeshTimepoint.from_vtk(
+                vtk_path=vtk_path, show=False
+            )
             for scalar in scalars_iri:
                 data = mesh_tp.cell_data[scalar]
 
@@ -111,19 +117,20 @@ def calculate_limits(vtks: Dict[str, List[Path]]):
     console.print(limits)
     return limits
 
+
 limits = {
-    'necrosis': [0.0, 1.0],
-    'ATP': [0.1, 3.35109],
-    'GLC': [0.0, 5.0],
-    'LAC': [1.0, 4.164],
-    'O2': [0.0, 1.2],
-    'PYR': [0.680262, 2.77601],
-    'ADP': [0.648908, 3.9],
-    'NADH': [3.9, 4.0],
-    'NAD': [0.0, 0.1],
-    'ROS': [0.0, 0.826532],
-    'ALT': [0.0, 1.0],
-    'AST': [0.0, 0.7]
+    "necrosis": [0.0, 1.0],
+    "ATP": [0.1, 3.35109],
+    "GLC": [0.0, 5.0],
+    "LAC": [1.0, 4.164],
+    "O2": [0.0, 1.2],
+    "PYR": [0.680262, 2.77601],
+    "ADP": [0.648908, 3.9],
+    "NADH": [3.9, 4.0],
+    "NAD": [0.0, 0.1],
+    "ROS": [0.0, 0.826532],
+    "ALT": [0.0, 1.0],
+    "AST": [0.0, 0.7],
 }
 # limits = calculate_limits(vtks)
 
@@ -133,7 +140,6 @@ for scalar, lims in limits.items():
 
 console.rule(title="Scalars", align="left", style="white")
 console.print(scalars_iri)
-
 
 
 def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
@@ -160,6 +166,7 @@ def visualize_panels(vtks: Dict[str, List[Path]], output_path: Path, scalars):
 if __name__ == "__main__":
 
     from pm import BASE_DIR
+
     output_path = BASE_DIR / "results" / "simliva_publication"
     visualize_panels(vtks=vtks, scalars=scalars_iri, output_path=output_path)
 

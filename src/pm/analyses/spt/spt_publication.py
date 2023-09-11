@@ -9,6 +9,7 @@ from pm.console import console
 from pm.mesh.mesh_tools import MeshTimepoint
 from pm.visualization.pyvista_visualization import visualize_lobulus_vtk
 
+
 vtk_dirs: Dict[str, Path] = {
     f'sim__{k:03d}': DATA_DIR / "spt" / f"sim__{:k}" for k in range(1, 2),  # FIXME: range(1, 26),
 }
