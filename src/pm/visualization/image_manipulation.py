@@ -8,9 +8,20 @@ from typing import Iterable
 import numpy as np
 from PIL import Image
 
+from pm.console import console
+
+
+def annotate_image_text(image_path: Path) -> None:
+    """Annotate images with text."""
+    console.print(f"Annotate: {image_path}")
+
+
 
 def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "vertical"):
-    """Merge images either vertical or horizontal or square."""
+    """Merge/combine images either vertical or horizontal or square.
+
+    This creates larger images from individual panels.
+    """
     images = [Image.open(x) for x in paths]
     widths, heights = zip(*(i.size for i in images))
 
@@ -54,6 +65,11 @@ def merge_images(paths: Iterable[Path], output_path: Path, direction: str = "ver
 
 
 if __name__ == "__main__":
-    paths = ["test_pyvista_rr_(S).png", "test_pyvista_rr_(P).png", "test_pyvista_rr_necrosis.png"]
-    merge_images(paths=paths, output_path="test_vertical.png", direction="vertical")
-    merge_images(paths=paths, output_path="test_horizontal.png", direction="horizontal")
+    # annotate image
+    
+
+
+    # merge images
+    paths = [Path(p) for p in ["test_pyvista_rr_(S).png", "test_pyvista_rr_(P).png", "test_pyvista_rr_necrosis.png"]]
+    merge_images(paths=paths, output_path=Path("test_vertical.png"), direction="vertical")
+    merge_images(paths=paths, output_path=Path("test_horizontal.png"), direction="horizontal")

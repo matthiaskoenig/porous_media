@@ -183,10 +183,10 @@ class ZonationPatterns:
 
 def visualize_patterns(mesh: meshio.Mesh):
     # create vtk
-    vtk_path = Path('mesh_zonation.vtk')
+    vtk_path = Path('../resources/zonation/mesh_zonation.vtk')
     mesh.write(vtk_path)
 
-    output_path = Path("./raw_patterns/")
+    output_path = Path("../../../results/zonation/raw_patterns/")
     output_path.mkdir(exist_ok=True)
 
     scalars = {}

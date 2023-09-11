@@ -5,4 +5,9 @@ buildroadrunner
 data/simliva
 data/spt
 results
-src/pm/analyses/raw_patterns/
+results/zonation/raw_patterns/
+
+.tox/
+.cache/
+.coverage
+coverage.xml
