@@ -1,4 +1,4 @@
-.. image:: https://github.com/matthiaskoenig/porous_media/raw/develop/docs/images/favicon/porous_media-100x100-300dpi.png
+.. image:: https://github.com/matthiaskoenig/porous_media/raw/main/docs/images/favicon/porous_media-100x100-300dpi.png
    :align: left
    :alt: porous_media logo
 
