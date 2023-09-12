@@ -92,9 +92,10 @@ def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarra
 
                 # interpolate cell data
                 cell_data = {}
-                # FIXME: interpolate cell_data
-                # for key in cell_data_up:
-                #     cell_data[key] = 0.5 * (cell_data_low[key] + cell_data_up[key])
+                for key in cell_data_low:
+                    # console.print(f"{cell_data_low[key]}")
+                    # process the list
+                    cell_data[key] = [(f_low * cell_data_low[key][k]) + (f_up * cell_data_low[key][k]) for k in range(len(cell_data_low[key]))]
 
                 # write interpolation point
                 writer.write_data(t_interpolate, point_data=point_data, cell_data=cell_data)
