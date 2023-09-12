@@ -17,3 +17,31 @@ https://precice.org/
 - mapping? RBF; radial basis function mapping
 
 - MPI controller; 
+
+# stent
+- drug rapamycin (https://en.wikipedia.org/wiki/Sirolimus); release from stent
+
+
+# Interaction potential;
+Pharmacological effects on cardiac disease!
+- treatment with antihypertensive drugs; beta-blocker; 
+
+- Effect of Ca2+ ion channel blockers; 
+- Felodipine, verapamil, amlodipine
+
+# cerebral aneuyrism
+- walberla; Lattice-Boltzmann method
+https://www.walberla.net/
+- windkessel models; 
+
+# 
+Multimodel registration; Circle of Willis registration; 
+
+- questions: on model calibration on the hyper/hypo conditions? How does it look like if only use subset of data for validation of model; trainingsdata in agreement with model
+????
+
+- mechanosensitive effect of ultrasound; => effect of ultrasound? mechanoproperties?
+- Any data on effect? on whole-brain and in cell lines?
+- TRPC1
+- strain induction in the system; 
+- mecahno

@@ -3,9 +3,14 @@ __pycache__
 buildroadrunner
 *.xplt
 data/simliva
+data/iri_flux_study_0/
 data/spt
 results
 results/zonation/raw_patterns/
+data/2023_09_SPP2311_SimLivA.pptx
+
+
+
 
 src/porous_media.egg-info/
 .tox/
