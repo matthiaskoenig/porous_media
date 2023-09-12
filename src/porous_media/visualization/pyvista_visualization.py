@@ -1,14 +1,16 @@
 """Visualization with pyvista."""
 import tempfile
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import meshio
+import numpy as np
 import pyvista as pv
 
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import mesh_to_xdmf
+from porous_media.mesh.mesh_tools import mesh_to_xdmf, MeshTimepoint
 from porous_media.visualization.image_manipulation import merge_images
 
 
@@ -36,6 +38,54 @@ class DataRangeType(str, Enum):
     LOCAL = "LOCAL"
     GLOBAL = "GLOBAL"
 
+
+@dataclass
+class Scalar:
+    """Scalar information for plotting."""
+    sid: str
+    title: str
+    cmap: str
+    color_limits: Optional[Tuple[float, float]] = None
+
+
+def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, List[float]]:
+    """Calculate the limits/ranges for given scalars and adds to the scalars."""
+
+    limits = {}
+    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+        points, cells = reader.read_points_cells()
+
+        # iterate over time points
+        for k in range(reader.num_steps):
+            t, point_data, cell_data = reader.read_data(k)
+
+            for scalar in scalars:
+                scalar_limits = None
+
+                # process cell data
+                sid = scalar.sid
+                data = cell_data[scalar.sid]
+                data = np.dstack(data)
+                data = data.squeeze()
+                # console.print(f"{data=}")
+                # console.print(f"{type(data)}")
+
+                # new min, max
+                dmin = data.min()
+                dmax = data.max()
+                if not scalar_limits:
+                    scalar_limits = [dmin, dmax]
+                else:
+                    if scalar_limits[0] > dmin:
+                        scalar_limits[0] = dmin
+                    if scalar_limits[1] < dmax:
+                        scalar_limits[1] = dmax
+
+                scalar.color_limits=scalar_limits
+                limits[sid] = scalar_limits
+
+    console.print(limits)
+    return limits
 
 def visualize_scalars(
     mesh: meshio.Mesh,
@@ -172,6 +222,34 @@ def visualize_lobulus_vtk(
             screenshot=Path(output_subdir / f"{image_name}.png")
         )
 
+
+def visualize_panels(
+    xdmf_path: Path, output_path: Path, scalars: List[Scalar]
+) -> None:
+    """Visualize the panels."""
+
+
+    # FIXME: update using the xdmf
+    # Create figures for all simulation timepoints of relevance (skip some results)
+    for sim_key, vtk_paths in vtks.items():
+        panels_path = output_path / sim_key / "panels"
+        panels_path.mkdir(exist_ok=True, parents=True)
+
+        # Create all figures for all variables
+        for vtk_path in vtk_paths:
+            show_scalar_bar = True
+            # if k == 0 or k == (len(vtk_paths)-1):
+            #     show_scalar_bar = True
+            mesh: meshio.Mesh = meshio.read(vtk_path)
+            console.print(mesh)
+            visualize_lobulus_vtk(
+                mesh=mesh,
+                scalars=scalars,
+                image_name=vtk_path.stem,
+                output_dir=panels_path,
+                window_size=(600, 600),
+                scalar_bar=show_scalar_bar,
+            )
 
 if __name__ == "__main__":
     # TODO: get the clims for the scalars from all vtks or global settings

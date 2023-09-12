@@ -1,6 +1,8 @@
 """Process timeseries data in XDMF."""
+import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
+from rich.progress import track
 import numpy as np
 import meshio
 import shutil
@@ -19,8 +21,9 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path) -> None:
     with meshio.xdmf.TimeSeriesWriter(xdmf_path, data_format="HDF") as writer:
         writer.write_points_cells(mesh.points, mesh.cells)
 
-        for vtk_path in vtk_paths[:10]:  # FIXME
-            console.print(f"\t{vtk_path}")
+        for k in track(range(len(vtk_paths)), description="Processing VTKs ..."):
+            vtk_path = vtk_paths[k]
+            # console.print(f"\t{vtk_path}")
             # read timepoint
             with open(vtk_path, "r") as f_vtk:
                 f_vtk.readline()  # skip first line
@@ -33,64 +36,105 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path) -> None:
 
     # Fix incorrect *.h5 path
     # https://github.com/nschloe/meshio/pull/1358
+    h5_path = xdmf_path.parent / f"{xdmf_path.stem}.h5"
+    if h5_path.exists():
+        os.remove(h5_path)
     shutil.move(f"{xdmf_path.stem}.h5", str(xdmf_path.parent))
 
 
 def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarray):
     """Interpolate XDMF."""
+    console.rule(title=f"Interpolate {xdmf_in}", style="white")
     with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
         points, cells = reader.read_points_cells()
 
         with meshio.xdmf.TimeSeriesWriter(xdmf_out) as writer:
             writer.write_points_cells(points, cells)
 
-            times_data = np.zeros((reader.num_steps,))
-            for k in range(reader.num_steps):
+            tnum = reader.num_steps
+            times_data = np.zeros((tnum,))
+            for k in track(range(tnum), description="Calculate timepoints ..."):
                 t, _, _ = reader.read_data(k)
                 times_data[k] = t
 
-            lower_indices = np.zeros_like(times_interpolate)
-            upper_indices = np.zeros_like(times_interpolate)
+            if times_interpolate[0] < times_data[0]:
+                raise ValueError(f"Lower interpolation range outside of data: {times_interpolate[0]} < {times_data[0]}")
+            if times_interpolate[-1] > times_data[-1]:
+                raise ValueError(f"Upper interpolation range outside of data: {times_interpolate[-1]} > {times_data[-1]}")
+
+            lower_indices = np.zeros_like(times_interpolate, dtype=int)
+            upper_indices = np.zeros_like(times_interpolate, dtype=int)
             for ki, ti in enumerate(times_interpolate):
                 lower_indices[ki] = np.argwhere(times_data <= ti)[-1]
                 upper_indices[ki] = np.argwhere(times_data >= ti)[0]
 
-            times_lower = [times_data[k] for k in lower_indices]
-            times_upper = [times_data[k] for k in upper_indices]
-            console.print(f"{times_interpolate}")
-            console.print(f"{times_lower}")
-            console.print(f"{times_upper}")
+            # interpolate data for all data points
+            for k in track(range(len(times_interpolate)), description="Interpolate data ..."):
 
-            for k, _ in enumerate(times_interpolate):
+                t_interpolate = times_interpolate[k]
+                idx_low = lower_indices[k]
+                idx_up = upper_indices[k]
 
-                _, point_data_lower, cell_data_lower = reader.read_data(lower_indices[k])
-                _, point_data_upper, cell_data_upper = reader.read_data(upper_indices[k])
+                # interpolate all numpy matrices
+                t_low, point_data_low, cell_data_low = reader.read_data(idx_low)
+                t_up, point_data_up, cell_data_up = reader.read_data(idx_up)
+                if np.isclose(t_up, t_low):
+                    f_low = 0.0
+                    f_up = 1.0
+                else:
+                    f_low: float = (t_interpolate - t_low) / (t_up - t_low)
+                    f_up: float = (t_up - t_interpolate) / (t_up - t_low)
 
+                # interpolate point data
                 point_data = {}
-                # for key in point_data_lower:
-                #     point_data = # FIXME interpolate
+                for key in point_data_low:
+                    point_data[key] = (f_low * point_data_low[key]) + (f_up * point_data_up[key])
 
+                # interpolate cell data
+                cell_data = {}
+                # FIXME: interpolate cell_data
+                # for key in cell_data_up:
+                #     cell_data[key] = 0.5 * (cell_data_low[key] + cell_data_up[key])
 
+                # write interpolation point
+                writer.write_data(t_interpolate, point_data=point_data, cell_data=cell_data)
 
+        # Fix incorrect *.h5 path
+        # https://github.com/nschloe/meshio/pull/1358
+        h5_path = xdmf_out.parent / f"{xdmf_out.stem}.h5"
+        if h5_path.exists():
+            os.remove(h5_path)
+        shutil.move(f"{xdmf_out.stem}.h5", str(xdmf_out.parent))
+
+        console.print(f"Interpolated data: {xdmf_out}")
 
 
 if __name__ == "__main__":
+    sim_flux_path: Path = DATA_DIR / "simliva" / "iri_flux_study_0" / "vtk"
+    sim_277k_path: Path = DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk"
+    sim_310k_path: Path = DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk"
 
-    vtk_dirs: Dict[str, Path] = {
-        "sim_T277": DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk",
-        "sim_T310": DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk",
-    }
-    for sim_key, vtk_dir in vtk_dirs.items():
-        vtks_to_xdmf(vtk_dir, xdmf_path=vtk_dir.parent / "results.xdmf")
+    # vtk_dirs: List[Path] = [
+    #     sim_flux_path, sim_277k_path, sim_310k_path
+    # ]
+    # for sim_key, vtk_dir in vtk_dirs.items():
+    #     vtks_to_xdmf(vtk_dir, xdmf_path=vtk_dir.parent / "results.xdmf")
+
 
     interpolate_xdmf(
         xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
-        xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated1.xdmf",
+        xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
         times_interpolate=np.linspace(0, 600 * 60, num=11)  # [s] (11 points in 600 min) # static image
     )
 
     interpolate_xdmf(
         xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
-        xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated2.xdmf",
-        times_interpolate=np.linspace(0, 600 * 60, num=250)
+        xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
+        times_interpolate=np.linspace(0, 600 * 60, num=11)
+    )
+
+    interpolate_xdmf(
+        xdmf_in=sim_flux_path.parent / "results.xdmf",
+        xdmf_out=sim_flux_path.parent / "results_interpolated.xdmf",
+        times_interpolate=np.linspace(0, 10000, num=200)
     )
