@@ -3,7 +3,7 @@ import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Set
 from rich.progress import track
 import meshio
 import numpy as np
@@ -44,7 +44,7 @@ class Scalar:
     """Scalar information for plotting."""
     sid: str
     title: str
-    cmap: str
+    colormap: str
     color_limits: Optional[Tuple[float, float]] = None
     scalar_bar: bool = True
 
@@ -54,11 +54,12 @@ def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, 
 
     Iterates over all timepoints of a given scalar to figure out the ranges of the data.
     """
+    if not xdmf_path:
+        raise IOError(f"xdmf_path does not exist: {xdmf_path}")
 
     limits = {}
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
-
         # iterate over time points
         for k in range(reader.num_steps):
             t, point_data, cell_data = reader.read_data(k)
@@ -68,11 +69,14 @@ def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, 
 
                 # process cell data
                 sid = scalar.sid
-                data = cell_data[scalar.sid]
+                try:
+                    data = cell_data[scalar.sid]
+                except KeyError as err:
+                    console.print(cell_data.keys())
+                    raise err
+
                 data = np.dstack(data)
                 data = data.squeeze()
-                # console.print(f"{data=}")
-                # console.print(f"{type(data)}")
 
                 # new min, max
                 dmin = data.min()
@@ -88,15 +92,19 @@ def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, 
                 scalar.color_limits=scalar_limits
                 limits[sid] = scalar_limits
 
-    # console.print(limits)
     return limits
 
 
 def visualize_scalars_timecourse(
     xdmf_path: Path, output_dir: Path, scalars: List[Scalar],
-    window_size: Tuple[int, int] = (600, 600)
+    window_size: Tuple[int, int] = (600, 600),
 ) -> None:
     """Create visualizations for individual panels."""
+    # create output dir
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
+        console.print(f"output_dir created: {output_dir}")
+
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
 
@@ -115,7 +123,7 @@ def visualize_scalars_timecourse(
                 mesh=mesh,
                 scalars=scalars,
                 image_name=f"sim_{k:05d}",
-                output_dir=output_dir,
+                output_dir=output_dir / "panels",
                 window_size=window_size,
             )
 
@@ -145,15 +153,15 @@ def visualize_scalars(
     grid.set_active_vectors(None)
 
     # visualize scalars
-    for scalar in scalars:
-        scalar_id = scalar.sid
+    scalars_dict: Dict[str, Scalar] = {s.sid: s for s in scalars}
+    for scalar_id, scalar in scalars_dict.items():
         p = pv.Plotter(
             window_size=window_size,
             title="TPM lobulus",
             off_screen=True,
         )
 
-        scalar_info = scalars[scalar_id]
+        scalar = scalars_dict[scalar_id]
         grid.set_active_scalars(name=scalar_id)
 
         actor = p.add_mesh(
@@ -163,15 +171,15 @@ def visualize_scalars(
             point_size=3,
             show_vertices=True,
             line_width=1.0,
-            cmap=scalar_info["cmap"],
+            cmap=scalar.colormap,
             show_scalar_bar=False,
             edge_color="darkgray",
             # specular=0.5, specular_power=15,
-            clim=scalar_info["clim"],
+            clim=scalar.color_limits,
         )
         if scalar.scalar_bar:
             p.add_scalar_bar(
-                title=scalar_info["title"],
+                title=scalar.title,
                 n_labels=5,
                 bold=True,
                 # height=0.6,
@@ -185,7 +193,7 @@ def visualize_scalars(
 
             # set the color limits
             p.update_scalar_bar_range(
-                clim=scalar_info["clim"], name=scalar_info["title"]
+                clim=scalar.color_limits, name=scalar.title,
             )
 
         # Camera position to zoom to face
@@ -195,7 +203,7 @@ def visualize_scalars(
         # print(p.camera)
 
         output_subdir = Path(output_dir) / f"{scalar_id}"
-        output_subdir.mkdir(exist_ok=True)
+        output_subdir.mkdir(exist_ok=True, parents=True)
         p.show(
             # cpos=top_view,
             screenshot=Path(output_subdir / f"{image_name}.png")

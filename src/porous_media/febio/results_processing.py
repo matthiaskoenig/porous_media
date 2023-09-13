@@ -65,8 +65,8 @@ def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarra
             lower_indices = np.zeros_like(times_interpolate, dtype=int)
             upper_indices = np.zeros_like(times_interpolate, dtype=int)
             for ki, ti in enumerate(times_interpolate):
-                lower_indices[ki] = np.argwhere(times_data <= ti)[-1]
-                upper_indices[ki] = np.argwhere(times_data >= ti)[0]
+                lower_indices[ki] = np.argwhere(times_data <= ti).flatten()[-1]
+                upper_indices[ki] = np.argwhere(times_data >= ti).flatten()[0]
 
             # interpolate data for all data points
             for k in track(range(len(times_interpolate)), description="Interpolate data ..."):
@@ -115,27 +115,29 @@ if __name__ == "__main__":
     sim_277k_path: Path = DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk"
     sim_310k_path: Path = DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk"
 
-    # vtk_dirs: List[Path] = [
-    #     sim_flux_path, sim_277k_path, sim_310k_path
-    # ]
-    # for sim_key, vtk_dir in vtk_dirs.items():
-    #     vtks_to_xdmf(vtk_dir, xdmf_path=vtk_dir.parent / "results.xdmf")
+    # interpolate_xdmf(
+    #     xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
+    #     xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
+    #     times_interpolate=np.linspace(0, 600 * 60, num=11)  # [s] (11 points in 600 min) # static image
+    # )
+    #
+    # interpolate_xdmf(
+    #     xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
+    #     xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
+    #     times_interpolate=np.linspace(0, 600 * 60, num=11)
+    # )
+    #
+    # interpolate_xdmf(
+    #     xdmf_in=sim_flux_path.parent / "results.xdmf",
+    #     xdmf_out=sim_flux_path.parent / "results_interpolated.xdmf",
+    #     times_interpolate=np.linspace(0, 10000, num=200)
+    # )
 
+    nums = [10, 200]
+    for num in nums:
+        interpolate_xdmf(
+            xdmf_in=sim_flux_path.parent / "results.xdmf",
+            xdmf_out=sim_flux_path.parent / f"results_interpolated_{num}.xdmf",
+            times_interpolate=np.linspace(0, 10000, num=num)
+        )
 
-    interpolate_xdmf(
-        xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
-        xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
-        times_interpolate=np.linspace(0, 600 * 60, num=11)  # [s] (11 points in 600 min) # static image
-    )
-
-    interpolate_xdmf(
-        xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
-        xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
-        times_interpolate=np.linspace(0, 600 * 60, num=11)
-    )
-
-    interpolate_xdmf(
-        xdmf_in=sim_flux_path.parent / "results.xdmf",
-        xdmf_out=sim_flux_path.parent / "results_interpolated.xdmf",
-        times_interpolate=np.linspace(0, 10000, num=200)
-    )
