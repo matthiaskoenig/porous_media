@@ -3,14 +3,15 @@ import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set
-from rich.progress import track
+from typing import Dict, List, Optional, Set, Tuple
+
 import meshio
 import numpy as np
 import pyvista as pv
+from rich.progress import track
 
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import mesh_to_xdmf, MeshTimepoint
+from porous_media.mesh.mesh_tools import MeshTimepoint, mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 
 
@@ -42,6 +43,7 @@ class DataRangeType(str, Enum):
 @dataclass
 class Scalar:
     """Scalar information for plotting."""
+
     sid: str
     title: str
     colormap: str
@@ -49,7 +51,9 @@ class Scalar:
     scalar_bar: bool = True
 
 
-def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, List[float]]:
+def calculate_value_ranges(
+    xdmf_path: Path, scalars: List[Scalar]
+) -> Dict[str, List[float]]:
     """Calculate the limits/ranges for given scalars and adds to the scalars.
 
     Iterates over all timepoints of a given scalar to figure out the ranges of the data.
@@ -89,14 +93,16 @@ def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, 
                     if scalar_limits[1] < dmax:
                         scalar_limits[1] = dmax
 
-                scalar.color_limits=scalar_limits
+                scalar.color_limits = scalar_limits
                 limits[sid] = scalar_limits
 
     return limits
 
 
 def visualize_scalars_timecourse(
-    xdmf_path: Path, output_dir: Path, scalars: List[Scalar],
+    xdmf_path: Path,
+    output_dir: Path,
+    scalars: List[Scalar],
     window_size: Tuple[int, int] = (600, 600),
 ) -> None:
     """Create visualizations for individual panels."""
@@ -114,10 +120,7 @@ def visualize_scalars_timecourse(
 
             # Create mesh with single data point
             mesh: meshio = meshio.Mesh(
-                points=points,
-                cells=cells,
-                cell_data=cell_data,
-                point_data=point_data
+                points=points, cells=cells, cell_data=cell_data, point_data=point_data
             )
             visualize_scalars(
                 mesh=mesh,
@@ -193,7 +196,8 @@ def visualize_scalars(
 
             # set the color limits
             p.update_scalar_bar_range(
-                clim=scalar.color_limits, name=scalar.title,
+                clim=scalar.color_limits,
+                name=scalar.title,
             )
 
         # Camera position to zoom to face
@@ -210,31 +214,60 @@ def visualize_scalars(
         )
 
 
-if __name__ == "__main__":
-    # TODO: get the clims for the scalars from all vtks or global settings
+def create_combined_images(
+    xdmf_path: Path, output_dir: Path, scalars_selection: List[str]
+) -> List[Path]:
+    """Create video of panels."""
+    row_dir: Path = output_dir / "rows"
+    row_dir.mkdir(parents=True, exist_ok=True)
 
+    square_dir: Path = output_dir / "squares"
+    square_dir.mkdir(parents=True, exist_ok=True)
+
+    rows: List[Path] = []
+    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+        points, cells = reader.read_points_cells()
+        for k in track(
+            range(reader.num_steps), description="Create combined images ..."
+        ):
+            images: List[Path] = []
+            for scalar_id in scalars_selection:
+                img_path = output_dir / "panels" / scalar_id / f"sim_{k:05d}.png"
+                images.append(img_path)
+
+            row_image: Path = output_dir / "rows" / f"sim_{k:05d}.png"
+            merge_images(paths=images, direction="horizontal", output_path=row_image)
+            square_image: Path = output_dir / "squares" / f"sim_{k:05d}.png"
+            merge_images(paths=images, direction="square", output_path=square_image)
+
+            rows.append(row_image)
+
+    return rows
+
+
+if __name__ == "__main__":
     # FIXME: make this in an example and add path to resources
     vtk_path_spt = Path("lobule_BCflux.t006.vtk")
     mesh_spt: meshio.Mesh = meshio.read(vtk_path_spt)
     output_path_spt = Path("./raw_spt/")
     output_path_spt.mkdir(exist_ok=True)
-    scalars_spt = {
-        "rr_(S)": {
-            "title": "Substrate S [mM]",
-            "cmap": "RdBu",
-            # "clim": (0.529, 0.530),
-        },
-        "rr_(P)": {
-            "title": "Product P [mM]",
-            "cmap": "RdBu",
-            # "clim": (0.00829, 0.00897),
-        },
-        "rr_necrosis": {
-            "title": "Necrosis",
-            "cmap": "binary",
-            # "clim": (0.0, 1.0),
-        },
-    }
+    scalars_spt: List[Scalar] = [
+        Scalar(
+            sid="rr_(S)",
+            title="Substrate S [mM]",
+            colormap="RdBu",
+        ),
+        Scalar(
+            sid="rr_(P)",
+            title="Product P [mM]",
+            colormap="RdBu",
+        ),
+        Scalar(
+            sid="rr_necrosis",
+            title="Necrosis",
+            colormap="binary",
+        ),
+    ]
     visualize_scalars(
         mesh=mesh_spt,
         scalars=scalars_spt,

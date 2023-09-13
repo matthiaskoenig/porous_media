@@ -1,13 +1,16 @@
 """Annotate images with text."""
+from pathlib import Path
 from typing import Tuple
+
+from PIL import Image, ImageDraw, ImageFont
 
 from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
-from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
 
 
-def annotate_image_text(image_in_path: Path, image_out_path: Path, text: str, xy: Tuple[int, int]=(10, 10)) -> None:
+def annotate_image_text(
+    image_in_path: Path, image_out_path: Path, text: str, xy: Tuple[int, int] = (10, 10)
+) -> None:
     """Annotate images with text and store the resulting image."""
     console.print(f"Annotate: {image_in_path}")
 
@@ -26,7 +29,5 @@ if __name__ == "__main__":
     image_out: Path = RESULTS_DIR / "mesh_zonation_annotated.png"
 
     annotate_image_text(
-        image_in_path=image_in,
-        image_out_path=image_out,
-        text="time = 123.2 [min]"
+        image_in_path=image_in, image_out_path=image_out, text="time = 123.2 [min]"
     )

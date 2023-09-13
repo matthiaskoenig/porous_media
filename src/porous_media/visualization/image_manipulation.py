@@ -11,7 +11,6 @@ from PIL import Image
 from porous_media.console import console
 
 
-
 def merge_images(
     paths: Iterable[Path], output_path: Path, direction: str = "vertical"
 ) -> None:

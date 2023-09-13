@@ -30,6 +30,7 @@ def mesh_to_vtk(m: meshio.Mesh, vtk_path: Path, test_read: bool = False) -> None
         # check that the serialized mesh can be read again
         _ = meshio.read(vtk_path)
 
+
 @dataclass
 class MeshTimepoint:
     """Class for storing VTK simulation results."""

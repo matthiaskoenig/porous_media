@@ -1,11 +1,12 @@
 """Process timeseries data in XDMF."""
 import os
+import shutil
 from pathlib import Path
 from typing import Dict, List
-from rich.progress import track
-import numpy as np
+
 import meshio
-import shutil
+import numpy as np
+from rich.progress import track
 
 from porous_media import DATA_DIR
 from porous_media.console import console
@@ -42,7 +43,9 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path) -> None:
     shutil.move(f"{xdmf_path.stem}.h5", str(xdmf_path.parent))
 
 
-def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarray):
+def interpolate_xdmf(
+    xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarray
+) -> None:
     """Interpolate XDMF."""
     console.rule(title=f"Interpolate {xdmf_in}", style="white")
     with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
@@ -58,9 +61,13 @@ def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarra
                 times_data[k] = t
 
             if times_interpolate[0] < times_data[0]:
-                raise ValueError(f"Lower interpolation range outside of data: {times_interpolate[0]} < {times_data[0]}")
+                raise ValueError(
+                    f"Lower interpolation range outside of data: {times_interpolate[0]} < {times_data[0]}"
+                )
             if times_interpolate[-1] > times_data[-1]:
-                raise ValueError(f"Upper interpolation range outside of data: {times_interpolate[-1]} > {times_data[-1]}")
+                raise ValueError(
+                    f"Upper interpolation range outside of data: {times_interpolate[-1]} > {times_data[-1]}"
+                )
 
             lower_indices = np.zeros_like(times_interpolate, dtype=int)
             upper_indices = np.zeros_like(times_interpolate, dtype=int)
@@ -69,8 +76,9 @@ def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarra
                 upper_indices[ki] = np.argwhere(times_data >= ti).flatten()[0]
 
             # interpolate data for all data points
-            for k in track(range(len(times_interpolate)), description="Interpolate data ..."):
-
+            for k in track(
+                range(len(times_interpolate)), description="Interpolate data ..."
+            ):
                 t_interpolate = times_interpolate[k]
                 idx_low = lower_indices[k]
                 idx_up = upper_indices[k]
@@ -78,27 +86,36 @@ def interpolate_xdmf(xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarra
                 # interpolate all numpy matrices
                 t_low, point_data_low, cell_data_low = reader.read_data(idx_low)
                 t_up, point_data_up, cell_data_up = reader.read_data(idx_up)
+                f_up: float
+                f_low: float
                 if np.isclose(t_up, t_low):
                     f_low = 0.0
                     f_up = 1.0
                 else:
-                    f_low: float = (t_interpolate - t_low) / (t_up - t_low)
-                    f_up: float = (t_up - t_interpolate) / (t_up - t_low)
+                    f_low = (t_interpolate - t_low) / (t_up - t_low)
+                    f_up = (t_up - t_interpolate) / (t_up - t_low)
 
                 # interpolate point data
                 point_data = {}
                 for key in point_data_low:
-                    point_data[key] = (f_low * point_data_low[key]) + (f_up * point_data_up[key])
+                    point_data[key] = (f_low * point_data_low[key]) + (
+                        f_up * point_data_up[key]
+                    )
 
                 # interpolate cell data
                 cell_data = {}
                 for key in cell_data_low:
                     # console.print(f"{cell_data_low[key]}")
                     # process the list
-                    cell_data[key] = [(f_low * cell_data_low[key][k]) + (f_up * cell_data_low[key][k]) for k in range(len(cell_data_low[key]))]
+                    cell_data[key] = [
+                        (f_low * cell_data_low[key][k]) + (f_up * cell_data_low[key][k])
+                        for k in range(len(cell_data_low[key]))
+                    ]
 
                 # write interpolation point
-                writer.write_data(t_interpolate, point_data=point_data, cell_data=cell_data)
+                writer.write_data(
+                    t_interpolate, point_data=point_data, cell_data=cell_data
+                )
 
         # Fix incorrect *.h5 path
         # https://github.com/nschloe/meshio/pull/1358
@@ -138,6 +155,5 @@ if __name__ == "__main__":
         interpolate_xdmf(
             xdmf_in=sim_flux_path.parent / "results.xdmf",
             xdmf_out=sim_flux_path.parent / f"results_interpolated_{num}.xdmf",
-            times_interpolate=np.linspace(0, 10000, num=num)
+            times_interpolate=np.linspace(0, 10000, num=num),
         )
-

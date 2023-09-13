@@ -8,10 +8,13 @@ import numpy as np
 
 from porous_media import RESOURCES_DIR
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import mesh_to_xdmf
+from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
-from porous_media.visualization.pyvista_visualization import DataRangeType, \
-    visualize_scalars
+from porous_media.visualization.pyvista_visualization import (
+    DataRangeType,
+    Scalar,
+    visualize_scalars,
+)
 
 
 class ZonationPatterns:
@@ -246,9 +249,9 @@ def visualize_zonation_patterns(
     mesh: meshio.Mesh,
     results_path: Path,
     image_name: str,
-    drange_type: DataRangeType=DataRangeType.LOCAL,
+    drange_type: DataRangeType = DataRangeType.LOCAL,
 ) -> None:
-    """Visualize zonation patterns. FIXME: this should be
+    """Visualize zonation patterns.
 
     :param image_name: Name for the generated image in the output path.
     """
@@ -270,15 +273,19 @@ def visualize_zonation_patterns(
             dmins[key] = dmin_global
             dmaxs[key] = dmax_global
 
-    scalars = {}
+    scalars = []
     for key in mesh.cell_data:
         if key.startswith("pattern__") or key == "cell_type":
+            # Fix the patterns
             pattern = key.split("__")[-1]
-            scalars[key] = {
-                "title": f"{pattern.upper()} [-]",
-                "cmap": "RdBu",  # "cmap": "Blues", # FIXME: better colormap
-                "clim": (dmins[key], dmaxs[key]),
-            }
+            scalars.append(
+                Scalar(
+                    sid="key",
+                    title=f"{pattern.upper()} [-]",
+                    colormap="RdBu",
+                    color_limits=(dmins[key], dmaxs[key]),
+                )
+            )
 
     # create raw images
     visualize_scalars(
@@ -287,7 +294,7 @@ def visualize_zonation_patterns(
     # combine images
     images: List[Path] = []
     for scalar in scalars:
-        img_path = results_path / scalar / f"{image_name}.png"
+        img_path = results_path / scalar.sid / f"{image_name}.png"
         images.append(img_path)
 
     image: Path = results_path / f"{image_name}.png"
@@ -315,7 +322,9 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     # visualize mesh
     if visualize:
         console.rule(title="Mesh Visualization", style="white")
-        visualize_zonation_patterns(m, results_path=results_path, image_name="mesh_zonation")
+        visualize_zonation_patterns(
+            m, results_path=results_path, image_name="mesh_zonation"
+        )
 
 
 if __name__ == "__main__":
