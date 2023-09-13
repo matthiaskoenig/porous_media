@@ -215,18 +215,17 @@ def visualize_scalars(
 
 
 def create_combined_images(
-    xdmf_path: Path, output_dir: Path, scalars_selection: List[str]
+    xdmf_path: Path, output_dir: Path, scalars_selection: List[str],
+    direction: str,
+    ncols: Optional[int] = None, nrows: Optional[int] = None
 ) -> List[Path]:
-    """Create video of panels."""
-    row_dir: Path = output_dir / "rows"
-    row_dir.mkdir(parents=True, exist_ok=True)
+    """Create combined images for all time points."""
+    image_dir: Path = output_dir / direction
+    image_dir.mkdir(parents=True, exist_ok=True)
 
-    square_dir: Path = output_dir / "squares"
-    square_dir.mkdir(parents=True, exist_ok=True)
-
-    rows: List[Path] = []
+    all_images: List[Path] = []
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
-        points, cells = reader.read_points_cells()
+        _, _ = reader.read_points_cells()
         for k in track(
             range(reader.num_steps), description="Create combined images ..."
         ):
@@ -235,14 +234,15 @@ def create_combined_images(
                 img_path = output_dir / "panels" / scalar_id / f"sim_{k:05d}.png"
                 images.append(img_path)
 
-            row_image: Path = output_dir / "rows" / f"sim_{k:05d}.png"
-            merge_images(paths=images, direction="horizontal", output_path=row_image)
-            square_image: Path = output_dir / "squares" / f"sim_{k:05d}.png"
-            merge_images(paths=images, direction="square", output_path=square_image)
+            combined_image: Path = output_dir / direction / f"sim_{k:05d}.png"
+            merge_images(
+                paths=images, direction=direction, output_path=combined_image,
+                ncols=ncols, nrows=nrows,
+            )
 
-            rows.append(row_image)
+            all_images.append(combined_image)
 
-    return rows
+    return all_images
 
 
 if __name__ == "__main__":
