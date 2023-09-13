@@ -1,11 +1,13 @@
 """Visualization of Simliva results."""
 from pathlib import Path
 from typing import Dict, List
-
+import os
 import meshio
+import numpy as np
 
 from porous_media import DATA_DIR
 from porous_media.console import console
+from porous_media.febio.results_processing import interpolate_xdmf
 from porous_media.visualization.pyvista_visualization import (
     Scalar,
     calculate_value_ranges, visualize_scalars_timecourse
@@ -13,9 +15,9 @@ from porous_media.visualization.pyvista_visualization import (
 
 from porous_media import BASE_DIR
 from porous_media.visualization.image_manipulation import merge_images
+from rich.progress import track
 
-
-def figure_temperature_dependency(scalars: List[Scalar]):
+def visualize_temperature_dependency(scalars: List[Scalar]):
     """Temperature dependency."""
     output_path = BASE_DIR / "results" / "simliva" / "temperature_dependency"
     output_path.mkdir(exist_ok=True, parents=True)
@@ -57,25 +59,33 @@ def figure_temperature_dependency(scalars: List[Scalar]):
         merge_images(paths=rows, direction="vertical", output_path=image)
 
 
-def figure_gradient(scalars: List[Scalar]):
+def visualize_gradient(scalars: List[Scalar], create_panels: bool = True):
     """Gradient dependency."""
+    sim_dir = DATA_DIR / "simliva" / "iri_flux_study_0"
 
-    # for num in [10, 200]:
-    # for num in [10, ]:
-    #     xdmf_path = DATA_DIR / "simliva" / "iri_flux_study_0" / f"results_interpolated_{num}.xdmf"
-    #     output_dir = BASE_DIR / "results" / "simliva" / f"gradient_{num}"
-    #
-    #     # add data limits
-    #     calculate_value_ranges(xdmf_path=xdmf_path, scalars=scalars)
-    #     console.rule(title="Scalars", align="left", style="white")
-    #     console.print(scalars_iri)
-    #
-    #     # create panels
-    #     visualize_scalars_timecourse(
-    #         xdmf_path=xdmf_path,
-    #         scalars=scalars_iri,
-    #         output_dir=output_dir
-    #     )
+    if create_panels:
+        for num in [10, 250]:
+            xdmf_path = sim_dir / f"results_interpolated_{num}.xdmf"
+            output_dir = BASE_DIR / "results" / "simliva" / f"gradient_{num}"
+
+            # interpolate
+            interpolate_xdmf(
+                xdmf_in=sim_dir / "results.xdmf",
+                xdmf_out=sim_dir / f"results_interpolated_{num}.xdmf",
+                times_interpolate=np.linspace(0, 10000, num=num)
+            )
+
+            # add data limits
+            calculate_value_ranges(xdmf_path=xdmf_path, scalars=scalars)
+            console.rule(title="Scalars", align="left", style="white")
+            console.print(scalars_iri)
+
+            # create panels
+            visualize_scalars_timecourse(
+                xdmf_path=xdmf_path,
+                scalars=scalars_iri,
+                output_dir=output_dir
+            )
 
     scalars_selection: List[str] = [
         "rr_(glc)",
@@ -89,25 +99,34 @@ def figure_gradient(scalars: List[Scalar]):
         "rr_(ast)",
     ]
 
+    # Create rows
+    for num in [10, 250]:
+        output_dir = BASE_DIR / "results" / "simliva" / f"gradient_{num}"
+        rows: List[Path] = create_rows(
+            xdmf_path=DATA_DIR / "simliva" / "iri_flux_study_0" / f"results_interpolated_{num}.xdmf",
+            output_dir=output_dir,
+            scalars_selection=scalars_selection,
+        )
+
     # Create combined figure for timecourse
-    create_combined_figure(
-        xdmf_path=DATA_DIR / "simliva" / "iri_flux_study_0" / f"results_interpolated_10.xdmf",
-        output_dir=BASE_DIR / "results" / "simliva" / f"gradient_10",
-        scalars_selection=scalars_selection,
-    )
+    output_dir = BASE_DIR / "results" / "simliva" / f"gradient_10"
+    merge_images(paths=rows, direction="vertical", output_path=output_dir / f"gradient.png")
 
-    # FIXME: create gifs
+    # Create video
+    output_dir = BASE_DIR / "results" / "simliva" / "gradient_250"
+    row_pattern: str = output_dir / "rows" / "sim_%05d.png"
+    create_video(row_pattern=row_pattern, video_path=output_dir / "gradient.mp4")
 
 
-def create_combined_figure(xdmf_path, output_dir, scalars_selection: List[str]):
-    """Create combined image of the panels."""
+def create_rows(xdmf_path, output_dir, scalars_selection: List[str]) -> List[Path]:
+    """Create video of panels."""
     row_dir: Path = output_dir / "rows"
     row_dir.mkdir(parents=True, exist_ok=True)
 
     rows: List[Path] = []
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
-        for k in range(reader.num_steps):
+        for k in track(range(reader.num_steps), description="Create row images ..."):
             row: List[Path] = []
             for scalar_id in scalars_selection:
                 img_path = output_dir / "panels" / scalar_id / f"sim_{k:05d}.png"
@@ -117,9 +136,16 @@ def create_combined_figure(xdmf_path, output_dir, scalars_selection: List[str]):
             merge_images(paths=row, direction="horizontal", output_path=row_image)
             rows.append(row_image)
 
-    console.print(rows)
-    image: Path = output_dir / f"gradient.png"
-    merge_images(paths=rows, direction="vertical", output_path=image)
+    return rows
+
+
+def create_video(row_pattern: str, video_path: Path):
+    """Create combined image of the panels."""
+    command = f"ffmpeg -f image2 -r 30 -i {row_pattern} -vcodec mpeg4 -y {video_path}"
+    console.print(f"Create video: {video_path}")
+    console.print(command)
+    os.system(command)
+
 
 if __name__ == "__main__":
     # Information for plots
@@ -141,4 +167,4 @@ if __name__ == "__main__":
     ]
 
     # figure_temperature_dependency(scalars=scalars_iri)
-    figure_gradient(scalars=scalars_iri)
+    visualize_gradient(scalars=scalars_iri, create_panels=False)
