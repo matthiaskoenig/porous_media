@@ -15,7 +15,8 @@ from porous_media.visualization.image_manipulation import merge_images
 
 def figure_temperature_dependency(scalars: List[Scalar]):
     """Temperature dependency."""
-    output_path = BASE_DIR / "results" / "simliva_temperature_dependency"
+    output_path = BASE_DIR / "results" / "simliva" / "temperature_dependency"
+    output_path.mkdir(exist_ok=True, parents=True)
 
     xdmfs: Dict[str, Path] = {
         "sim_T277": DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
@@ -30,6 +31,44 @@ def figure_temperature_dependency(scalars: List[Scalar]):
 
     # create panels for all timepoints and scalars
     visualize_panels(xdmf_path=xdmf_path, scalars=scalars_iri, output_path=output_path)
+
+
+    # Create combined figure for all timecourses
+    scalars_plot = ["GLC", "O2", "LAC", "ATP", "ADP", "ROS", "necrosis", "ALT", "AST"]
+    for sim_key, vtk_paths in vtks.items():
+        row_dir: Path = output_path / sim_key / "rows"
+        row_dir.mkdir(parents=True, exist_ok=True)
+
+        rows: List[Path] = []
+        for p in vtk_paths:
+            row: List[Path] = []
+            for scalar in scalars_plot:
+                img_path = output_path / sim_key / "panels" / scalar / f"{p.stem}.png"
+                row.append(img_path)
+
+            row_image: Path = output_path / sim_key / "rows" / f"{p.stem}.png"
+            merge_images(paths=row, direction="horizontal", output_path=row_image)
+            rows.append(row_image)
+
+        console.print(rows)
+        image: Path = output_path / sim_key / f"{sim_key}.png"
+        merge_images(paths=rows, direction="vertical", output_path=image)
+
+
+def figure_gradient(scalars: List[Scalar]):
+    """Gradient dependency."""
+    output_path = BASE_DIR / "results" / "simliva" / "gradient"
+    output_path.mkdir(exist_ok=True, parents=True)
+    xdmf_path = DATA_DIR / "simliva" / "iri_flux_study_0" / "results_interpolated.xdmf"
+
+    # add data limits
+    calculate_value_ranges(xdmf_path=xdmf_path, scalars=scalars)
+    console.rule(title="Scalars", align="left", style="white")
+    console.print(scalars_iri)
+
+    # create panels for all timepoints and scalars
+    visualize_panels(xdmf_path=xdmf_path, scalars=scalars_iri, output_path=output_path)
+
 
 
     # Create combined figure for all timecourses

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
-
+from rich.progress import track
 import meshio
 import numpy as np
 import pyvista as pv
@@ -46,10 +46,14 @@ class Scalar:
     title: str
     cmap: str
     color_limits: Optional[Tuple[float, float]] = None
+    scalar_bar: bool = True
 
 
 def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, List[float]]:
-    """Calculate the limits/ranges for given scalars and adds to the scalars."""
+    """Calculate the limits/ranges for given scalars and adds to the scalars.
+
+    Iterates over all timepoints of a given scalar to figure out the ranges of the data.
+    """
 
     limits = {}
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
@@ -84,93 +88,68 @@ def calculate_value_ranges(xdmf_path: Path, scalars: List[Scalar]) -> Dict[str, 
                 scalar.color_limits=scalar_limits
                 limits[sid] = scalar_limits
 
-    console.print(limits)
+    # console.print(limits)
     return limits
+
+
+def visualize_scalars_timecourse(
+    xdmf_path: Path, output_dir: Path, scalars: List[Scalar],
+    window_size: Tuple[int, int] = (600, 600)
+) -> None:
+    """Create visualizations for individual panels."""
+    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+        points, cells = reader.read_points_cells()
+
+        tnum = reader.num_steps
+        for k in track(range(tnum), description="Create panels for scalars..."):
+            t, point_data, cell_data = reader.read_data(k)
+
+            # Create mesh with single data point
+            mesh: meshio = meshio.Mesh(
+                points=points,
+                cells=cells,
+                cell_data=cell_data,
+                point_data=point_data
+            )
+            visualize_scalars(
+                mesh=mesh,
+                scalars=scalars,
+                image_name=f"sim_{k:05d}",
+                output_dir=output_dir,
+                window_size=window_size,
+            )
+
 
 def visualize_scalars(
     mesh: meshio.Mesh,
-    results_path: Path,
-    image_name: str,
-    drange_type: DataRangeType = DataRangeType.LOCAL,
-) -> None:
-    """Visualize zonation patterns.
-
-    :param image_name: Name for the generated image in the output path.
-    """
-
-    # calculate the data ranges
-    dmins: Dict[str, float] = {}
-    dmaxs: Dict[str, float] = {}
-    for key in mesh.cell_data:
-        data = mesh.cell_data[key][0]
-        # min, max
-        dmins[key] = data.min()
-        dmaxs[key] = data.max()
-
-    # handle the case of global data ranges
-    if drange_type == DataRangeType.GLOBAL:
-        dmin_global = min(dmins.values())
-        dmax_global = max(dmaxs.values())
-        for key in mesh.cell_data:
-            dmins[key] = dmin_global
-            dmaxs[key] = dmax_global
-
-    scalars = {}
-    for key in mesh.cell_data:
-        if key.startswith("pattern__") or key == "cell_type":
-            pattern = key.split("__")[-1]
-            scalars[key] = {
-                "title": f"{pattern.upper()} [-]",
-                "cmap": "RdBu",  # "cmap": "Blues", # FIXME: better colormap
-                "clim": (dmins[key], dmaxs[key]),
-            }
-
-    # create raw images
-    visualize_lobulus_vtk(
-        mesh=mesh, scalars=scalars, output_dir=results_path, image_name=image_name
-    )
-    # combine images
-    images: List[Path] = []
-    for scalar in scalars:
-        img_path = results_path / scalar / f"{image_name}.png"
-        images.append(img_path)
-
-    image: Path = results_path / f"{image_name}.png"
-    merge_images(paths=images, direction="horizontal", output_path=image)
-    console.print(f"Image created: file://{image}")
-
-
-def visualize_lobulus_vtk(
-    mesh: meshio.Mesh,
-    scalars: Dict,
+    scalars: List[Scalar],
     output_dir: Path,
     image_name: str,
     window_size: Tuple[float, float] = (1000, 1000),
-    scalar_bar: bool = True,
 ) -> None:
-    """Visualize single lobulus time point with pyvista.
+    """Visualize geometry with pyvista.
 
+    :param mesh: mesh with single time point scalar data
     :param image_name: name of the created image, without extension.
     """
 
     # create VTK from mesh to read for pyvista
+    # FIXME: better handling of grid
     xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
     mesh_to_xdmf(m=mesh, xdmf_path=Path(xdmf_tmp.name), test_read=False)
     grid = pv.read(xdmf_tmp.name)
 
     # deactivate active sets
-    # grid.set_active_tensors(None)
+    grid.set_active_tensors(None)
     grid.set_active_scalars(None)
-    # grid.set_active_vectors(None)
+    grid.set_active_vectors(None)
 
-    # plot the data with an automatically created Plotter
-    # grid.plot(show_scalar_bar=False, show_axes=False)
-
-    for scalar_id in scalars:
+    # visualize scalars
+    for scalar in scalars:
+        scalar_id = scalar.sid
         p = pv.Plotter(
             window_size=window_size,
             title="TPM lobulus",
-            # shape=(1, n_scalars), border=False,
             off_screen=True,
         )
 
@@ -190,7 +169,7 @@ def visualize_lobulus_vtk(
             # specular=0.5, specular_power=15,
             clim=scalar_info["clim"],
         )
-        if scalar_bar:
+        if scalar.scalar_bar:
             p.add_scalar_bar(
                 title=scalar_info["title"],
                 n_labels=5,
@@ -223,34 +202,6 @@ def visualize_lobulus_vtk(
         )
 
 
-def visualize_panels(
-    xdmf_path: Path, output_path: Path, scalars: List[Scalar]
-) -> None:
-    """Visualize the panels."""
-
-
-    # FIXME: update using the xdmf
-    # Create figures for all simulation timepoints of relevance (skip some results)
-    for sim_key, vtk_paths in vtks.items():
-        panels_path = output_path / sim_key / "panels"
-        panels_path.mkdir(exist_ok=True, parents=True)
-
-        # Create all figures for all variables
-        for vtk_path in vtk_paths:
-            show_scalar_bar = True
-            # if k == 0 or k == (len(vtk_paths)-1):
-            #     show_scalar_bar = True
-            mesh: meshio.Mesh = meshio.read(vtk_path)
-            console.print(mesh)
-            visualize_lobulus_vtk(
-                mesh=mesh,
-                scalars=scalars,
-                image_name=vtk_path.stem,
-                output_dir=panels_path,
-                window_size=(600, 600),
-                scalar_bar=show_scalar_bar,
-            )
-
 if __name__ == "__main__":
     # TODO: get the clims for the scalars from all vtks or global settings
 
@@ -276,7 +227,7 @@ if __name__ == "__main__":
             # "clim": (0.0, 1.0),
         },
     }
-    visualize_lobulus_vtk(
+    visualize_scalars(
         mesh=mesh_spt,
         scalars=scalars_spt,
         output_dir=output_path_spt,

@@ -8,8 +8,10 @@ import numpy as np
 
 from porous_media import RESOURCES_DIR
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
-from porous_media.visualization.pyvista_visualization import visualize_scalars
+from porous_media.mesh.mesh_tools import mesh_to_xdmf
+from porous_media.visualization.image_manipulation import merge_images
+from porous_media.visualization.pyvista_visualization import DataRangeType, \
+    visualize_scalars
 
 
 class ZonationPatterns:
@@ -240,6 +242,59 @@ class ZonatedMesh:
         return m
 
 
+def visualize_zonation_patterns(
+    mesh: meshio.Mesh,
+    results_path: Path,
+    image_name: str,
+    drange_type: DataRangeType=DataRangeType.LOCAL,
+) -> None:
+    """Visualize zonation patterns. FIXME: this should be
+
+    :param image_name: Name for the generated image in the output path.
+    """
+
+    # calculate the data ranges
+    dmins: Dict[str, float] = {}
+    dmaxs: Dict[str, float] = {}
+    for key in mesh.cell_data:
+        data = mesh.cell_data[key][0]
+        # min, max
+        dmins[key] = data.min()
+        dmaxs[key] = data.max()
+
+    # handle the case of global data ranges
+    if drange_type == DataRangeType.GLOBAL:
+        dmin_global = min(dmins.values())
+        dmax_global = max(dmaxs.values())
+        for key in mesh.cell_data:
+            dmins[key] = dmin_global
+            dmaxs[key] = dmax_global
+
+    scalars = {}
+    for key in mesh.cell_data:
+        if key.startswith("pattern__") or key == "cell_type":
+            pattern = key.split("__")[-1]
+            scalars[key] = {
+                "title": f"{pattern.upper()} [-]",
+                "cmap": "RdBu",  # "cmap": "Blues", # FIXME: better colormap
+                "clim": (dmins[key], dmaxs[key]),
+            }
+
+    # create raw images
+    visualize_scalars(
+        mesh=mesh, scalars=scalars, output_dir=results_path, image_name=image_name
+    )
+    # combine images
+    images: List[Path] = []
+    for scalar in scalars:
+        img_path = results_path / scalar / f"{image_name}.png"
+        images.append(img_path)
+
+    image: Path = results_path / f"{image_name}.png"
+    merge_images(paths=images, direction="horizontal", output_path=image)
+    console.print(f"Image created: file://{image}")
+
+
 def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     """Run example for mesh zonation."""
 
@@ -260,7 +315,7 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     # visualize mesh
     if visualize:
         console.rule(title="Mesh Visualization", style="white")
-        visualize_scalars(m, results_path=results_path, image_name="mesh_zonation")
+        visualize_zonation_patterns(m, results_path=results_path, image_name="mesh_zonation")
 
 
 if __name__ == "__main__":

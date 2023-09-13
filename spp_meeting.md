@@ -45,3 +45,6 @@ Multimodel registration; Circle of Willis registration;
 - TRPC1
 - strain induction in the system; 
 - mecahno
+
+
+SEED Funding NFDI4ing Call for seed funding
