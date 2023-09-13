@@ -76,7 +76,7 @@ def calculate_value_ranges(
                 try:
                     data = cell_data[scalar.sid]
                 except KeyError as err:
-                    console.print(cell_data.keys())
+                    console.print(f"Exising keys: {cell_data.keys()}")
                     raise err
 
                 data = np.dstack(data)
