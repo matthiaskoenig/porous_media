@@ -102,7 +102,7 @@ def visualize_gradient(scalars: List[Scalar], create_panels: bool = True):
     # Create rows
     for num in [10, 250]:
         output_dir = BASE_DIR / "results" / "simliva" / f"gradient_{num}"
-        rows: List[Path] = create_rows(
+        rows: List[Path] = create_combined_images(
             xdmf_path=DATA_DIR / "simliva" / "iri_flux_study_0" / f"results_interpolated_{num}.xdmf",
             output_dir=output_dir,
             scalars_selection=scalars_selection,
@@ -114,34 +114,42 @@ def visualize_gradient(scalars: List[Scalar], create_panels: bool = True):
 
     # Create video
     output_dir = BASE_DIR / "results" / "simliva" / "gradient_250"
-    row_pattern: str = output_dir / "rows" / "sim_%05d.png"
-    create_video(row_pattern=row_pattern, video_path=output_dir / "gradient.mp4")
+    create_video(
+        image_pattern=output_dir / "squares" / "sim_%05d.png",
+        video_path=output_dir / "gradient_square.mp4"
+    )
 
 
-def create_rows(xdmf_path, output_dir, scalars_selection: List[str]) -> List[Path]:
+def create_combined_images(xdmf_path, output_dir, scalars_selection: List[str]) -> List[Path]:
     """Create video of panels."""
     row_dir: Path = output_dir / "rows"
     row_dir.mkdir(parents=True, exist_ok=True)
 
+    square_dir: Path = output_dir / "squares"
+    square_dir.mkdir(parents=True, exist_ok=True)
+
     rows: List[Path] = []
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
-        for k in track(range(reader.num_steps), description="Create row images ..."):
-            row: List[Path] = []
+        for k in track(range(reader.num_steps), description="Create combined images ..."):
+            images: List[Path] = []
             for scalar_id in scalars_selection:
                 img_path = output_dir / "panels" / scalar_id / f"sim_{k:05d}.png"
-                row.append(img_path)
+                images.append(img_path)
 
             row_image: Path = output_dir / "rows" / f"sim_{k:05d}.png"
-            merge_images(paths=row, direction="horizontal", output_path=row_image)
+            merge_images(paths=images, direction="horizontal", output_path=row_image)
+            square_image: Path = output_dir / "squares" / f"sim_{k:05d}.png"
+            merge_images(paths=images, direction="square", output_path=square_image)
+
             rows.append(row_image)
 
     return rows
 
 
-def create_video(row_pattern: str, video_path: Path):
+def create_video(image_pattern: str, video_path: Path, frame_rate: int=30):
     """Create combined image of the panels."""
-    command = f"ffmpeg -f image2 -r 30 -i {row_pattern} -vcodec mpeg4 -y {video_path}"
+    command = f"ffmpeg -f image2 -r {frame_rate} -i {image_pattern} -vcodec mpeg4 -y {video_path}"
     console.print(f"Create video: {video_path}")
     console.print(command)
     os.system(command)
