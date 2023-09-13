@@ -12,8 +12,11 @@ from porous_media.console import console
 
 
 def merge_images(
-    paths: Iterable[Path], output_path: Path, direction: str = "vertical",
-    ncols: Optional[int] = None, nrows: Optional[int] = None
+    paths: Iterable[Path],
+    output_path: Path,
+    direction: str = "vertical",
+    ncols: Optional[int] = None,
+    nrows: Optional[int] = None,
 ) -> None:
     """Merge/combine images either vertical or horizontal or square.
 
@@ -23,7 +26,9 @@ def merge_images(
     """
     supported_directions = ["vertical", "horizontal", "square", "custom"]
     if direction not in supported_directions:
-        raise ValueError(f"direction '{direction}' not in supported directions: {supported_directions}")
+        raise ValueError(
+            f"direction '{direction}' not in supported directions: {supported_directions}"
+        )
 
     images = [Image.open(x) for x in paths]
     widths, heights = zip(*(i.size for i in images))

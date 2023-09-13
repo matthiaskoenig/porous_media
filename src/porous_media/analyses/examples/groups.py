@@ -20,8 +20,8 @@ from porous_media.visualization.video import create_video
 def visualize_group(scalars: List[Scalar], create_panels: bool = True) -> None:
     """Gradient dependency."""
     sim_dir = DATA_DIR / "examples" / "Group_PF_ideal_TPM"
-    xdmf_path = sim_dir / f"results.xdmf"
-    xdmf_interpolated_path = sim_dir / f"results_interpolated_100.xdmf"
+    xdmf_path = sim_dir / "results.xdmf"
+    xdmf_interpolated_path = sim_dir / "results_interpolated_100.xdmf"
     output_dir = BASE_DIR / "results" / "groups"
 
     if create_panels:
@@ -47,12 +47,12 @@ def visualize_group(scalars: List[Scalar], create_panels: bool = True) -> None:
 
     # subset of scalars to visualize
     scalars_selection: List[str] = [
-        'stress',
-        'fluid_flux_TPM',
-        'seepage_velocity_TPM',
-        'solid_stress_TPM',
-        'Lagrange_strain',
-        'pressure',
+        "stress",
+        "fluid_flux_TPM",
+        "seepage_velocity_TPM",
+        "solid_stress_TPM",
+        "Lagrange_strain",
+        "pressure",
     ]
 
     # Create combined image
@@ -62,7 +62,7 @@ def visualize_group(scalars: List[Scalar], create_panels: bool = True) -> None:
         scalars_selection=scalars_selection,
         direction="horizontal",
     )
-    rows_subset = [rows[k] for k in range(len(rows)) if (k+1) % 10 == 0]
+    rows_subset = [rows[k] for k in range(len(rows)) if (k + 1) % 10 == 0]
     merge_images(
         paths=rows_subset, direction="vertical", output_path=output_dir / "groups.png"
     )
@@ -86,7 +86,9 @@ if __name__ == "__main__":
     scalars: List[Scalar] = [
         Scalar(sid="stress", title="Stress", colormap="RdBu"),
         Scalar(sid="fluid_flux_TPM", title="Fluid flux TPM", colormap="RdBu"),
-        Scalar(sid="seepage_velocity_TPM", title="Seepage velocity TPM", colormap="RdBu"),
+        Scalar(
+            sid="seepage_velocity_TPM", title="Seepage velocity TPM", colormap="RdBu"
+        ),
         Scalar(sid="solid_stress_TPM", title="Solid stress", colormap="RdBu"),
         Scalar(sid="Lagrange_strain", title="Lagrange strain", colormap="RdBu"),
         Scalar(sid="pressure", title="Pressure", colormap="RdBu"),

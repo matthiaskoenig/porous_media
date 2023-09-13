@@ -215,9 +215,12 @@ def visualize_scalars(
 
 
 def create_combined_images(
-    xdmf_path: Path, output_dir: Path, scalars_selection: List[str],
+    xdmf_path: Path,
+    output_dir: Path,
+    scalars_selection: List[str],
     direction: str,
-    ncols: Optional[int] = None, nrows: Optional[int] = None
+    ncols: Optional[int] = None,
+    nrows: Optional[int] = None,
 ) -> List[Path]:
     """Create combined images for all time points."""
     image_dir: Path = output_dir / direction
@@ -236,8 +239,11 @@ def create_combined_images(
 
             combined_image: Path = output_dir / direction / f"sim_{k:05d}.png"
             merge_images(
-                paths=images, direction=direction, output_path=combined_image,
-                ncols=ncols, nrows=nrows,
+                paths=images,
+                direction=direction,
+                output_path=combined_image,
+                ncols=ncols,
+                nrows=nrows,
             )
 
             all_images.append(combined_image)
