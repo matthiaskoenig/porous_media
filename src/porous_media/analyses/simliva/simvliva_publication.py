@@ -76,6 +76,7 @@ def visualize_gradient(scalars: List[Scalar], create_panels: bool = True) -> Non
             / "simliva"
             / "iri_flux_study_0"
             / f"results_interpolated_{num}.xdmf",
+            direction="horizontal",
             output_dir=output_dir,
             scalars_selection=scalars_selection,
         )

@@ -283,7 +283,7 @@ def visualize_zonation_patterns(
                     sid="key",
                     title=f"{pattern.upper()} [-]",
                     colormap="RdBu",
-                    color_limits=(dmins[key], dmaxs[key]),
+                    color_limits=[dmins[key], dmaxs[key]],
                 )
             )
 

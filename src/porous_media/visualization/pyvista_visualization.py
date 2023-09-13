@@ -47,7 +47,7 @@ class Scalar:
     sid: str
     title: str
     colormap: str
-    color_limits: Optional[Tuple[float, float]] = None
+    color_limits: Optional[List[float]] = None
     scalar_bar: bool = True
 
 
@@ -61,7 +61,7 @@ def calculate_value_ranges(
     if not xdmf_path:
         raise IOError(f"xdmf_path does not exist: {xdmf_path}")
 
-    limits = {}
+    limits: Dict[str, List[float]] = {}
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
         # iterate over time points
@@ -69,7 +69,7 @@ def calculate_value_ranges(
             t, point_data, cell_data = reader.read_data(k)
 
             for scalar in scalars:
-                scalar_limits = None
+                scalar_limits: List[float] = [np.NaN, np.NaN]
 
                 # process cell data
                 sid = scalar.sid
