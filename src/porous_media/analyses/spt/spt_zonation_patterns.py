@@ -5,7 +5,7 @@ from typing import Dict, List
 
 import numpy as np
 from porous_media.console import console
-from porous_media.febio.results_processing import xdmfs_from_febio
+from porous_media.febio.xdmf_tools import xdmfs_from_febio
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
     Scalar,

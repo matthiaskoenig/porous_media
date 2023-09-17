@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import os
 import shutil
+from copy import deepcopy
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 import meshio
 import numpy as np
 from rich.progress import track
 
-from porous_media import DATA_DIR
+from meshio.xdmf.common import attribute_type
+from meshio._common import raw_from_cell_data
 from porous_media.console import console
 from porous_media.log import get_logger
 
@@ -42,7 +45,8 @@ class XDMFInformation:
     num_steps: int
     points: List[Any]
     cells: List[Any]
-    point_data: Dict[str, Any]
+    point_data: Dict[str, str]
+    cell_data: Dict[str, str]
 
     @staticmethod
     def from_path(xdmf_path: Path) -> XDMFInformation:
@@ -56,27 +60,14 @@ class XDMFInformation:
             # process most information based on initial data and points and cells
             tstart, point_data, cell_data = reader.read_data(0)
 
-            console.print(f"{point_data=}")
-            console.print(f"{cell_data=}")
-
-            from meshio.xdmf.common import attribute_type
             point_data_info = {}
             for name, data in point_data.items():
-                point_data_info[name] = {
-                    "AttributeType": attribute_type(data),
-                    "Center": "Node",
-                }
-            #
-            #
-            # raw = raw_from_cell_data(cell_data)
-            # for name, data in raw.items():
-            #     att = ET.SubElement(
-            #         grid,
-            #         "Attribute",
-            #         Name=name,
-            #         AttributeType=attribute_type(data),
-            #         Center="Cell",
-            #     )
+                point_data_info[name] = attribute_type(data)
+
+            cell_data_info = {}
+            raw = raw_from_cell_data(cell_data)
+            for name, data in raw.items():
+                cell_data_info[name] = attribute_type(data)
 
             # get end time
             tend, _, _ = reader.read_data(reader.num_steps-1)
@@ -88,21 +79,102 @@ class XDMFInformation:
             num_steps=reader.num_steps,
             points=points,
             cells=cells,
-            point_data=point_data_info,
+            point_data={},
+            cell_data=cell_data_info,
         )
         return xdmf_info
 
+@dataclass
+class DataLimits:
+    """Limits of numerical data."""
 
-def xdmf_information(xdmf_path) -> XDMFInformation:
+    limits: Dict[str, Tuple[float, float]]
+
+    @staticmethod
+    def merge_limits(data_limits_list: List[DataLimits]) -> DataLimits:
+        """Merge the limits from multiple data limits."""
+
+
+        limits = deepcopy(data_limits_list[0].limits)
+        for k, dlim in enumerate(data_limits_list):
+            if k==0:
+                continue
+            else:
+                for name, lims_k in enumerate(dlim.limits):
+                    lims = limits[name]
+                    if lims_k[0] < lims[0]:
+                        FIXME
 
 
 
 
+    @staticmethod
+    def from_xdmf(xdmf_path: Path) -> DataLimits:
+        """Helper for calculating all data limits.
 
-    info = XDMFInformation(path=xdmf_path)
-    return info
+        This takes some time because it requires iteration over the complete dataset.
+        Should support subsets and operations such as merging of limits from multiple
+        simulations.
+        """
+        # read information
+        xdmf_info = XDMFInformation.from_path(xdmf_path)
 
+        point_limits: Dict[str, List[float]] = {}
+        cell_limits: Dict[str, List[float]] = {}
+        with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+            _, _ = reader.read_points_cells()
 
+            for k in track(range(reader.num_steps), description="Calculate data limits ..."):
+                t, point_data, cell_data = reader.read_data(k)
+
+                # point data limits
+                for name, attribute_type in xdmf_info.point_data.items():
+                    # min and max from data
+                    data = point_data[name]
+                    data = np.dstack(data)
+                    data = data.squeeze()
+                    dmin = data.min()
+                    dmax = data.max()
+
+                    limits: Tuple[float, float]
+                    if k == 0:
+                        point_limits[name] = [dmin, dmax]
+
+                    # update limits
+                    limits = point_limits[name]
+                    if limits[0] > dmin:
+                        limits[0] = dmin
+                    if limits[1] < dmax:
+                        limits[1] = dmax
+                    point_limits[name] = limits
+
+                # cell data limits
+                for name, attribute_type in xdmf_info.cell_data.items():
+                    # min and max from data
+                    data = cell_data[name]
+                    data = np.dstack(data)
+                    data = data.squeeze()
+                    dmin = data.min()
+                    dmax = data.max()
+
+                    limits: Tuple[float, float]
+                    if k == 0:
+                        cell_limits[name] = [dmin, dmax]
+
+                    # update limits
+                    limits = cell_limits[name]
+                    if limits[0] > dmin:
+                        limits[0] = dmin
+                    if limits[1] < dmax:
+                        limits[1] = dmax
+                    cell_limits[name] = limits
+
+        return DataLimits(
+            limits={
+                **point_limits,
+                **cell_limits,
+            }
+        )
 
 
 def xdmfs_from_febio(febio_dir: Path, xdmf_dir: Path, overwrite: bool = False) -> List[Path]:
@@ -269,3 +341,6 @@ if __name__ == "__main__":
     xdmf_path: Path = Path('/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf')
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
+
+    limits = data_limits_from_xdmf(xdmf_path)
+    console.print(limits)

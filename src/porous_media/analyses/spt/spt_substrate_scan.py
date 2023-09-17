@@ -7,7 +7,7 @@ import numpy as np
 
 from porous_media import BASE_DIR, DATA_DIR
 from porous_media.console import console
-from porous_media.febio.results_processing import interpolate_xdmf, vtks_to_xdmf, \
+from porous_media.febio.xdmf_tools import interpolate_xdmf, vtks_to_xdmf, \
     xdmfs_from_febio, xdmf_information, XDMFInformation
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
