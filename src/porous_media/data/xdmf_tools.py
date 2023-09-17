@@ -12,9 +12,11 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
+import json
 
 import meshio
 import numpy as np
+from dataclasses_json import dataclass_json
 from rich.progress import track
 
 from meshio.xdmf.common import attribute_type
@@ -84,38 +86,36 @@ class XDMFInformation:
         )
         return xdmf_info
 
+
+@dataclass_json
 @dataclass
 class DataLimits:
     """Limits of numerical data."""
 
     limits: Dict[str, Tuple[float, float]]
 
-    @staticmethod
-    def merge_limits(data_limits_list: List[DataLimits]) -> DataLimits:
-        """Merge the limits from multiple data limits."""
 
+    @classmethod
+    def json_path_from_xdmf(cls, xdmf_path) -> Path:
+        """Get JSON path from xdmf path"""
+        return xdmf_path.parent / f"{xdmf_path.stem}_limits.json"
 
-        limits = deepcopy(data_limits_list[0].limits)
-        for k, dlim in enumerate(data_limits_list):
-            if k==0:
-                continue
-            else:
-                for name, lims_k in enumerate(dlim.limits):
-                    lims = limits[name]
-                    if lims_k[0] < lims[0]:
-                        FIXME
-
-
-
-
-    @staticmethod
-    def from_xdmf(xdmf_path: Path) -> DataLimits:
+    @classmethod
+    def from_xdmf(cls, xdmf_path: Path, overwrite: bool = False) -> DataLimits:
         """Helper for calculating all data limits.
 
         This takes some time because it requires iteration over the complete dataset.
         Should support subsets and operations such as merging of limits from multiple
         simulations.
         """
+        # check existing Json
+        json_path = cls.json_path_from_xdmf(xdmf_path)
+        if not overwrite and json_path.exists():
+            console.print(f"json file exists: {json_path}")
+            with open(json_path, "r") as f_json:
+                d = json.load(f_json)
+                return DataLimits(**d)
+
         # read information
         xdmf_info = XDMFInformation.from_path(xdmf_path)
 
@@ -124,7 +124,7 @@ class DataLimits:
         with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
             _, _ = reader.read_points_cells()
 
-            for k in track(range(reader.num_steps), description="Calculate data limits ..."):
+            for k in track(range(reader.num_steps), description=f"Calculate data limits ..."):
                 t, point_data, cell_data = reader.read_data(k)
 
                 # point data limits
@@ -133,8 +133,8 @@ class DataLimits:
                     data = point_data[name]
                     data = np.dstack(data)
                     data = data.squeeze()
-                    dmin = data.min()
-                    dmax = data.max()
+                    dmin = float(data.min())  # casting for JSON serialization
+                    dmax = float(data.max())
 
                     limits: Tuple[float, float]
                     if k == 0:
@@ -154,8 +154,8 @@ class DataLimits:
                     data = cell_data[name]
                     data = np.dstack(data)
                     data = data.squeeze()
-                    dmin = data.min()
-                    dmax = data.max()
+                    dmin = float(data.min())
+                    dmax = float(data.max())
 
                     limits: Tuple[float, float]
                     if k == 0:
@@ -169,12 +169,36 @@ class DataLimits:
                         limits[1] = dmax
                     cell_limits[name] = limits
 
-        return DataLimits(
+        data_limits = DataLimits(
             limits={
                 **point_limits,
                 **cell_limits,
             }
         )
+        with open(json_path, "w") as f_json:
+            json.dump(data_limits.to_dict(), fp=f_json, indent=2)
+
+        console.print(f"json file created: {json_path}")
+        return data_limits
+
+    @staticmethod
+    def merge_limits(data_limits: List[DataLimits]) -> DataLimits:
+        """Merge the limits from multiple data limits."""
+
+        # copy limits from simulation 0
+        limits = deepcopy(data_limits[0].limits)
+        for k, dlim in enumerate(data_limits):
+            if k == 0:
+                continue
+            else:
+                for name, lims_k in dlim.limits.items():
+                    lims = limits[name]
+                    if lims_k[0] < lims[0]:
+                        lims[0] = lims_k[0]
+                    if lims_k[1] > lims[1]:
+                        lims[1] = lims_k[1]
+
+        return DataLimits(limits=limits)
 
 
 def xdmfs_from_febio(febio_dir: Path, xdmf_dir: Path, overwrite: bool = False) -> List[Path]:
@@ -227,6 +251,7 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
     console.print(f"{vtk_dir} -> {xdmf_path}")
     if not overwrite and xdmf_path.exists():
         console.print(f"xdmf file exists: {xdmf_path}")
+        DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=overwrite)
         return
 
     with meshio.xdmf.TimeSeriesWriter(xdmf_path, data_format="HDF") as writer:
@@ -252,12 +277,22 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
         os.remove(h5_path)
     shutil.move(f"{xdmf_path.stem}.h5", str(xdmf_path.parent))
 
+    # Calculate limits
+    DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=overwrite)
+
 
 def interpolate_xdmf(
-    xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarray
+    xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarray,
+    overwrite: bool = False
 ) -> None:
     """Interpolate XDMF."""
     console.rule(title=f"Interpolate {xdmf_in}", style="white")
+
+    if not overwrite and xdmf_out.exists():
+        console.print(f"xdmf file exists: {xdmf_out}")
+        DataLimits.from_xdmf(xdmf_path=xdmf_out, overwrite=overwrite)
+        return
+
     with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
         points, cells = reader.read_points_cells()
 
@@ -334,13 +369,27 @@ def interpolate_xdmf(
             os.remove(h5_path)
         shutil.move(f"{xdmf_out.stem}.h5", str(xdmf_out.parent))
 
+        # Calculate limits
+        DataLimits.from_xdmf(xdmf_path=xdmf_out, overwrite=overwrite)
+
         console.print(f"Interpolated data: {xdmf_out}")
 
 
 if __name__ == "__main__":
+    xdmf_paths: List[Path] = [
+        Path(f'/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf') for k in range(21, 26)
+    ]
+
     xdmf_path: Path = Path('/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf')
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
 
-    limits = data_limits_from_xdmf(xdmf_path)
-    console.print(limits)
+    # limits of individual simulations
+    all_limits: List[DataLimits] = []
+    for xdmf_path in xdmf_paths:
+        limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
+        all_limits.append(limits)
+
+    # merge data limits
+    data_limits = DataLimits.merge_limits(all_limits)
+    console.print(data_limits)

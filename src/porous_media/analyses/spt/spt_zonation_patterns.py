@@ -1,30 +1,37 @@
-"""Substrate scan simulation."""
+"""Zonation pattern scan."""
 
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
-import numpy as np
+from porous_media import BASE_DIR
+from porous_media.analyses.spt.spt_substrate_scan import visualize_scan
 from porous_media.console import console
-from porous_media.febio.xdmf_tools import xdmfs_from_febio
-from porous_media.visualization.image_manipulation import merge_images
-from porous_media.visualization.pyvista_visualization import (
-    Scalar,
-    calculate_value_ranges,
-    create_combined_images,
-    visualize_scalars_timecourse,
-)
-from porous_media.visualization.video import create_video
-from porous_media.analyses.spt import scalars_spt
+
+from porous_media.data.xdmf_tools import XDMFInformation, xdmfs_from_febio
+
+
 from porous_media.log import get_logger
 
 logger = get_logger(__name__)
 
 if __name__ == "__main__":
 
+    # process files
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt_zonation_patterns")
     xdmf_paths: List[Path] = xdmfs_from_febio(
-        febio_dir=Path("/home/mkoenig/data/qualiperf/P7-Perf/spt_results/simulation_zonation_hard"),
-        xdmf_dir=Path("/home/mkoenig/git/porous_media/data/spt_zonation_patterns"),
+        febio_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_zonation_hard"),
+        xdmf_dir=xdmf_dir,
         overwrite=False,
     )
+    info: XDMFInformation = XDMFInformation.from_path(xdmf_path=xdmf_paths[0])
+    console.print(info)
 
-    # visualize_gradient(scalars=scalars_iri, create_panels=False)
+    # create visualizations
+    from porous_media.analyses.spt import data_layers_spt
+    results_dir: Path = BASE_DIR / "results" / "spt_zonation_patterns"
+    visualize_scan(
+        xdmf_paths=xdmf_paths,
+        data_layers=data_layers_spt,
+        results_dir=results_dir,
+        create_panels=True,
+    )

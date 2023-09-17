@@ -9,15 +9,15 @@ from porous_media.console import console
 from porous_media.febio.xdmf_tools import interpolate_xdmf, vtks_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
-    Scalar,
+    DataLayer,
     calculate_value_ranges,
     create_combined_images,
-    visualize_scalars_timecourse,
+    visualize_datalayers_timecourse,
 )
 from porous_media.visualization.video import create_video
 
 
-def visualize_group(scalars: List[Scalar], create_panels: bool = True) -> None:
+def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> None:
     """Gradient dependency."""
     sim_dir = DATA_DIR / "examples" / "Group_PF_ideal_TPM"
     xdmf_path = sim_dir / "results.xdmf"
@@ -41,8 +41,8 @@ def visualize_group(scalars: List[Scalar], create_panels: bool = True) -> None:
         console.print(scalars)
 
         # create panels
-        visualize_scalars_timecourse(
-            xdmf_path=xdmf_interpolated_path, scalars=scalars, output_dir=output_dir
+        visualize_datalayers_timecourse(
+            xdmf_path=xdmf_interpolated_path, data_layers=scalars, output_dir=output_dir
         )
 
     # subset of scalars to visualize
@@ -83,14 +83,14 @@ def visualize_group(scalars: List[Scalar], create_panels: bool = True) -> None:
 
 
 if __name__ == "__main__":
-    scalars: List[Scalar] = [
-        Scalar(sid="stress", title="Stress", colormap="RdBu"),
-        Scalar(sid="fluid_flux_TPM", title="Fluid flux TPM", colormap="RdBu"),
-        Scalar(
+    scalars: List[DataLayer] = [
+        DataLayer(sid="stress", title="Stress", colormap="RdBu"),
+        DataLayer(sid="fluid_flux_TPM", title="Fluid flux TPM", colormap="RdBu"),
+        DataLayer(
             sid="seepage_velocity_TPM", title="Seepage velocity TPM", colormap="RdBu"
         ),
-        Scalar(sid="solid_stress_TPM", title="Solid stress", colormap="RdBu"),
-        Scalar(sid="Lagrange_strain", title="Lagrange strain", colormap="RdBu"),
-        Scalar(sid="pressure", title="Pressure", colormap="RdBu"),
+        DataLayer(sid="solid_stress_TPM", title="Solid stress", colormap="RdBu"),
+        DataLayer(sid="Lagrange_strain", title="Lagrange strain", colormap="RdBu"),
+        DataLayer(sid="pressure", title="Pressure", colormap="RdBu"),
     ]
     visualize_group(scalars=scalars, create_panels=False)

@@ -12,8 +12,8 @@ from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
     DataRangeType,
-    Scalar,
-    visualize_scalars,
+    DataLayer,
+    visualize_data_layers,
 )
 
 
@@ -279,7 +279,7 @@ def visualize_zonation_patterns(
             # Fix the patterns
             pattern = key.split("__")[-1]
             scalars.append(
-                Scalar(
+                DataLayer(
                     sid="key",
                     title=f"{pattern.upper()} [-]",
                     colormap="RdBu",
@@ -288,7 +288,7 @@ def visualize_zonation_patterns(
             )
 
     # create raw images
-    visualize_scalars(
+    visualize_data_layers(
         mesh=mesh, scalars=scalars, output_dir=results_path, image_name=image_name
     )
     # combine images

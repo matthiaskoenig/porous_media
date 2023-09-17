@@ -1,17 +1,22 @@
-"""Visualization with pyvista."""
+"""Visualization with pyvista.
+
+Figure out how to add multiple layers to the visualization.
+E.g. streamlines in addition to other data.
+
+"""
 import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple, Iterable
 
 import meshio
-import numpy as np
 import pyvista as pv
 from rich.progress import track
 
 from porous_media.console import console
-from porous_media.mesh.mesh_tools import MeshTimepoint, mesh_to_xdmf
+from porous_media.data.xdmf_tools import DataLimits
+from porous_media.mesh.mesh_tools import mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 
 
@@ -41,68 +46,29 @@ class DataRangeType(str, Enum):
 
 
 @dataclass
-class Scalar:
-    """Scalar information for plotting."""
+class DataLayer:
+    """Data layer for plot with all information to visualize the layer.
+
+    This will be most likely extended to account for
+    order of plotting, opacity and so on.
+    """
 
     sid: str
     title: str
+    data_type: str  # Scalar, Vector, Tensor
     colormap: str
-    color_limits: Optional[List[float]] = None
+    color_limits: Optional[Tuple[float, float]] = None
     scalar_bar: bool = True
+    # plot_type: str
+
+    def update_color_limits(self, data_limits: DataLimits):
+        self.color_limits = data_limits.limits[self.sid]
 
 
-def calculate_value_ranges(
-    xdmf_path: Path, scalars: List[Scalar]
-) -> Dict[str, List[float]]:
-    """Calculate the limits/ranges for given scalars and adds to the scalars.
-
-    Iterates over all timepoints of a given scalar to figure out the ranges of the data.
-    """
-    if not xdmf_path:
-        raise IOError(f"xdmf_path does not exist: {xdmf_path}")
-
-    limits: Dict[str, List[float]] = {}
-    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
-        points, cells = reader.read_points_cells()
-        # iterate over time points
-        for k in range(reader.num_steps):
-            t, point_data, cell_data = reader.read_data(k)
-
-            for scalar in scalars:
-                scalar_limits: List[float] = [np.NaN, np.NaN]
-
-                # process cell data
-                sid = scalar.sid
-                try:
-                    data = cell_data[scalar.sid]
-                except KeyError as err:
-                    console.print(f"Exising keys: {cell_data.keys()}")
-                    raise err
-
-                data = np.dstack(data)
-                data = data.squeeze()
-
-                # new min, max
-                dmin = data.min()
-                dmax = data.max()
-                if not scalar_limits:
-                    scalar_limits = [dmin, dmax]
-                else:
-                    if scalar_limits[0] > dmin:
-                        scalar_limits[0] = dmin
-                    if scalar_limits[1] < dmax:
-                        scalar_limits[1] = dmax
-
-                scalar.color_limits = scalar_limits
-                limits[sid] = scalar_limits
-
-    return limits
-
-
-def visualize_scalars_timecourse(
+def visualize_datalayers_timecourse(
     xdmf_path: Path,
     output_dir: Path,
-    scalars: List[Scalar],
+    data_layers: List[DataLayer],
     window_size: Tuple[int, int] = (600, 600),
 ) -> None:
     """Create visualizations for individual panels."""
@@ -115,25 +81,25 @@ def visualize_scalars_timecourse(
         points, cells = reader.read_points_cells()
 
         tnum = reader.num_steps
-        for k in track(range(tnum), description="Create panels for scalars..."):
+        for k in track(range(tnum), description="Create panels for data layers ..."):
             t, point_data, cell_data = reader.read_data(k)
 
             # Create mesh with single data point
             mesh: meshio = meshio.Mesh(
                 points=points, cells=cells, cell_data=cell_data, point_data=point_data
             )
-            visualize_scalars(
+            visualize_data_layers(
                 mesh=mesh,
-                scalars=scalars,
+                data_layers=data_layers,
                 image_name=f"sim_{k:05d}",
                 output_dir=output_dir / "panels",
                 window_size=window_size,
             )
 
 
-def visualize_scalars(
+def visualize_data_layers(
     mesh: meshio.Mesh,
-    scalars: List[Scalar],
+    data_layers: List[DataLayer],
     output_dir: Path,
     image_name: str,
     window_size: Tuple[float, float] = (1000, 1000),
@@ -143,6 +109,9 @@ def visualize_scalars(
     :param mesh: mesh with single time point scalar data
     :param image_name: name of the created image, without extension.
     """
+    # FIXME: make this the function for a single plot
+
+
 
     # create VTK from mesh to read for pyvista
     # FIXME: better handling of grid
@@ -155,18 +124,22 @@ def visualize_scalars(
     grid.set_active_scalars(None)
     grid.set_active_vectors(None)
 
-    # visualize scalars
-    scalars_dict: Dict[str, Scalar] = {s.sid: s for s in scalars}
-    for scalar_id, scalar in scalars_dict.items():
+    # visualize data_layers
+    data_layers_dict: Dict[str, DataLayer] = {dl.sid: dl for dl in data_layers}
+    for name, data_layer in data_layers_dict.items():
         p = pv.Plotter(
             window_size=window_size,
-            title="TPM lobulus",
+            # title="TPM",
             off_screen=True,
         )
+        if data_layer.data_type == "Scalar":
+            grid.set_active_scalars(name=name)
+        elif data_layer.data_type == "Vector":
+            grid.set_active_vectors(name=name)
+        elif data_layer.data_type == "Tensor":
+            grid.set_active_tensors(name=name)
 
-        scalar = scalars_dict[scalar_id]
-        grid.set_active_scalars(name=scalar_id)
-
+        # FIXME: add multiple layers on top of each other
         actor = p.add_mesh(
             grid,
             show_edges=True,
@@ -174,15 +147,15 @@ def visualize_scalars(
             point_size=3,
             show_vertices=True,
             line_width=1.0,
-            cmap=scalar.colormap,
+            cmap=data_layer.colormap,
             show_scalar_bar=False,
             edge_color="darkgray",
             # specular=0.5, specular_power=15,
-            clim=scalar.color_limits,
+            clim=data_layer.color_limits,
         )
-        if scalar.scalar_bar:
+        if data_layer.scalar_bar:
             p.add_scalar_bar(
-                title=scalar.title,
+                title=data_layer.title,
                 n_labels=5,
                 bold=True,
                 # height=0.6,
@@ -196,8 +169,8 @@ def visualize_scalars(
 
             # set the color limits
             p.update_scalar_bar_range(
-                clim=scalar.color_limits,
-                name=scalar.title,
+                clim=data_layer.color_limits,
+                name=data_layer.title,
             )
 
         # Camera position to zoom to face
@@ -206,7 +179,7 @@ def visualize_scalars(
         # p.camera.tight(padding=0.05, adjust_render_window=False)
         # print(p.camera)
 
-        output_subdir = Path(output_dir) / f"{scalar_id}"
+        output_subdir = Path(output_dir) / f"{name}"
         output_subdir.mkdir(exist_ok=True, parents=True)
         p.show(
             # cpos=top_view,
@@ -215,38 +188,36 @@ def visualize_scalars(
 
 
 def create_combined_images(
-    xdmf_path: Path,
+    num_steps: int,
     output_dir: Path,
-    scalars_selection: List[str],
+    selection: Iterable[str],
     direction: str,
     ncols: Optional[int] = None,
     nrows: Optional[int] = None,
 ) -> List[Path]:
-    """Create combined images for all time points."""
+    """Create combined images for all timepoints."""
+
     image_dir: Path = output_dir / direction
     image_dir.mkdir(parents=True, exist_ok=True)
-
     all_images: List[Path] = []
-    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
-        _, _ = reader.read_points_cells()
-        for k in track(
-            range(reader.num_steps), description="Create combined images ..."
-        ):
-            images: List[Path] = []
-            for scalar_id in scalars_selection:
-                img_path = output_dir / "panels" / scalar_id / f"sim_{k:05d}.png"
-                images.append(img_path)
+    for k in track(
+        range(num_steps), description="Create combined images ..."
+    ):
+        images: List[Path] = []
+        for name in selection:
+            img_path = output_dir / "panels" / name / f"sim_{k:05d}.png"
+            images.append(img_path)
 
-            combined_image: Path = output_dir / direction / f"sim_{k:05d}.png"
-            merge_images(
-                paths=images,
-                direction=direction,
-                output_path=combined_image,
-                ncols=ncols,
-                nrows=nrows,
-            )
+        combined_image: Path = output_dir / direction / f"sim_{k:05d}.png"
+        merge_images(
+            paths=images,
+            direction=direction,
+            output_path=combined_image,
+            ncols=ncols,
+            nrows=nrows,
+        )
 
-            all_images.append(combined_image)
+        all_images.append(combined_image)
 
     return all_images
 
@@ -257,24 +228,24 @@ if __name__ == "__main__":
     mesh_spt: meshio.Mesh = meshio.read(vtk_path_spt)
     output_path_spt = Path("./raw_spt/")
     output_path_spt.mkdir(exist_ok=True)
-    scalars_spt: List[Scalar] = [
-        Scalar(
+    scalars_spt: List[DataLayer] = [
+        DataLayer(
             sid="rr_(S)",
             title="Substrate S [mM]",
             colormap="RdBu",
         ),
-        Scalar(
+        DataLayer(
             sid="rr_(P)",
             title="Product P [mM]",
             colormap="RdBu",
         ),
-        Scalar(
+        DataLayer(
             sid="rr_necrosis",
             title="Necrosis",
             colormap="binary",
         ),
     ]
-    visualize_scalars(
+    visualize_data_layers(
         mesh=mesh_spt,
         scalars=scalars_spt,
         output_dir=output_path_spt,

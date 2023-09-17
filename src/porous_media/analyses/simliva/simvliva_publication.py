@@ -9,10 +9,10 @@ from porous_media.console import console
 from porous_media.febio.xdmf_tools import interpolate_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
-    Scalar,
+    DataLayer,
     calculate_value_ranges,
     create_combined_images,
-    visualize_scalars_timecourse,
+    visualize_datalayers_timecourse,
 )
 from porous_media.visualization.video import create_video
 
@@ -29,7 +29,7 @@ from porous_media.visualization.video import create_video
 #     }
 
 
-def visualize_gradient(scalars: List[Scalar], create_panels: bool = True) -> None:
+def visualize_gradient(scalars: List[DataLayer], create_panels: bool = True) -> None:
     """Gradient dependency."""
     sim_dir = DATA_DIR / "simliva" / "iri_flux_study_0"
 
@@ -51,8 +51,8 @@ def visualize_gradient(scalars: List[Scalar], create_panels: bool = True) -> Non
             console.print(scalars_iri)
 
             # create panels
-            visualize_scalars_timecourse(
-                xdmf_path=xdmf_path, scalars=scalars_iri, output_dir=output_dir
+            visualize_datalayers_timecourse(
+                xdmf_path=xdmf_path, data_layers=scalars_iri, output_dir=output_dir
             )
 
     # subset of scalars to visualize
@@ -114,22 +114,22 @@ if __name__ == "__main__":
     # ]
     # visualize_temperature_dependency(scalars=scalars_iri_old, create_panels=True)
 
-    scalars_iri: List[Scalar] = [
-        Scalar(
+    scalars_iri: List[DataLayer] = [
+        DataLayer(
             sid="rr_necrosis", title="Necrosis (0: alive, 1: death)", colormap="binary"
         ),
-        Scalar(sid="rr_(atp)", title="ATP (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(glc)", title="Glucose (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(lac)", title="Lactate (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(o2)", title="Oxygen (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(pyr)", title="Pyruvate (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(adp)", title="ADP (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(nadh)", title="NADH (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(nad)", title="NAD (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(ros)", title="ROS (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(alt)", title="ALT (mM)", colormap="RdBu"),
-        Scalar(sid="rr_(ast)", title="AST (mM)", colormap="RdBu"),
-        Scalar(sid="rr_Vext", title="Volume extern (l)", colormap="RdBu"),
-        Scalar(sid="rr_Vli", title="Volume liver (l)", colormap="RdBu"),
+        DataLayer(sid="rr_(atp)", title="ATP (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(glc)", title="Glucose (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(lac)", title="Lactate (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(o2)", title="Oxygen (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(pyr)", title="Pyruvate (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(adp)", title="ADP (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(nadh)", title="NADH (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(nad)", title="NAD (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(ros)", title="ROS (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(alt)", title="ALT (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_(ast)", title="AST (mM)", colormap="RdBu"),
+        DataLayer(sid="rr_Vext", title="Volume extern (l)", colormap="RdBu"),
+        DataLayer(sid="rr_Vli", title="Volume liver (l)", colormap="RdBu"),
     ]
     visualize_gradient(scalars=scalars_iri, create_panels=False)
