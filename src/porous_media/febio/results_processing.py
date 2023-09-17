@@ -1,8 +1,15 @@
-"""Process timeseries data in XDMF."""
+"""Process timeseries data in XDMF.
+
+https://www.xdmf.org/index.php/XDMF_Model_and_Format
+
+"""
+from __future__ import annotations
+
 import os
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import meshio
 import numpy as np
@@ -10,14 +17,145 @@ from rich.progress import track
 
 from porous_media import DATA_DIR
 from porous_media.console import console
+from porous_media.log import get_logger
+
+logger = get_logger(__name__)
 
 
-def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path) -> None:
-    """Convert VTK timesteps to XDMF time course."""
+@dataclass
+class XDMFInformation:
+    """Information about a given timecourse xdmf.
+
+    This includes information about the timepoints, scalars, vectors, ... .
+    This is often required as base information before processing things.
+
+    - figure out time points and range
+    - figure out data limits
+    - figure out scalars, vectors, ...
+
+    Preprocessing of all the important information for the visualization later on.
+    """
+
+    path: Path
+    tstart: float
+    tend: float
+    num_steps: int
+    points: List[Any]
+    cells: List[Any]
+    point_data: Dict[str, Any]
+
+    @staticmethod
+    def from_path(xdmf_path: Path) -> XDMFInformation:
+        """Create XDMFInformation from xdmf path."""
+        if not xdmf_path:
+            raise IOError(f"xdmf_path does not exist: {xdmf_path}")
+
+        with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+            points, cells = reader.read_points_cells()
+
+            # process most information based on initial data and points and cells
+            tstart, point_data, cell_data = reader.read_data(0)
+
+            console.print(f"{point_data=}")
+            console.print(f"{cell_data=}")
+
+            from meshio.xdmf.common import attribute_type
+            point_data_info = {}
+            for name, data in point_data.items():
+                point_data_info[name] = {
+                    "AttributeType": attribute_type(data),
+                    "Center": "Node",
+                }
+            #
+            #
+            # raw = raw_from_cell_data(cell_data)
+            # for name, data in raw.items():
+            #     att = ET.SubElement(
+            #         grid,
+            #         "Attribute",
+            #         Name=name,
+            #         AttributeType=attribute_type(data),
+            #         Center="Cell",
+            #     )
+
+            # get end time
+            tend, _, _ = reader.read_data(reader.num_steps-1)
+
+        xdmf_info = XDMFInformation(
+            path=xdmf_path,
+            tstart=tstart,
+            tend=tend,
+            num_steps=reader.num_steps,
+            points=points,
+            cells=cells,
+            point_data=point_data_info,
+        )
+        return xdmf_info
+
+
+def xdmf_information(xdmf_path) -> XDMFInformation:
+
+
+
+
+
+    info = XDMFInformation(path=xdmf_path)
+    return info
+
+
+
+
+def xdmfs_from_febio(febio_dir: Path, xdmf_dir: Path, overwrite: bool = False) -> List[Path]:
+    """Create the XDMF files from the raw FEBio simulation results.
+
+    Processes all subdirectories which contain vtks. This allows
+    to create the xdmfs for all simulations.
+    """
+    console.rule(title="XDMF from FEBio", align="left", style="white")
+    # processes all folders with vtk
+
+    # iterate over all directories and subdirectories to collect vtk directories
+    vtk_dirs: List[Path] = []
+    for d in sorted(list(febio_dir.rglob("*"))):
+        vtk_paths = sorted(list(d.glob("*.vtk")))
+        n_vtks = len(vtk_paths)
+        if n_vtks > 0:
+            console.print(f"{n_vtks} VTKs: {d}")
+            vtk_dirs.append(d)
+
+    if not vtk_dirs:
+        logger.error(f"No directory with VTKs in '{febio_dir}'. "
+                     f"Check if the 'febio_dir' is correct.")
+
+    # process the VTKs in the directory
+    xdmf_paths: List[Path] = []
+    for vtk_dir in vtk_dirs:
+        d_name = str(vtk_dir.relative_to(febio_dir))
+        d_name = d_name.replace("/", "__")
+        xdmf_path = xdmf_dir / f"{d_name}.xdmf"
+        xdmf_paths.append(xdmf_path)
+        vtks_to_xdmf(vtk_dir=vtk_dir, xdmf_path=xdmf_path, overwrite=overwrite)
+
+    return xdmf_paths
+
+
+def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> None:
+    """Convert VTK timesteps to XDMF time course.
+
+    :param overwrite: forces overwrite of files, by default existing files are ignored.
+    """
     console.rule(title=f"{xdmf_path}", style="white")
 
     vtk_paths = sorted(list(vtk_dir.glob("*.vtk")))
     mesh: meshio.Mesh = meshio.read(vtk_paths[0])
+
+    if not xdmf_path.parent.exists():
+        xdmf_path.parent.mkdir(parents=True)
+
+    console.print(f"{vtk_dir} -> {xdmf_path}")
+    if not overwrite and xdmf_path.exists():
+        console.print(f"xdmf file exists: {xdmf_path}")
+        return
 
     with meshio.xdmf.TimeSeriesWriter(xdmf_path, data_format="HDF") as writer:
         writer.write_points_cells(mesh.points, mesh.cells)
@@ -128,32 +266,6 @@ def interpolate_xdmf(
 
 
 if __name__ == "__main__":
-    sim_flux_path: Path = DATA_DIR / "simliva" / "iri_flux_study_0" / "vtk"
-    sim_277k_path: Path = DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "vtk"
-    sim_310k_path: Path = DATA_DIR / "simliva" / "006_T_310_15K_P0__0Pa_t_24h" / "vtk"
-
-    # interpolate_xdmf(
-    #     xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
-    #     xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
-    #     times_interpolate=np.linspace(0, 600 * 60, num=11)  # [s] (11 points in 600 min) # static image
-    # )
-    #
-    # interpolate_xdmf(
-    #     xdmf_in=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results.xdmf",
-    #     xdmf_out=DATA_DIR / "simliva" / "005_T_277_15K_P0__0Pa_t_24h" / "results_interpolated_11.xdmf",
-    #     times_interpolate=np.linspace(0, 600 * 60, num=11)
-    # )
-    #
-    # interpolate_xdmf(
-    #     xdmf_in=sim_flux_path.parent / "results.xdmf",
-    #     xdmf_out=sim_flux_path.parent / "results_interpolated.xdmf",
-    #     times_interpolate=np.linspace(0, 10000, num=200)
-    # )
-
-    nums = [10, 200]
-    for num in nums:
-        interpolate_xdmf(
-            xdmf_in=sim_flux_path.parent / "results.xdmf",
-            xdmf_out=sim_flux_path.parent / f"results_interpolated_{num}.xdmf",
-            times_interpolate=np.linspace(0, 10000, num=num),
-        )
+    xdmf_path: Path = Path('/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf')
+    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    console.print(xdmf_info)

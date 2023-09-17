@@ -1,19 +1,18 @@
 .idea
 __pycache__
-buildroadrunner
-*.xplt
-data/simliva
-data/iri_flux_study_0/
-data/spt
-results
-results/zonation/raw_patterns/
-data/2023_09_SPP2311_SimLivA.pptx
-
-
-
-
 src/porous_media.egg-info/
 .tox/
 .cache/
 .coverage
 coverage.xml
+
+# results
+results
+
+# raw data
+data/simliva
+data/iri_flux_study_0/
+data/spt
+data/2023_09_SPP2311_SimLivA.pptx
+data/spt_substrate_scan/
+data/spt_zonation_patterns/
