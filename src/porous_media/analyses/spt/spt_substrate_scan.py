@@ -43,11 +43,18 @@ def visualize_scan(
         "pressure",
     ]
 
+
+    # Calculate tend time from all simulations
+    tends: np.ndarray = np.zeros(shape=(len(xdmf_paths),))
+    for k, xdmf_path in enumerate(xdmf_paths):
+        xdmf_info = XDMFInformation.from_path(xdmf_path)
+        tends[k] = xdmf_info.tend
+    tend = tends.min()
+
     # ordered data layers selected
     data_layers_dict = {dl.sid: dl for dl in data_layers}
     data_layers_selected = [data_layers_dict[sid] for sid in selection]
 
-    tend = 28800  # 28800
     if create_panels:
         for num in [10, 100]:
             output_dir = results_dir / f"{num}_{tend}"

@@ -125,7 +125,7 @@ class DataLimits:
             _, _ = reader.read_points_cells()
 
             for k in track(
-                range(reader.num_steps), description=f"Calculate data limits ..."
+                range(reader.num_steps), description=f"Calculating data limits ..."
             ):
                 t, point_data, cell_data = reader.read_data(k)
 
@@ -308,7 +308,7 @@ def interpolate_xdmf(
 
             tnum = reader.num_steps
             times_data = np.zeros((tnum,))
-            for k in track(range(tnum), description="Calculate timepoints ..."):
+            for k in track(range(tnum), description="Calculating timepoints ..."):
                 t, _, _ = reader.read_data(k)
                 times_data[k] = t
 
@@ -329,7 +329,7 @@ def interpolate_xdmf(
 
             # interpolate data for all data points
             for k in track(
-                range(len(times_interpolate)), description="Interpolate data ..."
+                range(len(times_interpolate)), description="Interpolating data ..."
             ):
                 t_interpolate = times_interpolate[k]
                 idx_low = lower_indices[k]

@@ -23,12 +23,11 @@ class ZonationPatterns:
     This calculates zonated variables based on the position of the mesh nodes.
     """
 
-    # FIXME: allow to set range of patterns
 
     @staticmethod
-    def position(p: np.ndarray) -> np.ndarray:
+    def position(p: np.ndarray, value: float = 1.0) -> np.ndarray:
         """Pattern based on position information."""
-        return p
+        return value * p
 
     @staticmethod
     def constant(p: np.ndarray, value: float = 0.5) -> np.ndarray:
@@ -57,43 +56,57 @@ class ZonationPatterns:
         return value_min + (value_max - value_min) * (1.0 - p)
 
     @staticmethod
-    def exp_increase(p: np.ndarray) -> np.ndarray:
+    def exp_increase(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
         """Exponential increasing pattern in [0, 1]."""
-        return (np.exp(p) - 1.0) / (np.exp(1.0) - 1.0)
+        return value_min + (value_max - value_min) * (np.exp(p) - 1.0) / (np.exp(1.0) - 1.0)
 
     @staticmethod
-    def exp_decrease(p: np.ndarray) -> np.ndarray:
+    def exp_decrease(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
         """Exponential decreasing pattern in [0, 1]."""
-        return 1.0 - ZonationPatterns.exp_increase(p)
+        return 1.0 - ZonationPatterns.exp_increase(p, value_min, value_max)
 
     @staticmethod
-    def sharp_periportal(p: np.ndarray) -> np.ndarray:
+    def only_periportal(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
         data = np.zeros_like(p)
-        data[p <= 0.2] = 1.0
+        data[p <= 0.2] = value_max
+        data[p > 0.2] = value_min
         return data
 
     @staticmethod
-    def sharp_pericentral(p: np.ndarray) -> np.ndarray:
+    def only_pericentral(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
         """Sharp pericentral pattern in [0, 1]."""
         data = np.zeros_like(p)
-        data[p >= 0.8] = 1.0
+        data[p >= 0.8] = value_max
+        data[p < 0.2] = value_min
         return data
+
+    @staticmethod
+    def sharp_periportal(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=5.0) -> np.ndarray:
+        """Sharp periportal pattern in [0, 1]."""
+        return value_min + (value_max - value_min) * (1 - p**n/(p**n + 0.2**n))
+
+    @staticmethod
+    def sharp_pericentral(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=5.0) -> np.ndarray:
+        """Sharp pericentral pattern in [0, 1]."""
+        return value_min + (value_max - value_min) * p**n / (p**n + 0.8**n)
 
 
 class ZonatedMesh:
     """Class for zonated meshes."""
 
     patterns: List[Callable] = [
-        # ZonationPatterns.position,
+        ZonationPatterns.position,
         ZonationPatterns.constant,
-        # ZonationPatterns.random,
+        ZonationPatterns.random,
         ZonationPatterns.linear_increase,
         ZonationPatterns.linear_decrease,
-        # ZonationPatterns.exp_increase,
+        ZonationPatterns.exp_increase,
         ZonationPatterns.sharp_pericentral,
-        # ZonationPatterns.exp_decrease,
+        ZonationPatterns.only_pericentral,
+        ZonationPatterns.exp_decrease,
         ZonationPatterns.sharp_periportal,
+        ZonationPatterns.only_periportal,
     ]
 
     @classmethod
@@ -215,7 +228,7 @@ class ZonatedMesh:
 
             position[kc] = dpp / (dpv + dpp)
 
-        console.print(f"{position=}")
+        # console.print(f"{position=}")
         m.cell_data["position"] = [position]
         return m
 
@@ -244,26 +257,44 @@ class ZonatedMesh:
         m.cell_data[variable_id] = [data]
         return m
 
+data_layers = []
+
+for key in [p.__name__ for p in ZonatedMesh.patterns]:
+    data_layers.append(
+        DataLayer(
+            sid=f"pattern__{key}",
+            title=key,
+            data_type="Scalar",
+            colormap="magma",
+        )
+    )
+
+console.print(data_layers)
+
+
 
 def visualize_zonation_patterns(
     mesh: meshio.Mesh,
     results_path: Path,
     image_name: str,
+    data_layers: List[DataLayer],
+    direction: str="horizontal",
     drange_type: DataRangeType = DataRangeType.LOCAL,
 ) -> None:
-    """Visualize zonation patterns.
-
-    :param image_name: Name for the generated image in the output path.
-    """
+    """Visualize zonation patterns."""
+    dl_sids: List[str] = [dl.sid for dl in data_layers]
 
     # calculate the data ranges
     dmins: Dict[str, float] = {}
     dmaxs: Dict[str, float] = {}
-    for key in mesh.cell_data:
+
+    for key in dl_sids:
         data = mesh.cell_data[key][0]
         # min, max
         dmins[key] = data.min()
         dmaxs[key] = data.max()
+
+    console.print(dmins)
 
     # handle the case of global data ranges
     if drange_type == DataRangeType.GLOBAL:
@@ -273,32 +304,22 @@ def visualize_zonation_patterns(
             dmins[key] = dmin_global
             dmaxs[key] = dmax_global
 
-    scalars = []
-    for key in mesh.cell_data:
-        if key.startswith("pattern__") or key == "cell_type":
-            # Fix the patterns
-            pattern = key.split("__")[-1]
-            scalars.append(
-                DataLayer(
-                    sid="key",
-                    title=f"{pattern.upper()} [-]",
-                    colormap="RdBu",
-                    color_limits=[dmins[key], dmaxs[key]],
-                )
-            )
+    for dl in data_layers:
+        sid = dl.sid
+        dl.color_limits = (dmins[sid], dmaxs[sid])
 
     # create raw images
     visualize_data_layers(
-        mesh=mesh, scalars=scalars, output_dir=results_path, image_name=image_name
+        mesh=mesh, data_layers=data_layers, output_dir=results_path, image_name=image_name
     )
     # combine images
     images: List[Path] = []
-    for scalar in scalars:
+    for scalar in data_layers:
         img_path = results_path / scalar.sid / f"{image_name}.png"
         images.append(img_path)
 
     image: Path = results_path / f"{image_name}.png"
-    merge_images(paths=images, direction="horizontal", output_path=image)
+    merge_images(paths=images, direction=direction, output_path=image)
     console.print(f"Image created: file://{image}")
 
 
@@ -320,12 +341,32 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     mesh_to_vtk(m=m, vtk_path=vtk_path)
 
     # visualize mesh
-    if visualize:
-        console.rule(title="Mesh Visualization", style="white")
-        visualize_zonation_patterns(
-            m, results_path=results_path, image_name="mesh_zonation"
-        )
+    console.rule(title="Mesh Visualization", style="white")
+    visualize_zonation_patterns(
+        m, results_path=results_path, image_name="mesh_zonation_all",
+        data_layers=data_layers,
+        direction="square"
+    )
 
+    # Second mesh
+    console.rule(title="Mesh Visualization", style="white")
+    selected_patterns = [
+        "pattern__constant",
+        "pattern__linear_increase",
+        "pattern__sharp_pericentral",
+        # "pattern__only_pericentral",
+        "pattern__linear_decrease",
+        "pattern__sharp_periportal",
+        # "pattern__only_periportal",
+    ]
+    data_layers_dict = {dl.sid: dl for dl in data_layers}
+    data_layers_selected = [data_layers_dict[key] for key in selected_patterns]
+    visualize_zonation_patterns(
+        m, results_path=results_path, image_name="mesh_zonation_selected",
+        direction="horizontal",
+        data_layers=data_layers_selected,
+        drange_type = DataRangeType.GLOBAL,
+    )
 
 if __name__ == "__main__":
     from porous_media import RESULTS_DIR
