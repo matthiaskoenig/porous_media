@@ -1,6 +1,5 @@
 # Analysis
 
-- [ ] FIXME: some variables are not accessible, e.g. pressure variable
 - [ ] FIXME: order of selections is incorrect
 - [ ] FIXME: visualize point_data: pressure
 - [ ] FIXME: visualize vector data: fluid-flux: vector field & streamlines

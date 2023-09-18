@@ -81,7 +81,7 @@ class XDMFInformation:
             num_steps=reader.num_steps,
             points=points,
             cells=cells,
-            point_data={},
+            point_data=point_data_info,
             cell_data=cell_data_info,
         )
         return xdmf_info
@@ -259,7 +259,6 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
 
         for k in track(range(len(vtk_paths)), description="Processing VTKs ..."):
             vtk_path = vtk_paths[k]
-            # console.print(f"\t{vtk_path}")
             # read timepoint
             with open(vtk_path, "r") as f_vtk:
                 f_vtk.readline()  # skip first line
@@ -268,8 +267,6 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
 
             # read mesh
             mesh = meshio.read(vtk_path)
-            console.print(vtk_path)
-            console.print(mesh)
             writer.write_data(t, point_data=mesh.point_data, cell_data=mesh.cell_data)
 
     # Fix incorrect *.h5 path
@@ -378,6 +375,19 @@ def interpolate_xdmf(
 
 
 if __name__ == "__main__":
+    from porous_media import RESULTS_DIR
+
+    # check that all variables are read
+    vtk_dir = Path('/home/mkoenig/git/porous_media/data/vtk_test')
+    xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
+    vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
+    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    console.print(xdmf_info)
+    exit()
+
+
+
+
     xdmf_paths: List[Path] = [
         Path(f'/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf') for k in range(21, 26)
     ]
