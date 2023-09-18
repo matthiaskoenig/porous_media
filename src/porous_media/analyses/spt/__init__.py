@@ -51,4 +51,11 @@ data_layers_spt: List[DataLayer] = [
         colormap="RdBu",
         data_type="Scalar",
     ),
+
+    # FIXME: visualize vector field
+    DataLayer(
+        sid="fluid_flux_TPM", title="Fluid flow [?/s]",
+        colormap="RdBu",
+        data_type="Vector",
+    ),
 ]

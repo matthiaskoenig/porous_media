@@ -34,6 +34,7 @@ def visualize_scan(xdmf_paths: List[Path], data_layers: List[DataLayer], results
         "rr_(T)",
         "rr_protein",
         "rr_necrosis",
+        "pressure",
     ]
 
     # ordered data layers selected
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     xdmf_paths: List[Path] = xdmfs_from_febio(
         febio_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_fixedcelltype"),
         xdmf_dir=xdmf_dir,
-        overwrite=False,
+        overwrite=True,
     )
     info: XDMFInformation = XDMFInformation.from_path(xdmf_path=xdmf_paths[0])
     console.print(info)
@@ -119,5 +120,8 @@ if __name__ == "__main__":
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,
         results_dir=results_dir,
-        create_panels=False,
+        create_panels=True,
     )
+
+    # 5mmHg and 1mmHg => check effective_fluid_pressure!
+    # perfusion = 1.0  /min

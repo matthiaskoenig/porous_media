@@ -268,6 +268,8 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
 
             # read mesh
             mesh = meshio.read(vtk_path)
+            console.print(vtk_path)
+            console.print(mesh)
             writer.write_data(t, point_data=mesh.point_data, cell_data=mesh.cell_data)
 
     # Fix incorrect *.h5 path
@@ -384,7 +386,11 @@ if __name__ == "__main__":
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
 
+
+
     # limits of individual simulations
+    # FIXME: extend limits to full information for variables (how is this combined with the predefined information?)
+
     all_limits: List[DataLimits] = []
     for xdmf_path in xdmf_paths:
         limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
