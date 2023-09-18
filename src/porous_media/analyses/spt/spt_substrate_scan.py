@@ -20,8 +20,7 @@ from porous_media.visualization.pyvista_visualization import (
     create_combined_images,
     visualize_datalayers_timecourse,
 )
-from porous_media.visualization.video import create_video
-
+from porous_media.visualization.video import create_video, create_gif_from_video
 
 logger = get_logger(__name__)
 
@@ -101,10 +100,13 @@ def visualize_scan(
 
             # Create video
             if num == 100:
+                video_path = results_dir / f"{xdmf_path.stem}_{num}_{tend}.mp4"
+                gif_path = results_dir / f"{xdmf_path.stem}_{num}_{tend}.gif"
                 create_video(
                     image_pattern=str(output_dir / "horizontal" / "sim_%05d.png"),
-                    video_path=results_dir / f"{xdmf_path.stem}_{num}_{tend}.mp4",
+                    video_path=video_path,
                 )
+                create_gif_from_video(video_path=video_path, gif_path=gif_path)
 
 
 if __name__ == "__main__":

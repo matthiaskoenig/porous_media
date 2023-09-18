@@ -220,6 +220,15 @@ def create_combined_images(
 
 if __name__ == "__main__":
     # FIXME: make this in an example and add path to resources
+
+    # Simple test that all variables are read
+    # vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
+    vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
+    xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
+    vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
+    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    console.print(xdmf_info)
+
     vtk_path_spt = Path("lobule_BCflux.t006.vtk")
     mesh_spt: meshio.Mesh = meshio.read(vtk_path_spt)
     output_path_spt = Path("./raw_spt/")

@@ -392,7 +392,7 @@ if __name__ == "__main__":
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
-    exit()
+
 
     xdmf_paths: List[Path] = [
         Path(f"/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf")
@@ -406,8 +406,6 @@ if __name__ == "__main__":
     console.print(xdmf_info)
 
     # limits of individual simulations
-    # FIXME: extend limits to full information for variables (how is this combined with the predefined information?)
-
     all_limits: List[DataLimits] = []
     for xdmf_path in xdmf_paths:
         limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
