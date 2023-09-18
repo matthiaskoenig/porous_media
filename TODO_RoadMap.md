@@ -1,26 +1,16 @@
 # Analysis
-- [ ] Create images/code for spatial analysis (position ~ values) -> create zonated mesh; 
-- FIXME: some variables are not accessible, e.g. pressure variable
-- FIXME: calculate volume from geometry and add to the elements
-- FIXME: calculate areas?
 
+- [ ] FIXME: some variables are not accessible, e.g. pressure variable
+- [ ] FIXME: order of selections is incorrect
+- [ ] FIXME: visualize point_data: pressure
+- [ ] FIXME: visualize vector data: fluid-flux: vector field & streamlines
+- [ ] FIXME: calculate volume from geometry and add to the elements (compare to given volume)
+- [ ] FIXME: visualization of lineplots:
+  - [ ] necrosis_fraction ~ time
+  - [ ] necrosis_fraction ~ position (video); histogram
 
-- FIXME: calculate perfusion:
-- cell_type; periportal & perivenous
-
-fluid_flux_TPM = Q/A = m/s
-
-Diffusion:
-D_glc = 600 µm^2/s
-D_lac = 700 µm^2/s
-D_o2 = 2000 µm^2/s
-D_S = 440 µm^2/s
-D_P = 360 µm^2/s
-
-
-
-Diffusion coeffiencts: 
-
+- [ ] FIXME: calculate perfusion with vector data and geometry
+- [ ] Create images/code for spatial analysis (position ~ values) -> create zonated mesh;
 
 
 # Mesh generation
