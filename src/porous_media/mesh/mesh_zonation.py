@@ -11,8 +11,8 @@ from porous_media.console import console
 from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
-    DataRangeType,
     DataLayer,
+    DataRangeType,
     visualize_data_layers,
 )
 

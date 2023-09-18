@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Iterable
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import meshio
 import pyvista as pv
@@ -111,8 +111,6 @@ def visualize_data_layers(
     """
     # FIXME: make this the function for a single plot
 
-
-
     # create VTK from mesh to read for pyvista
     # FIXME: better handling of grid
     xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
@@ -200,9 +198,7 @@ def create_combined_images(
     image_dir: Path = output_dir / direction
     image_dir.mkdir(parents=True, exist_ok=True)
     all_images: List[Path] = []
-    for k in track(
-        range(num_steps), description="Create combined images ..."
-    ):
+    for k in track(range(num_steps), description="Create combined images ..."):
         images: List[Path] = []
         for name in selection:
             img_path = output_dir / "panels" / name / f"sim_{k:05d}.png"

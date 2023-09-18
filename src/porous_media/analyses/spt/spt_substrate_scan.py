@@ -8,10 +8,12 @@ import numpy as np
 from porous_media import BASE_DIR, DATA_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
-    xdmfs_from_febio,
+    DataLimits,
+    XDMFInformation,
     interpolate_xdmf,
-    XDMFInformation, DataLimits,
+    xdmfs_from_febio,
 )
+from porous_media.log import get_logger
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
     DataLayer,
@@ -19,12 +21,17 @@ from porous_media.visualization.pyvista_visualization import (
     visualize_datalayers_timecourse,
 )
 from porous_media.visualization.video import create_video
-from porous_media.log import get_logger
+
 
 logger = get_logger(__name__)
 
 
-def visualize_scan(xdmf_paths: List[Path], data_layers: List[DataLayer], results_dir: Path, create_panels: bool = True) -> None:
+def visualize_scan(
+    xdmf_paths: List[Path],
+    data_layers: List[DataLayer],
+    results_dir: Path,
+    create_panels: bool = True,
+) -> None:
     """Videos for substrate dependency"""
 
     # subset of scalars to visualize
@@ -87,7 +94,9 @@ def visualize_scan(xdmf_paths: List[Path], data_layers: List[DataLayer], results
             # Create combined figure for timecourse
             if num == 10:
                 merge_images(
-                    paths=rows, direction="vertical", output_path=results_dir / f"{xdmf_path.stem}_{num}_{tend}.png"
+                    paths=rows,
+                    direction="vertical",
+                    output_path=results_dir / f"{xdmf_path.stem}_{num}_{tend}.png",
                 )
 
             # Create video
@@ -99,22 +108,24 @@ def visualize_scan(xdmf_paths: List[Path], data_layers: List[DataLayer], results
 
 
 if __name__ == "__main__":
-
     # -----------------------------------
     # Substrate scan
     # -----------------------------------
     # process files
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt_substrate_scan")
     xdmf_paths: List[Path] = xdmfs_from_febio(
-        febio_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_fixedcelltype"),
+        febio_dir=Path(
+            "/home/mkoenig/git/porous_media/data/spt/simulation_fixedcelltype"
+        ),
         xdmf_dir=xdmf_dir,
-        overwrite=True,
+        overwrite=False,
     )
     info: XDMFInformation = XDMFInformation.from_path(xdmf_path=xdmf_paths[0])
     console.print(info)
 
     # create visualizations
     from porous_media.analyses.spt import data_layers_spt
+
     results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan"
     visualize_scan(
         xdmf_paths=xdmf_paths,

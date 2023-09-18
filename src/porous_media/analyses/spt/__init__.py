@@ -47,14 +47,15 @@ data_layers_spt: List[DataLayer] = [
         data_type="Scalar",
     ),
     DataLayer(
-        sid="pressure", title="Pressure [?]",
+        sid="pressure",
+        title="Pressure [?]",
         colormap="RdBu",
         data_type="Scalar",
     ),
-
     # FIXME: visualize vector field
     DataLayer(
-        sid="fluid_flux_TPM", title="Fluid flow [?/s]",
+        sid="fluid_flux_TPM",
+        title="Fluid flow [?/s]",
         colormap="RdBu",
         data_type="Vector",
     ),

@@ -5,24 +5,25 @@ https://www.xdmf.org/index.php/XDMF_Model_and_Format
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
-import json
+from typing import Any, Dict, List, Tuple
 
 import meshio
 import numpy as np
 from dataclasses_json import dataclass_json
+from meshio._common import raw_from_cell_data
+from meshio.xdmf.common import attribute_type
 from rich.progress import track
 
-from meshio.xdmf.common import attribute_type
-from meshio._common import raw_from_cell_data
 from porous_media.console import console
 from porous_media.log import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -72,7 +73,7 @@ class XDMFInformation:
                 cell_data_info[name] = attribute_type(data)
 
             # get end time
-            tend, _, _ = reader.read_data(reader.num_steps-1)
+            tend, _, _ = reader.read_data(reader.num_steps - 1)
 
         xdmf_info = XDMFInformation(
             path=xdmf_path,
@@ -93,7 +94,6 @@ class DataLimits:
     """Limits of numerical data."""
 
     limits: Dict[str, Tuple[float, float]]
-
 
     @classmethod
     def json_path_from_xdmf(cls, xdmf_path) -> Path:
@@ -124,7 +124,9 @@ class DataLimits:
         with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
             _, _ = reader.read_points_cells()
 
-            for k in track(range(reader.num_steps), description=f"Calculate data limits ..."):
+            for k in track(
+                range(reader.num_steps), description=f"Calculate data limits ..."
+            ):
                 t, point_data, cell_data = reader.read_data(k)
 
                 # point data limits
@@ -201,7 +203,9 @@ class DataLimits:
         return DataLimits(limits=limits)
 
 
-def xdmfs_from_febio(febio_dir: Path, xdmf_dir: Path, overwrite: bool = False) -> List[Path]:
+def xdmfs_from_febio(
+    febio_dir: Path, xdmf_dir: Path, overwrite: bool = False
+) -> List[Path]:
     """Create the XDMF files from the raw FEBio simulation results.
 
     Processes all subdirectories which contain vtks. This allows
@@ -220,8 +224,10 @@ def xdmfs_from_febio(febio_dir: Path, xdmf_dir: Path, overwrite: bool = False) -
             vtk_dirs.append(d)
 
     if not vtk_dirs:
-        logger.error(f"No directory with VTKs in '{febio_dir}'. "
-                     f"Check if the 'febio_dir' is correct.")
+        logger.error(
+            f"No directory with VTKs in '{febio_dir}'. "
+            f"Check if the 'febio_dir' is correct."
+        )
 
     # process the VTKs in the directory
     xdmf_paths: List[Path] = []
@@ -281,8 +287,10 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
 
 
 def interpolate_xdmf(
-    xdmf_in: Path, xdmf_out: Path, times_interpolate: np.ndarray,
-    overwrite: bool = False
+    xdmf_in: Path,
+    xdmf_out: Path,
+    times_interpolate: np.ndarray,
+    overwrite: bool = False,
 ) -> None:
     """Interpolate XDMF."""
     console.rule(title=f"Interpolate {xdmf_in}", style="white")
@@ -375,28 +383,27 @@ def interpolate_xdmf(
 
 
 if __name__ == "__main__":
-    from porous_media import RESULTS_DIR
+    from porous_media import RESOURCES_DIR, RESULTS_DIR
 
-    # check that all variables are read
-    vtk_dir = Path('/home/mkoenig/git/porous_media/data/vtk_test')
+    # Simple test that all variables are read
+    # vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
+    vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
     xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
     exit()
 
-
-
-
     xdmf_paths: List[Path] = [
-        Path(f'/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf') for k in range(21, 26)
+        Path(f"/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf")
+        for k in range(21, 26)
     ]
 
-    xdmf_path: Path = Path('/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf')
+    xdmf_path: Path = Path(
+        "/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf"
+    )
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
-
-
 
     # limits of individual simulations
     # FIXME: extend limits to full information for variables (how is this combined with the predefined information?)

@@ -1,8 +1,10 @@
 # Analysis
 
-- [ ] FIXME: order of selections is incorrect
 - [ ] FIXME: visualize point_data: pressure
 - [ ] FIXME: visualize vector data: fluid-flux: vector field & streamlines
+
+
+- [ ] FIXME: order of selections is incorrect
 - [ ] FIXME: calculate volume from geometry and add to the elements (compare to given volume)
 - [ ] FIXME: visualization of lineplots:
   - [ ] necrosis_fraction ~ time
