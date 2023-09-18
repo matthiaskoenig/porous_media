@@ -82,14 +82,14 @@ class ZonationPatterns:
         return data
 
     @staticmethod
-    def sharp_periportal(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=5.0) -> np.ndarray:
+    def sharp_periportal(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=10.0) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * (1 - p**n/(p**n + 0.2**n))
+        return value_min + (value_max - value_min) * (1 - p**n/(p**n + 0.25**n))
 
     @staticmethod
-    def sharp_pericentral(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=5.0) -> np.ndarray:
+    def sharp_pericentral(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=10.0) -> np.ndarray:
         """Sharp pericentral pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * p**n / (p**n + 0.8**n)
+        return value_min + (value_max - value_min) * p**n / (p**n + 0.75**n)
 
 
 class ZonatedMesh:
@@ -185,7 +185,6 @@ class ZonatedMesh:
 
         for _, cell_block in enumerate(m.cells):
             for kc, cell in enumerate(cell_block.data):
-                # console.print(cell)
 
                 # calculate the center of mass of cell
                 count = 0
@@ -228,7 +227,6 @@ class ZonatedMesh:
 
             position[kc] = dpp / (dpv + dpp)
 
-        # console.print(f"{position=}")
         m.cell_data["position"] = [position]
         return m
 
@@ -293,8 +291,6 @@ def visualize_zonation_patterns(
         # min, max
         dmins[key] = data.min()
         dmaxs[key] = data.max()
-
-    console.print(dmins)
 
     # handle the case of global data ranges
     if drange_type == DataRangeType.GLOBAL:

@@ -1,10 +1,8 @@
 # Analysis
 
-- [ ] FIXME: improve zonation patterns: sharp! & send to Steffen!
-
-
 - [ ] FIXME: visualize point_data: pressure
 - [ ] FIXME: visualize vector data: fluid-flux: vector field & streamlines
+
 
 - [ ] FIXME: calculate volume from geometry and add to the elements (compare to given volume)
 - [ ] FIXME: visualization of lineplots:
