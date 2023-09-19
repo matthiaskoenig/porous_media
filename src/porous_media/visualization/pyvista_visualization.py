@@ -14,8 +14,9 @@ import meshio
 import pyvista as pv
 from rich.progress import track
 
+from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
-from porous_media.data.xdmf_tools import DataLimits
+from porous_media.data.xdmf_tools import DataLimits, vtks_to_xdmf, XDMFInformation
 from porous_media.mesh.mesh_tools import mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 
@@ -51,6 +52,8 @@ class DataLayer:
 
     This will be most likely extended to account for
     order of plotting, opacity and so on.
+
+    :param conversion_factor: factor f to convert data before plotting with data_new = data * f
     """
 
     sid: str
@@ -60,6 +63,7 @@ class DataLayer:
     color_limits: Optional[Tuple[float, float]] = None
     scalar_bar: bool = True
     # plot_type: str
+    conversion_factor: Optional[float] = None
 
     def update_color_limits(self, data_limits: DataLimits):
         self.color_limits = data_limits.limits[self.sid]
@@ -166,10 +170,11 @@ def visualize_data_layers(
             )
 
             # set the color limits
-            p.update_scalar_bar_range(
-                clim=data_layer.color_limits,
-                name=data_layer.title,
-            )
+            if data_layer.color_limits is not None:
+                p.update_scalar_bar_range(
+                    clim=data_layer.color_limits,
+                    name=data_layer.title,
+                )
 
         # Camera position to zoom to face
         p.camera_position = (0, 3e-4, 1e-3)
@@ -218,10 +223,108 @@ def create_combined_images(
     return all_images
 
 
+def visualize_interactive(
+    mesh: meshio.Mesh,
+    data_layer: DataLayer,
+    window_size: Tuple[float, float] = (1000, 1000),
+) -> None:
+    """Visualize geometry with pyvista."""
+    xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
+    mesh_to_xdmf(m=mesh, xdmf_path=Path(xdmf_tmp.name), test_read=False)
+    grid = pv.read(xdmf_tmp.name)
+
+    # name of variable
+    name = data_layer.sid
+
+    # deactivate active sets
+    grid.set_active_tensors(None)
+    grid.set_active_scalars(None)
+    grid.set_active_vectors(None)
+
+    # visualize data_layer
+    p = pv.Plotter(
+        window_size=window_size,
+    )
+    if data_layer.data_type == "Scalar":
+        grid.set_active_scalars(name=name)
+    elif data_layer.data_type == "Vector":
+        grid.set_active_vectors(name=name)
+    elif data_layer.data_type == "Tensor":
+        grid.set_active_tensors(name=name)
+
+    # FIXME: add multiple layers on top of each other
+    actor = p.add_mesh(
+        grid,
+        show_edges=True,
+        render_points_as_spheres=True,
+        point_size=3,
+        show_vertices=True,
+        line_width=1.0,
+        cmap=data_layer.colormap,
+        show_scalar_bar=False,
+        edge_color="darkgray",
+        # specular=0.5, specular_power=15,
+        clim=data_layer.color_limits,
+    )
+
+    # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
+    p.add_mesh(
+        # vector on point data
+        grid.arrows, lighting=False
+    )
+
+
+
+
+    if data_layer.scalar_bar:
+        p.add_scalar_bar(
+            title=data_layer.title,
+            n_labels=5,
+            bold=True,
+            # height=0.6,
+            width=0.6,
+            vertical=False,
+            position_y=0.0,
+            position_x=0.2,
+            mapper=actor.mapper,
+            fmt="%.1f",
+        )
+
+        # set the color limits
+        if data_layer.color_limits is not None:
+            p.update_scalar_bar_range(
+                clim=data_layer.color_limits,
+                name=data_layer.title,
+            )
+
+    # Camera position to zoom to face
+    p.camera_position = (0, 3e-4, 1e-3)
+    p.camera.zoom(1.1)
+    # p.camera.tight(padding=0.05, adjust_render_window=False)
+    # print(p.camera)
+
+    p.show(
+        # cpos=top_view,
+    )
+
+
+
+
+def xdmf_to_mesh(xdmf_path, k: int =0) -> meshio.Mesh:
+    """XDMF to mesh."""
+    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+        points, cells = reader.read_points_cells()
+        t, point_data, cell_data = reader.read_data(k)
+
+        return meshio.Mesh(
+            points=points, cells=cells, cell_data=cell_data, point_data=point_data
+        )
+
 if __name__ == "__main__":
     # FIXME: make this in an example and add path to resources
 
     # Simple test that all variables are read
+
     # vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
     xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
@@ -229,30 +332,49 @@ if __name__ == "__main__":
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
 
-    vtk_path_spt = Path("lobule_BCflux.t006.vtk")
-    mesh_spt: meshio.Mesh = meshio.read(vtk_path_spt)
-    output_path_spt = Path("./raw_spt/")
-    output_path_spt.mkdir(exist_ok=True)
-    scalars_spt: List[DataLayer] = [
+    data_layers: List[DataLayer] = [
+        DataLayer(
+            sid="displacement",
+            title="displacement",
+            colormap="magma",
+            data_type="Vector"
+        ),
+        DataLayer(
+            sid="fluid_flux_TPM",
+            title="fluid flux [m/s]",
+            colormap="magma",
+            data_type="Vector"
+        ),
+        DataLayer(
+            sid="pressure",
+            title="Pressure",
+            colormap="magma",
+            data_type="Scalar"
+        ),
+        DataLayer(
+            sid="effective_fluid_pressure_TPM",
+            title="Effective fluid pressure [Pa]",
+            colormap="magma",
+            data_type="Scalar",
+        ),
         DataLayer(
             sid="rr_(S)",
             title="Substrate S [mM]",
-            colormap="RdBu",
-        ),
-        DataLayer(
-            sid="rr_(P)",
-            title="Product P [mM]",
-            colormap="RdBu",
-        ),
-        DataLayer(
-            sid="rr_necrosis",
-            title="Necrosis",
-            colormap="binary",
+            colormap="magma",
+            data_type="Scalar"
         ),
     ]
-    visualize_data_layers(
-        mesh=mesh_spt,
-        scalars=scalars_spt,
-        output_dir=output_path_spt,
-        image_name="example",
+    # visualize_datalayers_timecourse(
+    #     xdmf_path=xdmf_path,
+    #     data_layers=data_layers,
+    #     output_dir=RESULTS_DIR / "vtk_test_images"
+    # )
+
+    mesh = xdmf_to_mesh(xdmf_path, k=1)
+    visualize_interactive(
+        mesh,
+        data_layer=data_layers[0],
     )
+    # FIXME: support calculation of new variables for visualization
+
+
