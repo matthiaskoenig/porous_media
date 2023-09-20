@@ -13,7 +13,7 @@ data_layers_spt: List[DataLayer] = [
     DataLayer(
         sid="rr_protein",
         title="Protein",
-        colormap="magma",
+        colormap="hot",
         data_type="Scalar",
     ),
     DataLayer(

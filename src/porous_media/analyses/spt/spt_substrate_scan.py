@@ -1,7 +1,7 @@
 """Substrate scan simulation."""
 
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Iterable
 
 import numpy as np
 
@@ -11,7 +11,7 @@ from porous_media.data.xdmf_tools import (
     DataLimits,
     XDMFInformation,
     interpolate_xdmf,
-    xdmfs_from_febio,
+    xdmfs_from_directory,
 )
 from porous_media.log import get_logger
 from porous_media.visualization.image_manipulation import merge_images
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 
 def visualize_scan(
-    xdmf_paths: List[Path],
+    xdmf_paths: Iterable[Path],
     data_layers: List[DataLayer],
     results_dir: Path,
     create_panels: bool = True,
@@ -36,12 +36,12 @@ def visualize_scan(
 
     # subset of scalars to visualize
     selection: List[str] = [
+        "rr_protein",
         "rr_(S)",
         "rr_(P)",
         "rr_(T)",
-        "rr_protein",
         "rr_necrosis",
-        "pressure",
+        # "pressure",
     ]
 
     # Calculate tend time from all simulations
@@ -122,8 +122,8 @@ if __name__ == "__main__":
     # -----------------------------------
     # process files
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient")
-    xdmf_paths: List[Path] = xdmfs_from_febio(
-        febio_dir=Path(
+    xdmf_paths: List[Path] = xdmfs_from_directory(
+        input_dir=Path(
             "/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient"
         ),
         xdmf_dir=xdmf_dir,

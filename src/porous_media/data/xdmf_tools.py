@@ -203,20 +203,30 @@ class DataLimits:
         return DataLimits(limits=limits)
 
 
-def xdmfs_from_febio(
-    febio_dir: Path, xdmf_dir: Path, overwrite: bool = False
-) -> List[Path]:
-    """Create the XDMF files from the raw FEBio simulation results.
+def xdmfs_from_directory(
+    input_dir: Path, xdmf_dir: Path, overwrite: bool = False
+) -> Dict[Path, Path]:
+    """Create the XDMF files from a given input directory.
 
-    Processes all subdirectories which contain vtks. This allows
-    to create the xdmfs for all simulations.
+    E.g. this is the FEBIO output directory. This should be a directory with possible
+    subdirectories which contain VTK files. All subdirectories are processed.
+
+    Processes directory and all subdirectories which contain vtks. This allows to
+    easily create all xdms for a given directory.
+    XDMF file structure is analogue to the structure in the original directory
+
+    :param input_dir: directory with VTKs, possible subdirectories
+    :param xdmf_dir: directory in which the xdmfs are generated
+    :returns: Dictionary {xdmf_path: subdirectory}
     """
-    console.rule(title="XDMF from FEBio", align="left", style="white")
+    console.rule(title="XDMF from directory", align="left", style="white")
     # processes all folders with vtk
 
     # iterate over all directories and subdirectories to collect vtk directories
     vtk_dirs: List[Path] = []
-    for d in sorted(list(febio_dir.rglob("*"))):
+    all_dirs = sorted([input_dir] + list(input_dir.rglob("*")))
+
+    for d in all_dirs:
         vtk_paths = sorted(list(d.glob("*.vtk")))
         n_vtks = len(vtk_paths)
         if n_vtks > 0:
@@ -225,20 +235,20 @@ def xdmfs_from_febio(
 
     if not vtk_dirs:
         logger.error(
-            f"No directory with VTKs in '{febio_dir}'. "
+            f"No directory with VTKs in '{input_dir}'. "
             f"Check if the 'febio_dir' is correct."
         )
 
     # process the VTKs in the directory
-    xdmf_paths: List[Path] = []
+    xdmf_dict: Dict[Path, Path] = {}
     for vtk_dir in vtk_dirs:
-        d_name = str(vtk_dir.relative_to(febio_dir))
+        d_name = str(vtk_dir.relative_to(input_dir))
         d_name = d_name.replace("/", "__")
         xdmf_path = xdmf_dir / f"{d_name}.xdmf"
-        xdmf_paths.append(xdmf_path)
+        xdmf_dict[xdmf_path] = vtk_dir
         vtks_to_xdmf(vtk_dir=vtk_dir, xdmf_path=xdmf_path, overwrite=overwrite)
 
-    return xdmf_paths
+    return xdmf_dict
 
 
 def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> None:

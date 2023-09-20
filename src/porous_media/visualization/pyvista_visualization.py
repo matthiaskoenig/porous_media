@@ -72,10 +72,18 @@ class DataLayer:
 def visualize_datalayers_timecourse(
     xdmf_path: Path,
     output_dir: Path,
-    data_layers: List[DataLayer],
+    data_layers: Iterable[DataLayer],
     window_size: Tuple[int, int] = (600, 600),
 ) -> None:
-    """Create visualizations for individual panels."""
+    """Create visualizations for individual panels.
+
+    :param xdmf_path: timecourse xdmf
+    :param data_layers: iterable of data layers to visualize, for every layer a plot is generated
+    """
+
+    # FIXME: Create more flexible visualization combining multiple datalayers into a single plot;
+    # e.g., scalar value, vector field, streamlines, cloud visualization of steatosis.
+
     # create output dir
     if not output_dir.exists():
         output_dir.mkdir(parents=True)
@@ -85,7 +93,7 @@ def visualize_datalayers_timecourse(
         points, cells = reader.read_points_cells()
 
         tnum = reader.num_steps
-        for k in track(range(tnum), description="Creating panels ..."):
+        for k in track(range(tnum), description=f"Creating {tnum} panels for {xdmf_path.stem} ..."):
             t, point_data, cell_data = reader.read_data(k)
 
             # Create mesh with single data point
@@ -101,18 +109,38 @@ def visualize_datalayers_timecourse(
             )
 
 
+@dataclass
+class VisualizationSettings:
+    """General visualization settings for panel.
+
+    These should be determined once for a given geometry and then be used
+    consistently.
+    """
+    # plotter settings
+    window_size: Tuple[float, float] = (1000, 1000)
+    off_screen: bool = True  # False: blocking interactive visualization, True: batch mode
+
+    camera_position: Tuple[float, float, float] = (0, 3e-4, 1e-3)
+    zoom: float = 1.1
+
+
+
 def visualize_data_layers(
     mesh: meshio.Mesh,
-    data_layers: List[DataLayer],
+    data_layers: Iterable[DataLayer],
     output_dir: Path,
     image_name: str,
-    window_size: Tuple[float, float] = (1000, 1000),
+    visualization_settings: Optional[VisualizationSettings]
 ) -> None:
     """Visualize geometry with pyvista.
 
     :param mesh: mesh with single time point scalar data
     :param image_name: name of the created image, without extension.
     """
+    if not visualization_settings:
+        # create default settings
+        visualization_settings = VisualizationSettings()
+
     # FIXME: make this the function for a single plot
 
     # create VTK from mesh to read for pyvista
@@ -130,9 +158,9 @@ def visualize_data_layers(
     data_layers_dict: Dict[str, DataLayer] = {dl.sid: dl for dl in data_layers}
     for name, data_layer in data_layers_dict.items():
         p = pv.Plotter(
-            window_size=window_size,
+            window_size=visualization_settings.window_size,
             # title="TPM",
-            off_screen=True,
+            off_screen=visualization_settings.off_screen,
         )
         if data_layer.data_type == "Scalar":
             grid.set_active_scalars(name=name)
@@ -177,13 +205,13 @@ def visualize_data_layers(
                 )
 
         # Camera position to zoom to face
-        p.camera_position = (0, 3e-4, 1e-3)
-        p.camera.zoom(1.1)
-        # p.camera.tight(padding=0.05, adjust_render_window=False)
-        # print(p.camera)
+        p.camera_position = visualization_settings.camera_position
+        p.camera.zoom(visualization_settings.zoom)
 
         output_subdir = Path(output_dir) / f"{name}"
         output_subdir.mkdir(exist_ok=True, parents=True)
+
+        # FIXME: have a look at the other serialization formats such as interactive HTML
         p.show(
             # cpos=top_view,
             screenshot=Path(output_subdir / f"{image_name}.png")
@@ -226,7 +254,7 @@ def create_combined_images(
 def visualize_interactive(
     mesh: meshio.Mesh,
     data_layer: DataLayer,
-    window_size: Tuple[float, float] = (1000, 1000),
+    visualization_settings: VisualizationSettings
 ) -> None:
     """Visualize geometry with pyvista."""
     xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
@@ -243,7 +271,7 @@ def visualize_interactive(
 
     # visualize data_layer
     p = pv.Plotter(
-        window_size=window_size,
+        window_size=visualization_settings.window_size,
     )
     if data_layer.data_type == "Scalar":
         grid.set_active_scalars(name=name)
@@ -252,7 +280,7 @@ def visualize_interactive(
     elif data_layer.data_type == "Tensor":
         grid.set_active_tensors(name=name)
 
-    # FIXME: add multiple layers on top of each other
+    # FIXME: add multiple layers on top of each other, combination of data layers
     actor = p.add_mesh(
         grid,
         show_edges=True,
@@ -296,14 +324,10 @@ def visualize_interactive(
             )
 
     # Camera position to zoom to face
-    p.camera_position = (0, 3e-4, 1e-3)
-    p.camera.zoom(1.1)
-    # p.camera.tight(padding=0.05, adjust_render_window=False)
-    # print(p.camera)
+    p.camera_position = visualization_settings.camera_position
+    p.camera.zoom(visualization_settings.zoom)
 
-    p.show(
-        # cpos=top_view,
-    )
+    p.show()
 
 
 def xdmf_to_mesh(xdmf_path, k: int = 0) -> meshio.Mesh:
