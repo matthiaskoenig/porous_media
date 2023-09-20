@@ -13,6 +13,7 @@ A lot of the information should be position dependent for analysis.
 Support selections of positions; histogramm over position.
 
 """
+from matplotlib import pyplot as plt
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -48,8 +49,10 @@ def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
 
         _, _ = reader.read_points_cells()
         tnum = reader.num_steps
+        timepoints = np.ndarray(shape=(tnum,))
         for k in track(range(tnum), description=f"Creating DataFrames ..."):
             t, point_data, cell_data = reader.read_data(k)
+            timepoints[k] = t
 
             # parse cell data
             for key, data in cell_data.items():
@@ -78,43 +81,87 @@ def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
             dfs_point_data.append(df_point)
 
     # generate xarrays
-    # FIXME: add better dimension information
-    # concate xarray objects along time dimension
-    xr_cells = xr.concat([df.to_xarray() for df in dfs_cell_data], dim="time")
-    xr_points = xr.concat([df.to_xarray() for df in dfs_point_data], dim="time")
+
+    # (cell, time) xarray Dataset
+    xr_cells: xr.Dataset = xr.concat(
+        [df.to_xarray() for df in dfs_cell_data],
+        dim="time",
+    )
+    xr_cells = xr_cells.rename_dims(dims_dict={"index": "cell"})
+    xr_cells = xr_cells.assign_coords(coords={"time": timepoints})
+
+    # (point, time) xarray Dataset
+    xr_points: xr.Dataset = xr.concat(
+        [df.to_xarray() for df in dfs_point_data],
+        dim="time",
+    )
+    xr_points = xr_points.rename_dims(dims_dict={"index": "point"})
+    xr_points = xr_points.assign_coords(coords={"time": timepoints})
 
     return xr_cells, xr_points
 
 
-def plot_necrosis_over_time(xr_cells: xr.Dataset):
+def plot_necrosis_over_time(xr_cells_dict: Dict[str, xr.Dataset]):
     """Plot necrosis over time."""
-    # calculate sum/count
-    console.print("necrosis calculation")
-    console.print(xr_cells.rr_necrosis)
-    # calciulate time vector (should be in the dimension)
+    console.rule(title="necrosis calculation", style="white")
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(10, 10))
 
-    # calculate the necrosis fraction
+    # [1] necrosis fraction ~ time
+    axes[0, 0].set_xlabel("time [hr]")
+    axes[0, 0].set_ylabel("necrosis fraction [%]")
 
+    for label, xr_cells in xr_cells_dict.items():
+        # calculate necrosis fraction (sum/count)
+        # FIXME: calculate and add the cell volumes for proper normalization
+        necrosis = xr_cells.rr_necrosis
+        necrosis_fraction = necrosis.sum(dim="cell")/necrosis.count(dim="cell")
+        console.print(f"{necrosis_fraction=}")
 
-    # FIXME: calculate and add the cell volumes for proper normalization
+        axes[0, 0].plot(
+            # convert to hr and percent
+            necrosis_fraction.time/60/60, necrosis_fraction * 100,
+            label=label,
+            linestyle="-",
+            marker="o",
+            markeredgecolor="black",
+        )
+    axes[0, 0].legend()
 
+    # necrosis ~ position
 
+    plt.show()
 
 
 if __name__ == "__main__":
     console.rule(title="XDMF calculations", style="white")
+    # interpolated dataframe for zonation patterns
+    xdmf_paths = [RESULTS_DIR / "spt_zonation_patterns_new" / "10_28800.0" / f"simulation_pattern{k}_interpolated.xdmf" for k in range(5)]
+    labels = [
+        "Constant",
+        "Linear increase",
+        "Linear decrease",
+        "Sharp pericentral",
+        "Sharp periportal",
+    ]
 
-    # FIXME: use the example of one of the zonation patterns with 10 timepoints
-
-    # FIXME: use the interpolated dataframe
-    xdmf_path = DATA_DIR / "spt" / "spt_zonation_patterns_new" / "simulation_pattern0.xdmf"
-    xdmf_path = RESULTS_DIR / "spt_zonation_patterns_new" / "10_28800.0" / "simulation_pattern1_interpolated.xdmf"
-
+    # example dataset
+    xdmf_path = xdmf_paths[1]
     xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
     console.rule(align="left", title="cell_data", style="white")
     console.print(xr_cells)
     console.rule(align="left", title="point_data", style="white")
     console.print(xr_points)
 
-    # TODO: perform analysis on the dataframe;
-    plot_necrosis_over_time(xr_cells)
+    # calculate all xarray Datasets
+    xr_cells_dict: Dict[str, xr.Dataset] = {}
+    for k, xdmf_path in enumerate(xdmf_paths):
+        label = labels[k]
+        xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
+        xr_cells_dict[label] = xr_cells
+
+    # calculate the necrosis area for all the simulations
+
+    plot_necrosis_over_time(
+        xr_cells_dict=xr_cells_dict
+    )
+
