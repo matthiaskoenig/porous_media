@@ -65,9 +65,11 @@ def visualize_scan(
                 limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
                 all_limits.append(limits)
 
+            # merge limits from different simulations
             data_limits = DataLimits.merge_limits(all_limits)
             for data_layer in data_layers_selected:
-                data_layer.update_color_limits(data_limits=data_limits)
+                # only update empty limits
+                data_layer.update_color_limits(data_limits=data_limits, only_empty=True)
 
             # create all panels for interpolation
             for xdmf_path in xdmf_paths:

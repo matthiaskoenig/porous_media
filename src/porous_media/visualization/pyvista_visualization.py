@@ -63,8 +63,16 @@ class DataLayer:
     # plot_type: str
     conversion_factor: Optional[float] = None
 
-    def update_color_limits(self, data_limits: DataLimits):
-        self.color_limits = data_limits.limits[self.sid]
+    def update_color_limits(self, data_limits: DataLimits, only_empty: bool = True) -> None:
+        """Update color limits.
+
+        :param only_empty: The parameter determines if only the empty limits should be
+        updated or all limits
+        """
+        if not only_empty:
+            self.color_limits = data_limits.limits[self.sid]
+        elif only_empty and not self.color_limits:
+            self.color_limits = data_limits.limits[self.sid]
 
 
 def visualize_datalayers_timecourse(

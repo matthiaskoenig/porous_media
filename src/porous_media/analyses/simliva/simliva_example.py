@@ -27,6 +27,7 @@ data_layers_simliva: List[DataLayer] = [
         title="Glucose [mM]",
         colormap="magma",
         data_type="Scalar",
+        color_limits=(2, 5),  # example for custom color_limits
     ),
     DataLayer(
         sid="rr_(o2)",
@@ -100,7 +101,6 @@ if __name__ == "__main__":
     console.print(data_layers_simliva)
 
     # [3] create visualizations
-
     results_dir: Path = BASE_DIR / "results" / "simliva_2023-09-20"
     visualize_scan(
         xdmf_paths=xdmf_paths,
