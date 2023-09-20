@@ -3,7 +3,7 @@
 import pytest
 
 from porous_media import RESOURCES_DIR
-from porous_media.data.xdmf_tools import XDMFInformation, vtks_to_xdmf
+from porous_media.data.xdmf_tools import XDMFInfo, vtks_to_xdmf
 
 
 def test_vtk_single_to_xdmf(tmp_path):
@@ -13,7 +13,7 @@ def test_vtk_single_to_xdmf(tmp_path):
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
     assert xdmf_path.exists()
 
-    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     assert xdmf_info.num_steps == 1
     assert xdmf_info.tstart == pytest.approx(220.0)
     assert xdmf_info.tend == pytest.approx(220.0)
@@ -41,7 +41,7 @@ def test_vtk_timecourse_to_xdmf(tmp_path):
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
     assert xdmf_path.exists()
 
-    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     assert xdmf_info.num_steps == 3
     assert xdmf_info.tstart == pytest.approx(0.0)
     assert xdmf_info.tend == pytest.approx(220.0)

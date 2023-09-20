@@ -9,7 +9,7 @@ from porous_media import BASE_DIR, DATA_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     DataLimits,
-    XDMFInformation,
+    XDMFInfo,
     interpolate_xdmf,
     xdmfs_from_directory,
 )
@@ -47,7 +47,7 @@ def visualize_scan(
     # Calculate tend time from all simulations
     tends: np.ndarray = np.zeros(shape=(len(xdmf_paths),))
     for k, xdmf_path in enumerate(xdmf_paths):
-        xdmf_info = XDMFInformation.from_path(xdmf_path)
+        xdmf_info = XDMFInfo.from_path(xdmf_path)
         tends[k] = xdmf_info.tend
     tend = tends.min()
 
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )
-    info: XDMFInformation = XDMFInformation.from_path(xdmf_path=xdmf_paths[0])
+    info: XDMFInfo = XDMFInfo.from_path(xdmf_path=xdmf_paths[0])
     console.print(info)
 
     # create visualizations

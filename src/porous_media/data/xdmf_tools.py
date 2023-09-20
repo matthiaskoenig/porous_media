@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Tuple
 import meshio
 import numpy as np
 from dataclasses_json import dataclass_json
+from meshio import CellBlock
 from meshio._common import raw_from_cell_data
 from meshio.xdmf.common import attribute_type
 from rich.progress import track
@@ -28,8 +29,27 @@ from porous_media.log import get_logger
 logger = get_logger(__name__)
 
 
+class AttributeType(str, Enum):
+    """Definition of variable type."""
+
+    SCALAR = "Scalar"
+    VECTOR = "Vector"
+    TENSOR = "Tensor"
+    MATRIX = "Matrix"
+    OTHER = "Other"
+
+
 @dataclass
-class XDMFInformation:
+class AttributeInfo:
+    """Information of variable which is defined on the mesh"""
+
+    name: str
+    attribute_type: AttributeType
+    shape: Tuple
+
+
+@dataclass
+class XDMFInfo:
     """Information about a given timecourse xdmf.
 
     This includes information about the timepoints, scalars, vectors, ... .
@@ -46,13 +66,15 @@ class XDMFInformation:
     tstart: float
     tend: float
     num_steps: int
+    num_points: int
+    num_cells: int
     points: List[Any]
     cells: List[Any]
-    point_data: Dict[str, str]
-    cell_data: Dict[str, str]
+    point_data: Dict[str, AttributeInfo]
+    cell_data: Dict[str, AttributeInfo]
 
     @staticmethod
-    def from_path(xdmf_path: Path) -> XDMFInformation:
+    def from_path(xdmf_path: Path) -> XDMFInfo:
         """Create XDMFInformation from xdmf path."""
         if not xdmf_path:
             raise IOError(f"xdmf_path does not exist: {xdmf_path}")
@@ -65,21 +87,32 @@ class XDMFInformation:
 
             point_data_info = {}
             for name, data in point_data.items():
-                point_data_info[name] = attribute_type(data)
+                point_data_info[name] = AttributeInfo(
+                    name=name,
+                    attribute_type=attribute_type(data),
+                    shape=np.dstack(data).shape,
+                )
 
             cell_data_info = {}
             raw = raw_from_cell_data(cell_data)
             for name, data in raw.items():
-                cell_data_info[name] = attribute_type(data)
+                cell_data_info[name] = AttributeInfo(
+                    name=name,
+                    attribute_type=AttributeType(attribute_type(data)),
+                    shape=np.dstack(data).shape
+                )
 
             # get end time
             tend, _, _ = reader.read_data(reader.num_steps - 1)
 
-        xdmf_info = XDMFInformation(
+        cell_block: CellBlock = cells[0]
+        xdmf_info = XDMFInfo(
             path=xdmf_path,
             tstart=tstart,
             tend=tend,
             num_steps=reader.num_steps,
+            num_points=len(points),
+            num_cells=len(cell_block),
             points=points,
             cells=cells,
             point_data=point_data_info,
@@ -117,7 +150,7 @@ class DataLimits:
                 return DataLimits(**d)
 
         # read information
-        xdmf_info = XDMFInformation.from_path(xdmf_path)
+        xdmf_info = XDMFInfo.from_path(xdmf_path)
 
         point_limits: Dict[str, List[float]] = {}
         cell_limits: Dict[str, List[float]] = {}
@@ -400,7 +433,7 @@ if __name__ == "__main__":
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
     xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
-    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)
 
     xdmf_paths: List[Path] = [
@@ -411,7 +444,7 @@ if __name__ == "__main__":
     xdmf_path: Path = Path(
         "/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf"
     )
-    xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
+    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)
 
     # limits of individual simulations
