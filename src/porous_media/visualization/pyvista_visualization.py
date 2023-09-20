@@ -105,7 +105,7 @@ def visualize_datalayers_timecourse(
                 data_layers=data_layers,
                 image_name=f"sim_{k:05d}",
                 output_dir=output_dir / "panels",
-                window_size=window_size,
+                visualization_settings=None
             )
 
 
