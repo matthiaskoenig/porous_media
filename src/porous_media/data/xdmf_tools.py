@@ -99,7 +99,7 @@ class XDMFInfo:
                 cell_data_info[name] = AttributeInfo(
                     name=name,
                     attribute_type=AttributeType(attribute_type(data)),
-                    shape=np.dstack(data).shape
+                    shape=np.dstack(data).shape,
                 )
 
             # get end time

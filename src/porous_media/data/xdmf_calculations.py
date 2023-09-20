@@ -14,7 +14,7 @@ Support selections of positions; histogramm over position.
 
 """
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Dict, List, Tuple
 
 import meshio
 import numpy as np
@@ -24,7 +24,7 @@ from rich.progress import track
 
 from porous_media import DATA_DIR, RESULTS_DIR
 from porous_media.console import console
-from porous_media.data.xdmf_tools import XDMFInfo, AttributeType
+from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
 
 
 def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
@@ -42,7 +42,6 @@ def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
     dfs_point_data: List[pd.DataFrame] = []
 
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
-
         data_cell: Dict[str, np.ndarray] = {}
         data_point: Dict[str, np.ndarray] = {}
 
@@ -104,10 +103,14 @@ if __name__ == "__main__":
     console.rule(title="XDMF calculations", style="white")
 
     # prepare data for analysis
-    xdmf_path = RESULTS_DIR / "spt_zonation_patterns_new" / "10_28800.0" / f"simulation_pattern1_interpolated.xdmf"
+    xdmf_path = (
+        RESULTS_DIR
+        / "spt_zonation_patterns_new"
+        / "10_28800.0"
+        / f"simulation_pattern1_interpolated.xdmf"
+    )
     xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
     console.rule(align="left", title="cell_data", style="white")
     console.print(xr_cells)
     console.rule(align="left", title="point_data", style="white")
     console.print(xr_points)
-

@@ -1,7 +1,7 @@
 """Substrate scan simulation."""
 
 from pathlib import Path
-from typing import Dict, List, Set, Iterable
+from typing import Dict, Iterable, List, Set
 
 import numpy as np
 
@@ -112,7 +112,9 @@ if __name__ == "__main__":
     # Substrate scan
     # -----------------------------------
     # process files
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient")
+    xdmf_dir = Path(
+        "/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient"
+    )
     xdmf_paths: List[Path] = xdmfs_from_directory(
         input_dir=Path(
             "/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient"

@@ -1,7 +1,7 @@
 """Example for plotting."""
 
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 from porous_media import BASE_DIR
 from porous_media.analyses.spt.spt_substrate_scan import visualize_scan
@@ -9,6 +9,7 @@ from porous_media.console import console
 from porous_media.data.xdmf_tools import XDMFInfo, xdmfs_from_directory
 from porous_media.log import get_logger
 from porous_media.visualization.pyvista_visualization import DataLayer
+
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,6 @@ data_layers_simliva: List[DataLayer] = [
         colormap="magma",
         data_type="Scalar",
     ),
-
     DataLayer(
         sid="pressure",
         title="Pressure [?]",
@@ -87,9 +87,7 @@ if __name__ == "__main__":
     # folder
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/simliva_2023-09-20/")
     xdmf_dict: Dict[Path, Path] = xdmfs_from_directory(
-        input_dir=Path(
-            "/home/mkoenig/git/porous_media/data/simliva_2023-09-20/"
-        ),
+        input_dir=Path("/home/mkoenig/git/porous_media/data/simliva_2023-09-20/"),
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )

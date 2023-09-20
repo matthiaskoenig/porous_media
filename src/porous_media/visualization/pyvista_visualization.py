@@ -91,7 +91,9 @@ def visualize_datalayers_timecourse(
         points, cells = reader.read_points_cells()
 
         tnum = reader.num_steps
-        for k in track(range(tnum), description=f"Creating {tnum} panels for {xdmf_path.stem} ..."):
+        for k in track(
+            range(tnum), description=f"Creating {tnum} panels for {xdmf_path.stem} ..."
+        ):
             t, point_data, cell_data = reader.read_data(k)
 
             # Create mesh with single data point
@@ -103,7 +105,7 @@ def visualize_datalayers_timecourse(
                 data_layers=data_layers,
                 image_name=f"sim_{k:05d}",
                 output_dir=output_dir / "panels",
-                visualization_settings=None
+                visualization_settings=None,
             )
 
 
@@ -114,13 +116,15 @@ class VisualizationSettings:
     These should be determined once for a given geometry and then be used
     consistently.
     """
+
     # plotter settings
     window_size: Tuple[float, float] = (1000, 1000)
-    off_screen: bool = True  # False: blocking interactive visualization, True: batch mode
+    off_screen: bool = (
+        True  # False: blocking interactive visualization, True: batch mode
+    )
 
     camera_position: Tuple[float, float, float] = (0, 3e-4, 1e-3)
     zoom: float = 1.1
-
 
 
 def visualize_data_layers(
@@ -128,7 +132,7 @@ def visualize_data_layers(
     data_layers: Iterable[DataLayer],
     output_dir: Path,
     image_name: str,
-    visualization_settings: Optional[VisualizationSettings]
+    visualization_settings: Optional[VisualizationSettings],
 ) -> None:
     """Visualize geometry with pyvista.
 
@@ -246,7 +250,7 @@ def create_combined_images(
 def visualize_interactive(
     mesh: meshio.Mesh,
     data_layer: DataLayer,
-    visualization_settings: VisualizationSettings
+    visualization_settings: VisualizationSettings,
 ) -> None:
     """Visualize geometry with pyvista."""
     pvmesh = pv.utilities.from_meshio(mesh)
@@ -377,8 +381,6 @@ if __name__ == "__main__":
 
     mesh = xdmf_to_mesh(xdmf_path, k=1)
     visualize_interactive(
-        mesh,
-        data_layer=data_layers[0],
-        visualization_settings=VisualizationSettings()
+        mesh, data_layer=data_layers[0], visualization_settings=VisualizationSettings()
     )
     # FIXME: support calculation of new variables for visualization

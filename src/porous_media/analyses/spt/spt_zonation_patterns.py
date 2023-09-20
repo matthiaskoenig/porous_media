@@ -1,7 +1,7 @@
 """Zonation pattern scan."""
 
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 from porous_media import BASE_DIR
 from porous_media.analyses.spt.spt_substrate_scan import visualize_scan

@@ -4,7 +4,6 @@ Visualization of liver
 from typing import Dict, List
 
 import xarray as xr
-
 from matplotlib import pyplot as plt
 
 from porous_media import RESULTS_DIR
@@ -12,7 +11,9 @@ from porous_media.console import console
 from porous_media.data.xdmf_calculations import create_mesh_dataframes
 
 
-def plot_necrosis_over_time(xr_cells_list: List[xr.Dataset], labels: List[str], colors: List[str]):
+def plot_necrosis_over_time(
+    xr_cells_list: List[xr.Dataset], labels: List[str], colors: List[str]
+):
     """Plot necrosis over time."""
     console.rule(title="necrosis calculation", style="white")
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
@@ -25,24 +26,27 @@ def plot_necrosis_over_time(xr_cells_list: List[xr.Dataset], labels: List[str], 
         # calculate necrosis fraction (sum/count)
         # FIXME: calculate and add the cell volumes for proper normalization
         necrosis = xr_cells.rr_necrosis
-        necrosis_fraction = necrosis.sum(dim="cell")/necrosis.count(dim="cell")
+        necrosis_fraction = necrosis.sum(dim="cell") / necrosis.count(dim="cell")
         # console.print(f"{necrosis_fraction=}")
 
         ax.plot(
             # convert to hr and percent
-            necrosis_fraction.time/60/60, necrosis_fraction * 100,
+            necrosis_fraction.time / 60 / 60,
+            necrosis_fraction * 100,
             label=labels[k],
             linestyle="-",
             marker="o",
             color=colors[k],
             markeredgecolor="black",
-            alpha=0.7
+            alpha=0.7,
         )
     ax.legend()
     plt.show()
 
 
-def plot_T_vs_position(xr_cells_list: List[xr.Dataset], labels: List[str], colors: List[str]):
+def plot_T_vs_position(
+    xr_cells_list: List[xr.Dataset], labels: List[str], colors: List[str]
+):
     """Plot necrosis vs position."""
     console.rule(title="necrosis calculation", style="white")
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
@@ -54,13 +58,14 @@ def plot_T_vs_position(xr_cells_list: List[xr.Dataset], labels: List[str], color
     for k, xr_cells in enumerate(xr_cells_list):
         ax.plot(
             # convert to hr and percent
-            xr_cells.rr_position, xr_cells["rr_(T)"],
+            xr_cells.rr_position,
+            xr_cells["rr_(T)"],
             # label=labels[k],
             linestyle="None",
             marker="o",
             color=colors[k],
             markeredgecolor="black",
-            alpha=0.7
+            alpha=0.7,
         )
     plt.show()
 
@@ -70,9 +75,13 @@ if __name__ == "__main__":
     console.rule(title="XDMF calculations", style="white")
     # interpolated dataframe for zonation patterns
     xdmf_paths = [
-        RESULTS_DIR / "spt_zonation_patterns_new" / "10_28800.0" / f"simulation_pattern{k}_interpolated.xdmf"
+        RESULTS_DIR
+        / "spt_zonation_patterns_new"
+        / "10_28800.0"
+        / f"simulation_pattern{k}_interpolated.xdmf"
         # RESULTS_DIR / "spt_zonation_patterns_new" / "100_28800.0" / f"simulation_pattern{k}_interpolated.xdmf"
-        for k in range(5)]
+        for k in range(5)
+    ]
 
     labels = [
         "Constant",
@@ -97,8 +106,12 @@ if __name__ == "__main__":
 
     # calculate the necrosis area
     plot_necrosis_over_time(
-        xr_cells_list=xr_cells_list, labels=labels, colors=colors,
+        xr_cells_list=xr_cells_list,
+        labels=labels,
+        colors=colors,
     )
     plot_T_vs_position(
-        xr_cells_list=xr_cells_list, labels=labels, colors=colors,
+        xr_cells_list=xr_cells_list,
+        labels=labels,
+        colors=colors,
     )
