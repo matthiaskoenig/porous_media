@@ -30,19 +30,10 @@ def visualize_scan(
     xdmf_paths: Iterable[Path],
     data_layers: List[DataLayer],
     results_dir: Path,
+    selection: List[str],
     create_panels: bool = True,
 ) -> None:
     """Videos for substrate dependency"""
-
-    # subset of scalars to visualize
-    selection: List[str] = [
-        "rr_protein",
-        "rr_(S)",
-        "rr_(P)",
-        "rr_(T)",
-        "rr_necrosis",
-        # "pressure",
-    ]
 
     # Calculate tend time from all simulations
     tends: np.ndarray = np.zeros(shape=(len(xdmf_paths),))

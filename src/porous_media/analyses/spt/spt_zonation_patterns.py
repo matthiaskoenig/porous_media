@@ -27,12 +27,13 @@ if __name__ == "__main__":
     console.print(info)
 
     # create visualizations
-    from porous_media.analyses.spt import data_layers_spt
+    from porous_media.analyses.spt import data_layers_spt, selection_spt
 
     results_dir: Path = BASE_DIR / "results" / "spt_zonation_patterns_new"
     visualize_scan(
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,
         results_dir=results_dir,
+        selection=selection_spt,
         create_panels=True,
     )

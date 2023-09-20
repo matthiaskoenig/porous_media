@@ -8,6 +8,7 @@ coverage.xml
 
 # results
 results
+*.h5
 
 # raw data
 data/simliva
@@ -17,3 +18,5 @@ data/2023_09_SPP2311_SimLivA.pptx
 data/spt_substrate_scan/
 data/spt_zonation_patterns/
 data/spt_fixed_selection/
+# example Luis
+data/simliva_2023-09-20/
