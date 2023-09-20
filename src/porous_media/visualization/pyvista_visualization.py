@@ -4,7 +4,6 @@ Figure out how to add multiple layers to the visualization.
 E.g. streamlines in addition to other data.
 
 """
-import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -17,7 +16,6 @@ from rich.progress import track
 from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import DataLimits, XDMFInfo, vtks_to_xdmf
-from porous_media.mesh.mesh_tools import mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 
 
@@ -141,18 +139,12 @@ def visualize_data_layers(
         # create default settings
         visualization_settings = VisualizationSettings()
 
-    # FIXME: make this the function for a single plot
-
-    # create VTK from mesh to read for pyvista
-    # FIXME: better handling of grid
-    xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
-    mesh_to_xdmf(m=mesh, xdmf_path=Path(xdmf_tmp.name), test_read=False)
-    grid = pv.read(xdmf_tmp.name)
+    pvmesh = pv.utilities.from_meshio(mesh)
 
     # deactivate active sets
-    grid.set_active_tensors(None)
-    grid.set_active_scalars(None)
-    grid.set_active_vectors(None)
+    pvmesh.set_active_tensors(None)
+    pvmesh.set_active_scalars(None)
+    pvmesh.set_active_vectors(None)
 
     # visualize data_layers
     data_layers_dict: Dict[str, DataLayer] = {dl.sid: dl for dl in data_layers}
@@ -163,15 +155,15 @@ def visualize_data_layers(
             off_screen=visualization_settings.off_screen,
         )
         if data_layer.data_type == "Scalar":
-            grid.set_active_scalars(name=name)
+            pvmesh.set_active_scalars(name=name)
         elif data_layer.data_type == "Vector":
-            grid.set_active_vectors(name=name)
+            pvmesh.set_active_vectors(name=name)
         elif data_layer.data_type == "Tensor":
-            grid.set_active_tensors(name=name)
+            pvmesh.set_active_tensors(name=name)
 
         # FIXME: add multiple layers on top of each other
         actor = p.add_mesh(
-            grid,
+            pvmesh,
             show_edges=True,
             render_points_as_spheres=True,
             point_size=3,
@@ -257,32 +249,30 @@ def visualize_interactive(
     visualization_settings: VisualizationSettings
 ) -> None:
     """Visualize geometry with pyvista."""
-    xdmf_tmp = tempfile.NamedTemporaryFile(suffix=".xdmf")
-    mesh_to_xdmf(m=mesh, xdmf_path=Path(xdmf_tmp.name), test_read=False)
-    grid = pv.read(xdmf_tmp.name)
+    pvmesh = pv.utilities.from_meshio(mesh)
 
     # name of variable
     name = data_layer.sid
 
     # deactivate active sets
-    grid.set_active_tensors(None)
-    grid.set_active_scalars(None)
-    grid.set_active_vectors(None)
+    pvmesh.set_active_tensors(None)
+    pvmesh.set_active_scalars(None)
+    pvmesh.set_active_vectors(None)
 
     # visualize data_layer
     p = pv.Plotter(
         window_size=visualization_settings.window_size,
     )
     if data_layer.data_type == "Scalar":
-        grid.set_active_scalars(name=name)
+        pvmesh.set_active_scalars(name=name)
     elif data_layer.data_type == "Vector":
-        grid.set_active_vectors(name=name)
+        pvmesh.set_active_vectors(name=name)
     elif data_layer.data_type == "Tensor":
-        grid.set_active_tensors(name=name)
+        pvmesh.set_active_tensors(name=name)
 
     # FIXME: add multiple layers on top of each other, combination of data layers
     actor = p.add_mesh(
-        grid,
+        pvmesh,
         show_edges=True,
         render_points_as_spheres=True,
         point_size=3,
@@ -298,7 +288,7 @@ def visualize_interactive(
     # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
     p.add_mesh(
         # vector on point data
-        grid.arrows,
+        pvmesh.arrows,
         lighting=False,
     )
 
@@ -389,5 +379,6 @@ if __name__ == "__main__":
     visualize_interactive(
         mesh,
         data_layer=data_layers[0],
+        visualization_settings=VisualizationSettings()
     )
     # FIXME: support calculation of new variables for visualization
