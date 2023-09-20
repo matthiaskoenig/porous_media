@@ -16,7 +16,7 @@ from rich.progress import track
 
 from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
-from porous_media.data.xdmf_tools import DataLimits, vtks_to_xdmf, XDMFInformation
+from porous_media.data.xdmf_tools import DataLimits, XDMFInformation, vtks_to_xdmf
 from porous_media.mesh.mesh_tools import mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 
@@ -270,11 +270,9 @@ def visualize_interactive(
     # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
     p.add_mesh(
         # vector on point data
-        grid.arrows, lighting=False
+        grid.arrows,
+        lighting=False,
     )
-
-
-
 
     if data_layer.scalar_bar:
         p.add_scalar_bar(
@@ -308,9 +306,7 @@ def visualize_interactive(
     )
 
 
-
-
-def xdmf_to_mesh(xdmf_path, k: int =0) -> meshio.Mesh:
+def xdmf_to_mesh(xdmf_path, k: int = 0) -> meshio.Mesh:
     """XDMF to mesh."""
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
@@ -319,6 +315,7 @@ def xdmf_to_mesh(xdmf_path, k: int =0) -> meshio.Mesh:
         return meshio.Mesh(
             points=points, cells=cells, cell_data=cell_data, point_data=point_data
         )
+
 
 if __name__ == "__main__":
     # FIXME: make this in an example and add path to resources
@@ -337,19 +334,16 @@ if __name__ == "__main__":
             sid="displacement",
             title="displacement",
             colormap="magma",
-            data_type="Vector"
+            data_type="Vector",
         ),
         DataLayer(
             sid="fluid_flux_TPM",
             title="fluid flux [m/s]",
             colormap="magma",
-            data_type="Vector"
+            data_type="Vector",
         ),
         DataLayer(
-            sid="pressure",
-            title="Pressure",
-            colormap="magma",
-            data_type="Scalar"
+            sid="pressure", title="Pressure", colormap="magma", data_type="Scalar"
         ),
         DataLayer(
             sid="effective_fluid_pressure_TPM",
@@ -358,10 +352,7 @@ if __name__ == "__main__":
             data_type="Scalar",
         ),
         DataLayer(
-            sid="rr_(S)",
-            title="Substrate S [mM]",
-            colormap="magma",
-            data_type="Scalar"
+            sid="rr_(S)", title="Substrate S [mM]", colormap="magma", data_type="Scalar"
         ),
     ]
     # visualize_datalayers_timecourse(
@@ -376,5 +367,3 @@ if __name__ == "__main__":
         data_layer=data_layers[0],
     )
     # FIXME: support calculation of new variables for visualization
-
-

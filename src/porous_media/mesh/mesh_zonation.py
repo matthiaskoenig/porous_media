@@ -23,7 +23,6 @@ class ZonationPatterns:
     This calculates zonated variables based on the position of the mesh nodes.
     """
 
-
     @staticmethod
     def position(p: np.ndarray, value: float = 1.0) -> np.ndarray:
         """Pattern based on position information."""
@@ -56,17 +55,25 @@ class ZonationPatterns:
         return value_min + (value_max - value_min) * (1.0 - p)
 
     @staticmethod
-    def exp_increase(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
+    def exp_increase(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
         """Exponential increasing pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * (np.exp(p) - 1.0) / (np.exp(1.0) - 1.0)
+        return value_min + (value_max - value_min) * (np.exp(p) - 1.0) / (
+            np.exp(1.0) - 1.0
+        )
 
     @staticmethod
-    def exp_decrease(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
+    def exp_decrease(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
         """Exponential decreasing pattern in [0, 1]."""
         return 1.0 - ZonationPatterns.exp_increase(p, value_min, value_max)
 
     @staticmethod
-    def only_periportal(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
+    def only_periportal(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
         data = np.zeros_like(p)
         data[p <= 0.2] = value_max
@@ -74,7 +81,9 @@ class ZonationPatterns:
         return data
 
     @staticmethod
-    def only_pericentral(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0) -> np.ndarray:
+    def only_pericentral(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+    ) -> np.ndarray:
         """Sharp pericentral pattern in [0, 1]."""
         data = np.zeros_like(p)
         data[p >= 0.8] = value_max
@@ -82,12 +91,16 @@ class ZonationPatterns:
         return data
 
     @staticmethod
-    def sharp_periportal(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=10.0) -> np.ndarray:
+    def sharp_periportal(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
+    ) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * (1 - p**n/(p**n + 0.25**n))
+        return value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n))
 
     @staticmethod
-    def sharp_pericentral(p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float=10.0) -> np.ndarray:
+    def sharp_pericentral(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
+    ) -> np.ndarray:
         """Sharp pericentral pattern in [0, 1]."""
         return value_min + (value_max - value_min) * p**n / (p**n + 0.75**n)
 
@@ -185,7 +198,6 @@ class ZonatedMesh:
 
         for _, cell_block in enumerate(m.cells):
             for kc, cell in enumerate(cell_block.data):
-
                 # calculate the center of mass of cell
                 count = 0
                 center = np.zeros(shape=3)
@@ -255,6 +267,7 @@ class ZonatedMesh:
         m.cell_data[variable_id] = [data]
         return m
 
+
 data_layers = []
 
 for key in [p.__name__ for p in ZonatedMesh.patterns]:
@@ -270,13 +283,12 @@ for key in [p.__name__ for p in ZonatedMesh.patterns]:
 console.print(data_layers)
 
 
-
 def visualize_zonation_patterns(
     mesh: meshio.Mesh,
     results_path: Path,
     image_name: str,
     data_layers: List[DataLayer],
-    direction: str="horizontal",
+    direction: str = "horizontal",
     drange_type: DataRangeType = DataRangeType.LOCAL,
 ) -> None:
     """Visualize zonation patterns."""
@@ -306,7 +318,10 @@ def visualize_zonation_patterns(
 
     # create raw images
     visualize_data_layers(
-        mesh=mesh, data_layers=data_layers, output_dir=results_path, image_name=image_name
+        mesh=mesh,
+        data_layers=data_layers,
+        output_dir=results_path,
+        image_name=image_name,
     )
     # combine images
     images: List[Path] = []
@@ -339,9 +354,11 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     # visualize mesh
     console.rule(title="Mesh Visualization", style="white")
     visualize_zonation_patterns(
-        m, results_path=results_path, image_name="mesh_zonation_all",
+        m,
+        results_path=results_path,
+        image_name="mesh_zonation_all",
         data_layers=data_layers,
-        direction="square"
+        direction="square",
     )
 
     # Second mesh
@@ -358,11 +375,14 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     data_layers_dict = {dl.sid: dl for dl in data_layers}
     data_layers_selected = [data_layers_dict[key] for key in selected_patterns]
     visualize_zonation_patterns(
-        m, results_path=results_path, image_name="mesh_zonation_selected",
+        m,
+        results_path=results_path,
+        image_name="mesh_zonation_selected",
         direction="horizontal",
         data_layers=data_layers_selected,
-        drange_type = DataRangeType.GLOBAL,
+        drange_type=DataRangeType.GLOBAL,
     )
+
 
 if __name__ == "__main__":
     from porous_media import RESULTS_DIR

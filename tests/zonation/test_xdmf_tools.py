@@ -15,8 +15,8 @@ def test_vtk_single_to_xdmf(tmp_path):
 
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     assert xdmf_info.num_steps == 1
-    assert xdmf_info.tstart == pytest.approx(0.0)
-    assert xdmf_info.tend == pytest.approx(0.0)
+    assert xdmf_info.tstart == pytest.approx(220.0)
+    assert xdmf_info.tend == pytest.approx(220.0)
 
     for key in [
         "displacement",

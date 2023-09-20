@@ -13,11 +13,12 @@ from porous_media.log import get_logger
 logger = get_logger(__name__)
 
 if __name__ == "__main__":
-
     # process files
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt_fixed_selection")
     xdmf_paths: List[Path] = xdmfs_from_febio(
-        febio_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_fixedselection"),
+        febio_dir=Path(
+            "/home/mkoenig/git/porous_media/data/spt/simulation_fixedselection"
+        ),
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )

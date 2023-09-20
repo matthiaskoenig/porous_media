@@ -393,7 +393,6 @@ if __name__ == "__main__":
     xdmf_info: XDMFInformation = XDMFInformation.from_path(xdmf_path)
     console.print(xdmf_info)
 
-
     xdmf_paths: List[Path] = [
         Path(f"/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf")
         for k in range(21, 26)

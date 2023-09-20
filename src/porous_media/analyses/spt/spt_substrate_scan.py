@@ -20,7 +20,8 @@ from porous_media.visualization.pyvista_visualization import (
     create_combined_images,
     visualize_datalayers_timecourse,
 )
-from porous_media.visualization.video import create_video, create_gif_from_video
+from porous_media.visualization.video import create_gif_from_video, create_video
+
 
 logger = get_logger(__name__)
 
@@ -42,7 +43,6 @@ def visualize_scan(
         "rr_necrosis",
         "pressure",
     ]
-
 
     # Calculate tend time from all simulations
     tends: np.ndarray = np.zeros(shape=(len(xdmf_paths),))
