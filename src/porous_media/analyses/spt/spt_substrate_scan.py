@@ -121,10 +121,10 @@ if __name__ == "__main__":
     # Substrate scan
     # -----------------------------------
     # process files
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt_substrate_scan")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient")
     xdmf_paths: List[Path] = xdmfs_from_febio(
         febio_dir=Path(
-            "/home/mkoenig/git/porous_media/data/spt/simulation_fixedcelltype"
+            "/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient"
         ),
         xdmf_dir=xdmf_dir,
         overwrite=False,
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     # create visualizations
     from porous_media.analyses.spt import data_layers_spt
 
-    results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan"
+    results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan_new"
     visualize_scan(
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,
