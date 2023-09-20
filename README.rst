@@ -52,6 +52,41 @@ How to cite
    :target: https://doi.org/10.5281/zenodo.8335487
    :alt: Zenodo DOI
 
+Installation
+============
+`porous_media` is available from `pypi <https://pypi.python.org/pypi/porous_media>`__ and 
+can be installed via:: 
+
+    pip install porous_media
+
+Required dependencies
+----------------------
+`porous_media` depends on `ffmpeg <https://ffmpeg.org/>`__ for creation of the videos 
+which can be installed via on linux via::
+
+    sudo apt-get install ffmpeg
+    
+Make sure you can execute the following successfully:: 
+
+    ffmpeg
+
+Develop version
+---------------
+The latest develop version can be installed via::
+
+    pip install git+https://github.com/matthiaskoenig/porous_media.git@develop
+
+Or via cloning the repository and installing via::
+
+    git clone https://github.com/matthiaskoenig/porous_media.git
+    cd porous_media
+    pip install -e .
+
+To install for development use::
+
+    pip install -e .[development]
+
+
 Contributing
 ============
 
@@ -84,28 +119,5 @@ within the research network Systems Medicine of the Liver (**LiSyM**, grant numb
 and by the German Research Foundation (DFG) within the Research Unit Programme FOR 5151 
 "`QuaLiPerF <https://qualiperf.de>`__ (Quantifying Liver Perfusion-Function Relationship in Complex Resection - 
 A Systems Medicine Approach)" by grant number 436883643 and by grant number 465194077 (Priority Programme SPP 2311, Subproject SimLivA).
-
-Installation
-============
-`porous_media` is available from `pypi <https://pypi.python.org/pypi/porous_media>`__ and 
-can be installed via:: 
-
-    pip install porous_media
-
-Develop version
----------------
-The latest develop version can be installed via::
-
-    pip install git+https://github.com/matthiaskoenig/porous_media.git@develop
-
-Or via cloning the repository and installing via::
-
-    git clone https://github.com/matthiaskoenig/porous_media.git
-    cd porous_media
-    pip install -e .
-
-To install for development use::
-
-    pip install -e .[development]
 
 © 2023 Matthias König
