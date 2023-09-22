@@ -93,7 +93,7 @@ def visualize_scan(
             # Create combined figure for timecourse
             if num == 10:
                 merge_images(
-                    paths=rows,
+                    paths=[rows[k] for k in [1, 3, 5, 7, 9]],  # FIXME: hardcoded subset
                     direction="vertical",
                     output_path=results_dir / f"{xdmf_path.stem}_{num}_{tend}.png",
                 )
@@ -115,27 +115,28 @@ if __name__ == "__main__":
     # -----------------------------------
     # process files
     xdmf_dir = Path(
-        "/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient"
+        "/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"
     )
-    xdmf_paths: List[Path] = xdmfs_from_directory(
+    xdmf_paths: Dict[Path, Path] = xdmfs_from_directory(
         input_dir=Path(
-            "/home/mkoenig/git/porous_media/data/spt/simulation_spt_bettergradient"
+            "/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"
         ),
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )
-    info: XDMFInfo = XDMFInfo.from_path(xdmf_path=xdmf_paths[0])
+    info: XDMFInfo = XDMFInfo.from_path(list(xdmf_paths.keys())[0])
     console.print(info)
 
     # create visualizations
-    from porous_media.analyses.spt import data_layers_spt
+    from porous_media.analyses.spt import data_layers_spt, selection_spt
 
-    results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan_new"
+    results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan_219"
     visualize_scan(
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,
+        selection=selection_spt,
         results_dir=results_dir,
-        create_panels=True,
+        create_panels=False,
     )
 
     # 5mmHg and 1mmHg => check effective_fluid_pressure!

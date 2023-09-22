@@ -11,6 +11,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 import meshio
 import pyvista as pv
+from pyvista.plotting.utilities import cubemap
 from rich.progress import track
 
 from porous_media import RESOURCES_DIR, RESULTS_DIR
@@ -285,24 +286,43 @@ def visualize_interactive(
     # FIXME: add multiple layers on top of each other, combination of data layers
     actor = p.add_mesh(
         pvmesh,
-        show_edges=True,
+        show_vertices=False,
+        show_edges=False,
         render_points_as_spheres=True,
         point_size=3,
-        show_vertices=True,
+
         line_width=1.0,
         cmap=data_layer.colormap,
         show_scalar_bar=False,
         edge_color="darkgray",
         # specular=0.5, specular_power=15,
         clim=data_layer.color_limits,
+        # pbr=True,
+        # metallic=0.8,
+        # roughness=0.0,
+        # diffuse=1
     )
+    # set up lighting
+    # light = pv.Light((-2, 2, 0), (0, 0, 0), 'white')
+    # p.add_light(light)
+    #
+    light = pv.Light((-2, 0, 0), (0, 0, 0), (0.7, 0.0862, 0.0549))
+    p.add_light(light)
+    #
+    # light = pv.Light((0, 0, 10), (0, 0, 0), 'white')
+    # p.add_light(light)
 
-    # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
-    p.add_mesh(
-        # vector on point data
-        pvmesh.arrows,
-        lighting=False,
-    )
+    # p.add_floor('-z', lighting=True, color='white', pad=1.0)
+    p.add_floor('-z', lighting=True, color='white', pad=0.5)
+    p.enable_shadows()
+
+    # TODO:
+    # # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
+    # p.add_mesh(
+    #     # vector on point data
+    #     pvmesh.arrows,
+    #     lighting=False,
+    # )
 
     if data_layer.scalar_bar:
         p.add_scalar_bar(
@@ -389,6 +409,6 @@ if __name__ == "__main__":
 
     mesh = xdmf_to_mesh(xdmf_path, k=1)
     visualize_interactive(
-        mesh, data_layer=data_layers[0], visualization_settings=VisualizationSettings()
+        mesh, data_layer=data_layers[2], visualization_settings=VisualizationSettings()
     )
     # FIXME: support calculation of new variables for visualization
