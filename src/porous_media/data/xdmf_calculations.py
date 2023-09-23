@@ -48,7 +48,9 @@ def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
         _, _ = reader.read_points_cells()
         tnum = reader.num_steps
         timepoints = np.ndarray(shape=(tnum,))
-        for k in track(range(tnum), description=f"Creating DataFrames ..."):
+        for k in track(
+            range(tnum), description="Creating DataFrames/Xarray for mesh data ..."
+        ):
             t, point_data, cell_data = reader.read_data(k)
             timepoints[k] = t
 
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         RESULTS_DIR
         / "spt_zonation_patterns_new"
         / "10_28800.0"
-        / f"simulation_pattern1_interpolated.xdmf"
+        / "simulation_pattern1_interpolated.xdmf"
     )
     xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
     console.rule(align="left", title="cell_data", style="white")

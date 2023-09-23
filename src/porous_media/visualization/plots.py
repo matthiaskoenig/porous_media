@@ -1,3 +1,5 @@
+"""Matplotlib plot configuration."""
+
 import matplotlib
 
 

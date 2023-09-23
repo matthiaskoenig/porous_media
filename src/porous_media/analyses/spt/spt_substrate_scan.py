@@ -33,7 +33,7 @@ def visualize_scan(
     selection: List[str],
     create_panels: bool = True,
 ) -> None:
-    """Videos for substrate dependency"""
+    """Create static images and video."""
 
     # Calculate tend time from all simulations
     tends: np.ndarray = np.zeros(shape=(len(xdmf_paths),))

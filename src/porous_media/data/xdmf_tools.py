@@ -41,7 +41,7 @@ class AttributeType(str, Enum):
 
 @dataclass
 class AttributeInfo:
-    """Information of variable which is defined on the mesh"""
+    """Information on attribute on the mesh (cell or point data)."""
 
     name: str
     attribute_type: AttributeType
@@ -130,12 +130,12 @@ class DataLimits:
 
     @classmethod
     def json_path_from_xdmf(cls, xdmf_path) -> Path:
-        """Get JSON path from xdmf path"""
+        """Calculate JSON path from xdmf path."""
         return xdmf_path.parent / f"{xdmf_path.stem}_limits.json"
 
     @classmethod
     def from_xdmf(cls, xdmf_path: Path, overwrite: bool = False) -> DataLimits:
-        """Helper for calculating all data limits.
+        """Calculate data limits from XDMF timecourse..
 
         This takes some time because it requires iteration over the complete dataset.
         Should support subsets and operations such as merging of limits from multiple
@@ -158,12 +158,12 @@ class DataLimits:
             _, _ = reader.read_points_cells()
 
             for k in track(
-                range(reader.num_steps), description=f"Calculating data limits ..."
+                range(reader.num_steps), description="Calculating data limits ..."
             ):
                 t, point_data, cell_data = reader.read_data(k)
 
                 # point data limits
-                for name, attribute_type in xdmf_info.point_data.items():
+                for name in xdmf_info.point_data:
                     # min and max from data
                     data = point_data[name]
                     data = np.dstack(data)
@@ -184,7 +184,7 @@ class DataLimits:
                     point_limits[name] = limits
 
                 # cell data limits
-                for name, attribute_type in xdmf_info.cell_data.items():
+                for name in xdmf_info.cell_data:
                     # min and max from data
                     data = cell_data[name]
                     data = np.dstack(data)

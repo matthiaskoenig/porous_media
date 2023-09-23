@@ -1,6 +1,4 @@
-"""
-Visualization of liver
-"""
+"""Visualization of liver simulations."""
 from typing import Dict, List
 
 import xarray as xr
@@ -17,8 +15,7 @@ def plot_necrosis_over_time(
 ):
     """Plot necrosis over time."""
     console.rule(title="necrosis calculation", style="white")
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
-    fig.subplots_adjust(wspace=0.3, hspace=0.3)
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
 
     # [1] necrosis fraction ~ time
     ax.set_xlabel("time [hr]", fontdict={"weight": "bold"})
@@ -27,6 +24,9 @@ def plot_necrosis_over_time(
     for k, xr_cells in enumerate(xr_cells_list):
         # calculate necrosis fraction (sum/count)
         # FIXME: calculate and add the cell volumes for proper normalization
+        if k != 1:
+            continue
+
         necrosis = xr_cells.rr_necrosis
         necrosis_fraction = necrosis.sum(dim="cell") / necrosis.count(dim="cell")
         # console.print(f"{necrosis_fraction=}")
@@ -43,7 +43,6 @@ def plot_necrosis_over_time(
             alpha=0.7,
         )
     ax.legend()
-    fig.savefig("flow_dependency.png", dpi=300)
     plt.show()
 
 
@@ -52,7 +51,7 @@ def plot_T_vs_position(
 ):
     """Plot necrosis vs position."""
     console.rule(title="necrosis calculation", style="white")
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
 
     # [1] necrosis fraction ~ time
     ax.set_xlabel("position [-]")
@@ -83,18 +82,18 @@ if __name__ == "__main__":
         # / "10_28800.0"
         # / f"simulation_pattern{k}_interpolated.xdmf"
         RESULTS_DIR
-        / "spt_substrate_scan_219"
+        / "spt_zonation_patterns_new"
         / "100_28800.0"
-        / f"spt_{k}_interpolated.xdmf"
-        for k in range(21, 26)
+        / f"simulation_pattern{k}_interpolated.xdmf"
+        for k in range(5)
     ]
 
     labels = [
-        "flow S(1)",
-        "flow S(2)",
-        "flow S(3)",
-        "flow S(4)",
-        "flow S(5)",
+        "Constant",
+        "Linear increase",
+        "Linear decrease",
+        "Sharp pericentral",
+        "Sharp periportal",
     ]
     colors = [
         "tab:blue",
@@ -106,7 +105,7 @@ if __name__ == "__main__":
 
     # calculate all xarray Datasets
     xr_cells_list: List[xr.Dataset] = []
-    for k, xdmf_path in enumerate(xdmf_paths):
+    for xdmf_path in xdmf_paths:
         xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
         xr_cells_list.append(xr_cells)
 
@@ -116,7 +115,6 @@ if __name__ == "__main__":
         labels=labels,
         colors=colors,
     )
-
     plot_T_vs_position(
         xr_cells_list=xr_cells_list,
         labels=labels,

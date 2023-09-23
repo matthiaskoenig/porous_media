@@ -7,7 +7,7 @@ from porous_media.data.xdmf_tools import XDMFInfo, vtks_to_xdmf
 
 
 def test_vtk_single_to_xdmf(tmp_path):
-    """Testing the vtk time course parsing"""
+    """Test the vtk time course parsing."""
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
     xdmf_path = tmp_path / "vtk_single.xdmf"
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
@@ -35,7 +35,7 @@ def test_vtk_single_to_xdmf(tmp_path):
 
 
 def test_vtk_timecourse_to_xdmf(tmp_path):
-    """Testing the vtk time course parsing"""
+    """Test the vtk time course parsing."""
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
     xdmf_path = tmp_path / "vtk_timecourse.xdmf"
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
