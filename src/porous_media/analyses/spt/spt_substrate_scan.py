@@ -114,13 +114,9 @@ if __name__ == "__main__":
     # Substrate scan
     # -----------------------------------
     # process files
-    xdmf_dir = Path(
-        "/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"
-    )
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_219")
     xdmf_paths: Dict[Path, Path] = xdmfs_from_directory(
-        input_dir=Path(
-            "/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"
-        ),
+        input_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"),
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )

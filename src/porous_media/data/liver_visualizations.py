@@ -4,12 +4,12 @@ Visualization of liver
 from typing import Dict, List
 
 import xarray as xr
-from porous_media.visualization import plots
 from matplotlib import pyplot as plt
 
 from porous_media import RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_calculations import create_mesh_dataframes
+from porous_media.visualization import plots
 
 
 def plot_necrosis_over_time(
@@ -83,7 +83,10 @@ if __name__ == "__main__":
         # / "spt_zonation_patterns_new"
         # / "10_28800.0"
         # / f"simulation_pattern{k}_interpolated.xdmf"
-        RESULTS_DIR / "spt_zonation_patterns_new" / "100_28800.0" / f"simulation_pattern{k}_interpolated.xdmf"
+        RESULTS_DIR
+        / "spt_zonation_patterns_new"
+        / "100_28800.0"
+        / f"simulation_pattern{k}_interpolated.xdmf"
         for k in range(5)
     ]
 

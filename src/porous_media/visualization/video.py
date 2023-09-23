@@ -10,8 +10,11 @@ from porous_media.console import console
 
 
 def create_video(
-    image_pattern: str, video_path: Path, frame_rate: int = 30, codec: str = "mpeg4",
-    overwrite: bool = True
+    image_pattern: str,
+    video_path: Path,
+    frame_rate: int = 30,
+    codec: str = "mpeg4",
+    overwrite: bool = True,
 ) -> None:
     """Create video by combining images.
 
@@ -24,7 +27,9 @@ def create_video(
     os.system(command)
 
 
-def create_gif_from_video(video_path: Path, gif_path: Path, overwrite: bool = True) -> None:
+def create_gif_from_video(
+    video_path: Path, gif_path: Path, overwrite: bool = True
+) -> None:
     """Gif from video.
 
     :param overwrite: flag for overwriting existing gifs

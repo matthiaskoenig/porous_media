@@ -64,7 +64,9 @@ class DataLayer:
     # plot_type: str
     conversion_factor: Optional[float] = None
 
-    def update_color_limits(self, data_limits: DataLimits, only_empty: bool = True) -> None:
+    def update_color_limits(
+        self, data_limits: DataLimits, only_empty: bool = True
+    ) -> None:
         """Update color limits.
 
         :param only_empty: The parameter determines if only the empty limits should be
@@ -141,7 +143,7 @@ def visualize_data_layers(
     data_layers: Iterable[DataLayer],
     output_dir: Path,
     image_name: str,
-    visualization_settings: Optional[VisualizationSettings],
+    visualization_settings: Optional[VisualizationSettings] = None,
 ) -> None:
     """Visualize geometry with pyvista.
 
@@ -290,7 +292,6 @@ def visualize_interactive(
         show_edges=False,
         render_points_as_spheres=True,
         point_size=3,
-
         line_width=1.0,
         cmap=data_layer.colormap,
         show_scalar_bar=False,
@@ -313,7 +314,7 @@ def visualize_interactive(
     # p.add_light(light)
 
     # p.add_floor('-z', lighting=True, color='white', pad=1.0)
-    p.add_floor('-z', lighting=True, color='white', pad=0.5)
+    p.add_floor("-z", lighting=True, color="white", pad=0.5)
     p.enable_shadows()
 
     # TODO:
