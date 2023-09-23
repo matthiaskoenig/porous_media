@@ -6,7 +6,7 @@ from typing import Dict, List
 from porous_media import BASE_DIR
 from porous_media.analyses.spt.spt_substrate_scan import visualize_scan
 from porous_media.console import console
-from porous_media.data.xdmf_tools import XDMFInfo, xdmfs_from_directory
+from porous_media.data.xdmf_tools import AttributeType, XDMFInfo, xdmfs_from_directory
 from porous_media.log import get_logger
 from porous_media.visualization.pyvista_visualization import DataLayer
 
@@ -20,50 +20,37 @@ data_layers_simliva: List[DataLayer] = [
         sid="rr_necrosis",
         title="Necrosis (0: alive, 1: death)",
         colormap="binary",
-        data_type="Scalar",
     ),
     DataLayer(
         sid="rr_(glc)",
         title="Glucose [mM]",
-        colormap="magma",
-        data_type="Scalar",
-        color_limits=(2, 5),  # example for custom color_limits
+        color_limits=(2, 5),
     ),
     DataLayer(
         sid="rr_(o2)",
         title="Oxygen [mM]",
-        colormap="magma",
-        data_type="Scalar",
     ),
     DataLayer(
         sid="rr_(lac)",
         title="Lactate [mM]",
-        colormap="magma",
-        data_type="Scalar",
     ),
     DataLayer(
         sid="rr_(atp)",
         title="ATP [mM]",
-        colormap="magma",
-        data_type="Scalar",
     ),
     DataLayer(
         sid="rr_(nadh)",
         title="NADH [mM]",
-        colormap="magma",
-        data_type="Scalar",
     ),
     DataLayer(
         sid="pressure",
         title="Pressure [?]",
-        colormap="magma",
-        data_type="Scalar",
     ),
     DataLayer(
         sid="fluid_flux_TPM",
         title="Fluid flow [?/s]",
         colormap="RdBu",
-        data_type="Vector",
+        viz_type=AttributeType.VECTOR,
     ),
 ]
 

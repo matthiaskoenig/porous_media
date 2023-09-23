@@ -16,15 +16,28 @@ from rich.progress import track
 
 from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
-from porous_media.data.xdmf_tools import DataLimits, XDMFInfo, vtks_to_xdmf
+from porous_media.data.xdmf_tools import (
+    AttributeType,
+    DataLimits,
+    XDMFInfo,
+    vtks_to_xdmf,
+)
 from porous_media.visualization.image_manipulation import merge_images
+
+class VizType(str, Enum):
+    """Type of visualization layer."""
+
+    SCALAR = "Scalar"
+    VECTOR_FIELD = "Vector"
+    TENSOR = "Tensor"
+    MATRIX = "Matrix"
+    OTHER = "Other"
 
 
 # global configuration
 pv.global_theme.window_size = [1000, 1000]
 pv.global_theme.background = "white"
 pv.global_theme.transparent_background = True
-# pv.global_theme.cmap = 'RdBu'
 pv.global_theme.colorbar_orientation = "vertical"
 
 pv.global_theme.font.family = "arial"
@@ -47,21 +60,20 @@ class DataRangeType(str, Enum):
 
 @dataclass
 class DataLayer:
-    """Data layer for plot with all information to visualize the layer.
+    """Data layer for plot.
 
-    This will be most likely extended to account for
-    order of plotting, opacity and so on.
+    Currently only a single data layer is supported but this will be extended
+    to map multiple layers in a single visualiztion
 
     :param conversion_factor: factor f to convert data before plotting with data_new = data * f
     """
 
     sid: str
     title: str
-    data_type: str  # Scalar, Vector, Tensor
-    colormap: str
+    colormap: str = "magma"
+    viz_type: AttributeType = AttributeType.SCALAR
     color_limits: Optional[Tuple[float, float]] = None
     scalar_bar: bool = True
-    # plot_type: str
     conversion_factor: Optional[float] = None
 
     def update_color_limits(
@@ -169,11 +181,11 @@ def visualize_data_layers(
             # title="TPM",
             off_screen=visualization_settings.off_screen,
         )
-        if data_layer.data_type == "Scalar":
+        if data_layer.viz_type == "Scalar":
             pvmesh.set_active_scalars(name=name)
-        elif data_layer.data_type == "Vector":
+        elif data_layer.viz_type == "Vector":
             pvmesh.set_active_vectors(name=name)
-        elif data_layer.data_type == "Tensor":
+        elif data_layer.viz_type == "Tensor":
             pvmesh.set_active_tensors(name=name)
 
         # FIXME: add multiple layers on top of each other
@@ -278,11 +290,11 @@ def visualize_interactive(
     p = pv.Plotter(
         window_size=visualization_settings.window_size,
     )
-    if data_layer.data_type == "Scalar":
+    if data_layer.viz_type == "Scalar":
         pvmesh.set_active_scalars(name=name)
-    elif data_layer.data_type == "Vector":
+    elif data_layer.viz_type == "Vector":
         pvmesh.set_active_vectors(name=name)
-    elif data_layer.data_type == "Tensor":
+    elif data_layer.viz_type == "Tensor":
         pvmesh.set_active_tensors(name=name)
 
     # FIXME: add multiple layers on top of each other, combination of data layers
@@ -381,25 +393,25 @@ if __name__ == "__main__":
             sid="displacement",
             title="displacement",
             colormap="magma",
-            data_type="Vector",
+            viz_type="Vector",
         ),
         DataLayer(
             sid="fluid_flux_TPM",
             title="fluid flux [m/s]",
             colormap="magma",
-            data_type="Vector",
+            viz_type="Vector",
         ),
         DataLayer(
-            sid="pressure", title="Pressure", colormap="magma", data_type="Scalar"
+            sid="pressure", title="Pressure", colormap="magma", viz_type="Scalar"
         ),
         DataLayer(
             sid="effective_fluid_pressure_TPM",
             title="Effective fluid pressure [Pa]",
             colormap="magma",
-            data_type="Scalar",
+            viz_type="Scalar",
         ),
         DataLayer(
-            sid="rr_(S)", title="Substrate S [mM]", colormap="magma", data_type="Scalar"
+            sid="rr_(S)", title="Substrate S [mM]", colormap="magma", viz_type="Scalar"
         ),
     ]
     # visualize_datalayers_timecourse(

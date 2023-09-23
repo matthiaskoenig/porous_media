@@ -275,7 +275,7 @@ for key in [p.__name__ for p in ZonatedMesh.patterns]:
         DataLayer(
             sid=f"pattern__{key}",
             title=key,
-            data_type="Scalar",
+            viz_type="Scalar",
             colormap="magma",
         )
     )

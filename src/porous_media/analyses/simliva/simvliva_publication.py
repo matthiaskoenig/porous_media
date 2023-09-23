@@ -116,7 +116,9 @@ if __name__ == "__main__":
 
     scalars_iri: List[DataLayer] = [
         DataLayer(
-            sid="rr_necrosis", title="Necrosis (0: alive, 1: death)", colormap="binary"
+            sid="rr_necrosis",
+            title="Necrosis (0: alive, 1: death)",
+            colormap="binary",
         ),
         DataLayer(sid="rr_(atp)", title="ATP (mM)", colormap="RdBu"),
         DataLayer(sid="rr_(glc)", title="Glucose (mM)", colormap="RdBu"),

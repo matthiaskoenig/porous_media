@@ -6,11 +6,10 @@ import numpy as np
 
 from porous_media import BASE_DIR, DATA_DIR
 from porous_media.console import console
-from porous_media.febio.xdmf_tools import interpolate_xdmf, vtks_to_xdmf
+from porous_media.data.xdmf_tools import interpolate_xdmf, vtks_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
     DataLayer,
-    calculate_value_ranges,
     create_combined_images,
     visualize_datalayers_timecourse,
 )
@@ -36,7 +35,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
         )
 
         # add data limits
-        calculate_value_ranges(xdmf_path=xdmf_interpolated_path, scalars=scalars)
+
         console.rule(title="Scalars", align="left", style="white")
         console.print(scalars)
 
@@ -59,7 +58,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
     rows: List[Path] = create_combined_images(
         xdmf_path=xdmf_interpolated_path,
         output_dir=output_dir,
-        scalars_selection=scalars_selection,
+        selection=scalars_selection,
         direction="horizontal",
     )
     rows_subset = [rows[k] for k in range(len(rows)) if (k + 1) % 10 == 0]

@@ -129,7 +129,7 @@ class DataLimits:
     limits: Dict[str, Tuple[float, float]]
 
     @classmethod
-    def json_path_from_xdmf(cls, xdmf_path) -> Path:
+    def json_path_from_xdmf(cls, xdmf_path: Path) -> Path:
         """Calculate JSON path from xdmf path."""
         return xdmf_path.parent / f"{xdmf_path.stem}_limits.json"
 
@@ -152,8 +152,8 @@ class DataLimits:
         # read information
         xdmf_info = XDMFInfo.from_path(xdmf_path)
 
-        point_limits: Dict[str, List[float]] = {}
-        cell_limits: Dict[str, List[float]] = {}
+        point_limits: Dict[str, Tuple[float, float]] = {}
+        cell_limits: Dict[str, Tuple[float, float]] = {}
         with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
             _, _ = reader.read_points_cells()
 
@@ -173,15 +173,14 @@ class DataLimits:
 
                     limits: Tuple[float, float]
                     if k == 0:
-                        point_limits[name] = [dmin, dmax]
+                        point_limits[name] = (dmin, dmax)
 
                     # update limits
                     limits = point_limits[name]
-                    if limits[0] > dmin:
-                        limits[0] = dmin
-                    if limits[1] < dmax:
-                        limits[1] = dmax
-                    point_limits[name] = limits
+                    point_limits[name] = (
+                        dmin if limits[0] > dmin else limits[0],
+                        dmax if limits[1] < dmax else limits[1],
+                    )
 
                 # cell data limits
                 for name in xdmf_info.cell_data:
