@@ -59,3 +59,13 @@ Efficient Baysian approaches
 # Global and local strain properties 
 - orientation analysis of fibres ! polar plots! orientations of lobuli
 - How did you create the actual mesh from the image data?
+
+# Modelling flow and transport in the liver
+Dichamp2023
+
+- governing equations: steady state two compartment Darcy flow
+- analytic solutions
+- 3D -> 1D model reduction
+- velocity fields are an input
+
+see Luca Formagia 2009, Cardiovascular Mathematics 

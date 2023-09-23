@@ -17,7 +17,7 @@ def plot_necrosis_over_time(
 ):
     """Plot necrosis over time."""
     console.rule(title="necrosis calculation", style="white")
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
     fig.subplots_adjust(wspace=0.3, hspace=0.3)
 
     # [1] necrosis fraction ~ time
@@ -53,8 +53,7 @@ def plot_T_vs_position(
 ):
     """Plot necrosis vs position."""
     console.rule(title="necrosis calculation", style="white")
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(7, 7))
-    fig.adjust_subplots(wspace=0.3, hspace=0.3)
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
 
     # [1] necrosis fraction ~ time
     ax.set_xlabel("position [-]")
