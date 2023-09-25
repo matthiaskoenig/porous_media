@@ -14,6 +14,7 @@ from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
     DataLayer,
     DataRangeType,
+    VisualizationSettings,
     visualize_data_layers,
 )
 
@@ -323,6 +324,7 @@ def visualize_zonation_patterns(
         data_layers=data_layers,
         output_dir=results_path,
         image_name=image_name,
+        visualization_settings=VisualizationSettings(off_screen=True),
     )
     # combine images
     images: List[Path] = []
