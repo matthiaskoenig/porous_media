@@ -192,15 +192,14 @@ class DataLimits:
                     dmax = float(data.max())
 
                     if k == 0:
-                        cell_limits[name] = [dmin, dmax]
+                        cell_limits[name] = (dmin, dmax)
 
                     # update limits
                     limits = cell_limits[name]
-                    if limits[0] > dmin:
-                        limits[0] = dmin
-                    if limits[1] < dmax:
-                        limits[1] = dmax
-                    cell_limits[name] = limits
+                    cell_limits[name] = (
+                        dmin if limits[0] > dmin else limits[0],
+                        dmax if limits[1] < dmax else limits[1],
+                    )
 
         data_limits = DataLimits(
             limits={

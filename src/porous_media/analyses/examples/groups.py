@@ -20,7 +20,9 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
     """Gradient dependency."""
     sim_dir = DATA_DIR / "examples" / "Group_PF_ideal_TPM"
     xdmf_path = sim_dir / "results.xdmf"
-    xdmf_interpolated_path = sim_dir / "results_interpolated_100.xdmf"
+
+    num_steps = 100
+    xdmf_interpolated_path = sim_dir / f"results_interpolated_{num_steps}.xdmf"
     output_dir = BASE_DIR / "results" / "groups"
 
     if create_panels:
@@ -31,7 +33,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
         interpolate_xdmf(
             xdmf_in=xdmf_path,
             xdmf_out=xdmf_interpolated_path,
-            times_interpolate=np.linspace(0, 1, num=100),
+            times_interpolate=np.linspace(0, 1, num=num_steps),
         )
 
         # add data limits
@@ -56,7 +58,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
 
     # Create combined image
     rows: List[Path] = create_combined_images(
-        xdmf_path=xdmf_interpolated_path,
+        num_steps=num_steps,
         output_dir=output_dir,
         selection=scalars_selection,
         direction="horizontal",
@@ -68,7 +70,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
 
     # Create video
     create_combined_images(
-        xdmf_path=xdmf_interpolated_path,
+        num_steps=num_steps,
         output_dir=output_dir,
         selection=scalars_selection,
         direction="custom",
