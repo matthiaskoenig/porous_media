@@ -36,7 +36,7 @@ def visualize_scan(
     """Create static images and video."""
 
     # Calculate tend time from all simulations
-    tends: np.ndarray = np.zeros(shape=(len(xdmf_paths),))
+    tends: np.ndarray = np.zeros(shape=(len(list(xdmf_paths)),))
     for k, xdmf_path in enumerate(xdmf_paths):
         xdmf_info = XDMFInfo.from_path(xdmf_path)
         tends[k] = xdmf_info.tend

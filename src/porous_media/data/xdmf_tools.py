@@ -208,7 +208,8 @@ class DataLimits:
             }
         )
         with open(json_path, "w") as f_json:
-            json.dump(data_limits.to_dict(), fp=f_json, indent=2)
+            djson: Dict = data_limits.to_dict()  # type: ignore
+            json.dump(djson, fp=f_json, indent=2)
 
         console.print(f"json file created: {json_path}")
         return data_limits
