@@ -1,4 +1,5 @@
 """Test xdmf functionality."""
+from pathlib import Path
 
 import pytest
 
@@ -6,7 +7,7 @@ from porous_media import RESOURCES_DIR
 from porous_media.data.xdmf_tools import XDMFInfo, vtks_to_xdmf
 
 
-def test_vtk_single_to_xdmf(tmp_path):
+def test_vtk_single_to_xdmf(tmp_path: Path) -> None:
     """Test the vtk time course parsing."""
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
     xdmf_path = tmp_path / "vtk_single.xdmf"
@@ -34,7 +35,7 @@ def test_vtk_single_to_xdmf(tmp_path):
         assert key in xdmf_info.cell_data
 
 
-def test_vtk_timecourse_to_xdmf(tmp_path):
+def test_vtk_timecourse_to_xdmf(tmp_path: Path) -> None:
     """Test the vtk time course parsing."""
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
     xdmf_path = tmp_path / "vtk_timecourse.xdmf"

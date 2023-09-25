@@ -13,7 +13,7 @@ from porous_media.visualization import plots
 
 def plot_necrosis_over_time(
     xr_cells_list: List[xr.Dataset], labels: List[str], colors: List[str]
-):
+) -> None:
     """Plot necrosis over time."""
     console.rule(title="necrosis calculation", style="white")
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))

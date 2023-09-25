@@ -9,7 +9,7 @@ import meshio
 from porous_media.console import console
 
 
-def calculate_geometry_variables():
+def calculate_geometry_variables() -> None:
     """Calculate volumes and other important variables using meshplex.
 
     These will be added to the cell_data and point data.

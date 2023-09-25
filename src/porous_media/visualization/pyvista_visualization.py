@@ -366,7 +366,7 @@ def visualize_interactive(
     p.show()
 
 
-def xdmf_to_mesh(xdmf_path, k: int = 0) -> meshio.Mesh:
+def xdmf_to_mesh(xdmf_path: Path, k: int = 0) -> meshio.Mesh:
     """XDMF to mesh."""
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
@@ -394,25 +394,31 @@ if __name__ == "__main__":
             sid="displacement",
             title="displacement",
             colormap="magma",
-            viz_type="Vector",
+            viz_type=AttributeType.VECTOR,
         ),
         DataLayer(
             sid="fluid_flux_TPM",
             title="fluid flux [m/s]",
             colormap="magma",
-            viz_type="Vector",
+            viz_type=AttributeType.VECTOR,
         ),
         DataLayer(
-            sid="pressure", title="Pressure", colormap="magma", viz_type="Scalar"
+            sid="pressure",
+            title="Pressure",
+            colormap="magma",
+            viz_type=AttributeType.SCALAR,
         ),
         DataLayer(
             sid="effective_fluid_pressure_TPM",
             title="Effective fluid pressure [Pa]",
             colormap="magma",
-            viz_type="Scalar",
+            viz_type=AttributeType.SCALAR,
         ),
         DataLayer(
-            sid="rr_(S)", title="Substrate S [mM]", colormap="magma", viz_type="Scalar"
+            sid="rr_(S)",
+            title="Substrate S [mM]",
+            colormap="magma",
+            viz_type=AttributeType.SCALAR,
         ),
     ]
     # visualize_datalayers_timecourse(

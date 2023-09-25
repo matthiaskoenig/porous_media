@@ -1,7 +1,7 @@
 """Fixed selection scan."""
 
 from pathlib import Path
-from typing import List
+from typing import Dict
 
 from porous_media import BASE_DIR
 from porous_media.analyses.spt.spt_substrate_scan import visualize_scan
@@ -15,14 +15,14 @@ logger = get_logger(__name__)
 if __name__ == "__main__":
     # process files
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt_fixed_selection")
-    xdmf_paths: List[Path] = xdmfs_from_directory(
+    xdmf_paths: Dict[Path, Path] = xdmfs_from_directory(
         input_dir=Path(
             "/home/mkoenig/git/porous_media/data/spt/simulation_fixedselection"
         ),
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )
-    info: XDMFInfo = XDMFInfo.from_path(xdmf_path=xdmf_paths[0])
+    info: XDMFInfo = XDMFInfo.from_path(xdmf_path=list(xdmf_paths.keys())[0])
     console.print(info)
 
     # create visualizations

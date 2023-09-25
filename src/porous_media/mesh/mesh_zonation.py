@@ -8,6 +8,7 @@ import numpy as np
 
 from porous_media import RESOURCES_DIR
 from porous_media.console import console
+from porous_media.data.xdmf_tools import AttributeType
 from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
 from porous_media.visualization.pyvista_visualization import (
@@ -275,7 +276,7 @@ for key in [p.__name__ for p in ZonatedMesh.patterns]:
         DataLayer(
             sid=f"pattern__{key}",
             title=key,
-            viz_type="Scalar",
+            viz_type=AttributeType.SCALAR,
             colormap="magma",
         )
     )

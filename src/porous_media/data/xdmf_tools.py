@@ -191,7 +191,6 @@ class DataLimits:
                     dmin = float(data.min())
                     dmax = float(data.max())
 
-                    limits: Tuple[float, float]
                     if k == 0:
                         cell_limits[name] = [dmin, dmax]
 
@@ -227,10 +226,10 @@ class DataLimits:
             else:
                 for name, lims_k in dlim.limits.items():
                     lims = limits[name]
-                    if lims_k[0] < lims[0]:
-                        lims[0] = lims_k[0]
-                    if lims_k[1] > lims[1]:
-                        lims[1] = lims_k[1]
+                    limits[name] = (
+                        lims_k[0] if lims_k[0] < lims[0] else lims[0],
+                        lims_k[1] if lims_k[1] > lims[1] else lims[1],
+                    )
 
         return DataLimits(limits=limits)
 
@@ -440,10 +439,10 @@ if __name__ == "__main__":
         for k in range(21, 26)
     ]
 
-    xdmf_path: Path = Path(
+    xdmf_path = Path(
         "/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf"
     )
-    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
+    xdmf_info = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)
 
     # limits of individual simulations

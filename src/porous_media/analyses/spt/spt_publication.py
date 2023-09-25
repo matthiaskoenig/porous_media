@@ -5,9 +5,6 @@ from typing import Dict, List
 import numpy as np
 
 from porous_media import DATA_DIR
-from porous_media.console import console
-from porous_media.mesh.mesh_tools import MeshTimepoint
-from porous_media.visualization.pyvista_visualization import visualize_data_layers
 
 
 # FIXME: range(1, 26),
