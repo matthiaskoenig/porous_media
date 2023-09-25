@@ -1,5 +1,7 @@
 # Analysis
+- [] FIXME: SPT model update model, so that content is released; i.e. the complete content should move to the fluid phase; this should not happen too fast but within a few minutes; similar for IRI model
 - [ ] FIXME: calculate volume from geometry and add to the elements (compare to given volume); calculated cell data
+- [ ] FIXME: calculate the inflow & outflow surfaces; use the cell type to get the inflow and outflow areas
 - [ ] FIXME: calculate perfusion with vector data and geometry; visualization of perfusion
 
 - [ ] FIXME: visualize vector data: fluid-flux: vector field & streamlines

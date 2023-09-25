@@ -24,6 +24,7 @@ from porous_media.data.xdmf_tools import (
 )
 from porous_media.visualization.image_manipulation import merge_images
 
+
 class VizType(str, Enum):
     """Type of visualization layer."""
 

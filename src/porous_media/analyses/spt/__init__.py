@@ -23,7 +23,7 @@ data_layers_spt: List[DataLayer] = [
     ),
     DataLayer(
         sid="rr_(P_ext)",
-        title="Product P plasma [mM]",,
+        title="Product P plasma [mM]",
     ),
     DataLayer(
         sid="rr_(S)",
@@ -46,7 +46,7 @@ data_layers_spt: List[DataLayer] = [
         sid="fluid_flux_TPM",
         title="Fluid flow [?/s]",
         colormap="RdBu",
-        viz_type=AttributeType.VECTOR
+        viz_type=AttributeType.VECTOR,
     ),
 ]
 

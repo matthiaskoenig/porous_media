@@ -70,7 +70,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
     create_combined_images(
         xdmf_path=xdmf_interpolated_path,
         output_dir=output_dir,
-        scalars_selection=scalars_selection,
+        selection=scalars_selection,
         direction="custom",
         ncols=3,
         nrows=2,
