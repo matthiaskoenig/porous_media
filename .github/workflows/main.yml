@@ -25,9 +25,9 @@ jobs:
     - name: Test with tox
       run:
         tox --
-    - name: Report coverage
-      shell: bash
-      run: bash <(curl -s https://codecov.io/bash)
+#    - name: Report coverage
+#      shell: bash
+#      run: bash <(curl -s https://codecov.io/bash)
 
   release:
     needs: test
