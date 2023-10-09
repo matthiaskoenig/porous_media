@@ -14,10 +14,10 @@ logger = get_logger(__name__)
 
 if __name__ == "__main__":
     # process files
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_zonation_219")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_zonation_2023_09_21")
     xdmf_dict: Dict[Path, Path] = xdmfs_from_directory(
         input_dir=Path(
-            "/home/mkoenig/git/porous_media/data/spt/simulation_zonation_219"
+            "/home/mkoenig/git/porous_media/data/spt/simulation_zonation_2023_09_21"
         ),
         xdmf_dir=xdmf_dir,
         overwrite=False,
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # create visualizations
     from porous_media.analyses.spt import data_layers_spt, selection_spt
 
-    results_dir: Path = BASE_DIR / "results" / "spt_zonation_patterns_219"
+    results_dir: Path = BASE_DIR / "results" / "spt_zonation_patterns_2023_09_21"
     visualize_scan(
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,
