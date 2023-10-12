@@ -20,3 +20,5 @@ data/spt_zonation_patterns/
 data/spt_fixed_selection/
 # example Luis
 data/simliva_2023-09-20/
+
+*.xplt
