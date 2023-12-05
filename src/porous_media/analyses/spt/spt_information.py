@@ -7,6 +7,16 @@ import pandas as pd
 from porous_media.console import console
 from matplotlib import pyplot as plt
 
+# substrate boundary flows
+boundary_flows = [
+    -1.0937948e-05,
+    -1.2713134e-05,
+    -1.448832e-05,
+    -1.6263506e-05,
+    -1.8038692e-05
+]
+
+# zonation patterns
 pattern_names = {
     0: "constant",
     1: "linear_increase",
@@ -15,35 +25,42 @@ pattern_names = {
     4: "sharp_periportal",
 }
 
+# colors
 pattern_colors = {
     0: "tab:blue",
     1: "tab:orange",
     2: "tab:green",
-    3: "sharp_pericentral",
-    4: "sharp_periportal",
+    3: "tab:red",
+    4: "tab:purple",
+}
+pattern_colormaps = {
+    0: "Blues",
+    1: "Oranges",
+    2: "Greens",
+    3: "Reds",
+    4: "Purples",
 }
 
-colors = [
 
-    "tab:orange",
-    "tab:green",
-    "tab:red",
-    "tab:purple",
-]
+def sim_color(pattern, boundary_flow):
+    """Get color for given simulation."""
+    cmap
+
+
 
 def simulation_conditions_df() -> pd.DataFrame:
     """Create simulation condition DataFrame."""
 
-
-
     zonation_pattern = [0, 1, 2, 3, 4]
-    boundary_flow = [-1.0937948e-05, -1.2713134e-05, -1.448832e-05, -1.6263506e-05, -1.8038692e-05]
+
 
     feb_data = {}
     counter = 1
     for pattern in zonation_pattern:
-        for flow in boundary_flow:
-            feb_data[f"sim{counter:>03}"] = {
+        for flow in boundary_flows:
+            # sim_id = f"sim{counter:>03}"
+            sim_id = f"sim00{counter}"  # FIXME: bug by Steffen in ids
+            feb_data[sim_id] = {
                 "pattern": pattern,
                 "pattern_name": pattern_names[pattern],
                 "boundary_flow": flow,
@@ -57,6 +74,7 @@ def simulation_conditions_df() -> pd.DataFrame:
 
 
 def plot_boundary_flux(df: pd.DataFrame):
+    """Analysis of boundary scan"""
     y = df.boundary_flow.values
 
     f, ax = plt.subplots(nrows=1, ncols=1)
@@ -67,7 +85,7 @@ def plot_boundary_flux(df: pd.DataFrame):
     )
 
     ynew = np.logspace(-2, 1, num=8)*y[5]
-    console.print(ynew)
+    # console.print(ynew)
     ax.plot(
         np.abs(ynew),
         marker="o",
@@ -75,7 +93,7 @@ def plot_boundary_flux(df: pd.DataFrame):
     )
 
     ax.set_ylim(bottom=0)
-    ax.set_xlabel("zonation pattern")
+    ax.set_xlabel("simulation index")
     ax.set_ylabel("absolute boundary flow")
 
     plt.show()

@@ -14,29 +14,38 @@ Support selections of positions; histogramm over position.
 
 """
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import meshio
 import numpy as np
 import pandas as pd
 import xarray as xr
-from rich.progress import track
+from rich.progress import track, Progress
 
 from porous_media import DATA_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
 
 
-def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
-    """Create the cell_data and point_data DataFrame.
+def mesh_datasets_from_xdmf(
+    xdmf_path: Path,
+    overwrite=False,
+) -> Tuple[xr.Dataset, xr.Dataset]:
+    """Create the cell_data and point_data xarray DataSet.
 
-    Here the actual mesh geometry does not matter any more, but we integrate over all the elements.
-
-    depending on the timepoints this will be a pretty large dataframe.
-
+    Here the actual mesh geometry is not important, but information is stored for
+    cells and points. Files are serialized as netCDF4 for caching information.
     """
+    xr_cells_path = xdmf_path.parent / f"{xdmf_path.stem}_cells.nc"
+    xr_points_path = xdmf_path.parent / f"{xdmf_path.stem}_points.nc"
+    if not overwrite and xr_cells_path.exists() and xr_points_path.exists():
+        console.print(f"cells and points files exist: {xr_cells_path} | {xr_points_path}")
+        xr_cells: xr.Dataset = xr.open_dataset(xr_cells_path)
+        xr_points: xr.Dataset = xr.open_dataset(xr_points_path)
+        return xr_cells, xr_points
+
     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
-    console.print(xdmf_info)
+    # console.print(xdmf_info)
 
     dfs_cell_data: List[pd.DataFrame] = []
     dfs_point_data: List[pd.DataFrame] = []
@@ -49,7 +58,7 @@ def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
         tnum = reader.num_steps
         timepoints = np.ndarray(shape=(tnum,))
         for k in track(
-            range(tnum), description="Creating DataFrames/Xarray for mesh data ..."
+            range(tnum), description="Creating DataFrames for mesh data ..."
         ):
             t, point_data, cell_data = reader.read_data(k)
             timepoints[k] = t
@@ -80,23 +89,31 @@ def create_mesh_dataframes(xdmf_path: Path) -> Tuple[xr.Dataset, xr.Dataset]:
             df_point = pd.DataFrame(data_point)
             dfs_point_data.append(df_point)
 
-    # generate xarrays
+    with Progress() as progress:
+        task1 = progress.add_task("Create xarray datasets ...", total=None)
 
-    # (cell, time) xarray Dataset
-    xr_cells: xr.Dataset = xr.concat(
-        [df.to_xarray() for df in dfs_cell_data],
-        dim="time",
-    )
-    xr_cells = xr_cells.rename_dims(dims_dict={"index": "cell"})
-    xr_cells = xr_cells.assign_coords(coords={"time": timepoints})
+        # (cell, time) xarray Dataset
+        console.print("Create")
+        xr_cells: xr.Dataset = xr.concat(
+            [df.to_xarray() for df in dfs_cell_data],
+            dim="time",
+        )
+        xr_cells = xr_cells.rename_dims(dims_dict={"index": "cell"})
+        xr_cells = xr_cells.assign_coords(coords={"time": timepoints})
+        # serialize to netCDF4
+        xr_cells.to_netcdf(xr_cells_path)
+        progress.update(task1, advance=0.5)
 
-    # (point, time) xarray Dataset
-    xr_points: xr.Dataset = xr.concat(
-        [df.to_xarray() for df in dfs_point_data],
-        dim="time",
-    )
-    xr_points = xr_points.rename_dims(dims_dict={"index": "point"})
-    xr_points = xr_points.assign_coords(coords={"time": timepoints})
+        # (point, time) xarray Dataset
+        xr_points: xr.Dataset = xr.concat(
+            [df.to_xarray() for df in dfs_point_data],
+            dim="time",
+        )
+        xr_points = xr_points.rename_dims(dims_dict={"index": "point"})
+        xr_points = xr_points.assign_coords(coords={"time": timepoints})
+        # serialize to netCDF4
+        xr_points.to_netcdf(xr_points_path)
+        progress.update(task1, advance=1.0)
 
     return xr_cells, xr_points
 
@@ -106,12 +123,10 @@ if __name__ == "__main__":
 
     # prepare data for analysis
     xdmf_path = (
-        RESULTS_DIR
-        / "spt_zonation_patterns_new"
-        / "10_28800.0"
-        / "simulation_pattern1_interpolated.xdmf"
+        Path("/home/mkoenig/git/porous_media/data/spt/2023-12-05") / "sim001.xdmf"
     )
-    xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
+    xr_cells, xr_points = mesh_datasets_from_xdmf(xdmf_path, overwrite=False)
+
     console.rule(align="left", title="cell_data", style="white")
     console.print(xr_cells)
     console.rule(align="left", title="point_data", style="white")

@@ -1,4 +1,5 @@
 """Analysis of results."""
+from pathlib import Path
 from typing import Dict, List
 
 import xarray as xr
@@ -41,42 +42,28 @@ def plot_necrosis_over_time(
 
 
 if __name__ == "__main__":
-    """Analysis plots of the 2D geometry simulations."""
+    """Analysis plots of the TMP simulations."""
 
     # zonation analysis
-    console.rule(title="XDMF calculations", style="white")
+    console.rule(title="Dataset calculation", style="white")
 
     # interpolated dataframe for zonation patterns
-    xdmf_paths = [
-        # RESULTS_DIR
-        # / "spt_zonation_patterns_new"
-        # / "10_28800.0"
-        # / f"simulation_pattern{k}_interpolated.xdmf"
-        RESULTS_DIR
-        / "spt_zonation_patterns_new"
-        / "100_28800.0"
-        / f"simulation_pattern{k}_interpolated.xdmf"
-        for k in range(5)
-    ]
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-05")
+    xdmf_paths = [f for f in xdmf_dir.glob("*.xdmf")]
 
-    # calculate all xarray Datasets
+    # load all xarray Datasets
     xr_cells_list: List[xr.Dataset] = []
     for xdmf_path in xdmf_paths:
         xr_cells, xr_points = create_mesh_dataframes(xdmf_path)
         xr_cells_list.append(xr_cells)
 
-    labels = [
-        "Constant",
-        "Linear increase",
-        "Linear decrease",
-        "Sharp pericentral",
-        "Sharp periportal",
-    ]
+    from porous_media.analyses.spt.spt_information import pattern_names, pattern_colors
+
 
 
     # calculate the necrosis area
     plot_necrosis_over_time(
         xr_cells_list=xr_cells_list,
-        labels=labels,
+        labels=pattern_names.values(),
         colors=colors,
     )
