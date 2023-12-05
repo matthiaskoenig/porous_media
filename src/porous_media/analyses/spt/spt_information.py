@@ -102,6 +102,6 @@ def plot_boundary_flux(df: pd.DataFrame):
 if __name__ == "__main__":
     df = simulation_conditions_df()
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-05")
-    df.to_excel(xdmf_dir / "simulations.xlsx", index=True)
+    df.to_excel(xdmf_dir / "information.xlsx", index=True)
 
     plot_boundary_flux(df)
