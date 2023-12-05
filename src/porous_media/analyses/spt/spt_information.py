@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from porous_media.console import console
+import matplotlib
 from matplotlib import pyplot as plt
 
 # substrate boundary flows
@@ -42,10 +43,6 @@ pattern_colormaps = {
 }
 
 
-def sim_color(pattern, boundary_flow):
-    """Get color for given simulation."""
-    cmap
-
 
 
 def simulation_conditions_df() -> pd.DataFrame:
@@ -53,22 +50,35 @@ def simulation_conditions_df() -> pd.DataFrame:
 
     zonation_pattern = [0, 1, 2, 3, 4]
 
-
     feb_data = {}
     counter = 1
-    for pattern in zonation_pattern:
-        for flow in boundary_flows:
+    for pattern_key in zonation_pattern:
+        kmax = len(boundary_flows)
+        for k_flow, flow in enumerate(boundary_flows):
+
+            # calculate colors
+            cmap_key = pattern_colormaps[pattern_key]
+            cmap = matplotlib.cm.get_cmap(cmap_key)
+            # color
+
+            # dose_relative = np.log(dose) / np.log(dose_max)
+            color_rgba = cmap((k_flow + 1) / kmax)
+            color_hex = matplotlib.colors.to_hex(color_rgba, keep_alpha=True)
+
             # sim_id = f"sim{counter:>03}"
             sim_id = f"sim00{counter}"  # FIXME: bug by Steffen in ids
+
             feb_data[sim_id] = {
-                "pattern": pattern,
-                "pattern_name": pattern_names[pattern],
+                "pattern_key": pattern_key,
+                "pattern_name": pattern_names[pattern_key],
+                "boundary_flow_key": k_flow,
                 "boundary_flow": flow,
+                "color": color_hex,
             }
             counter += 1
 
     df = pd.DataFrame(feb_data).T
-    df = df.astype({"pattern": int})
+    df = df.astype({"pattern_key": int, "boundary_flow_key": int, "color": str})
     console.print(df)
     return df
 
