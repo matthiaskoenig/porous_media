@@ -1,7 +1,8 @@
 # TODO SPT results
 
 ## Analysis
-- [ ] distributions over time (protein, S, P, T), boxplot/violinplot (split by pattern)
+- [x] distributions over time (protein, S, P, T)
+  - [ ] boxplot/violinplot
 - [ ] position dependent boxplot (S, P, T, necrosis); single/multiple timepoints
 
 

@@ -21,10 +21,19 @@ boundary_flows = [
 pattern_names = {
     0: "constant",
     1: "linear_increase",
-    2: "linear_decrease",
+    2: "linear decrease",
     3: "sharp_pericentral",
     4: "sharp_periportal",
 }
+pattern_index = {
+    0: 0,
+    1: 1,
+    2: 3,
+    3: 2,
+    4: 4,
+}
+
+
 
 # colors
 pattern_colors = {
@@ -35,8 +44,8 @@ pattern_colors = {
     4: "tab:purple",
 }
 pattern_colormaps = {
-    0: "Blues",
-    1: "Oranges",
+    0: "Greys",
+    1: "Blues",
     2: "Greens",
     3: "Reds",
     4: "Purples",
