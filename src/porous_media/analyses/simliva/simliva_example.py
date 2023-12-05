@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from porous_media import BASE_DIR
-from porous_media.analyses.spt.spt_substrate_scan import visualize_scan
+from porous_media.analyses.spt.spt_plots_geometry import visualize_scan
 from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType, XDMFInfo, xdmfs_from_directory
 from porous_media.log import get_logger

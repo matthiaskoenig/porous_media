@@ -1,3 +1,5 @@
+"""Information on the boundary scans"""
+
 from pathlib import Path
 
 import numpy as np
@@ -5,17 +7,34 @@ import pandas as pd
 from porous_media.console import console
 from matplotlib import pyplot as plt
 
+pattern_names = {
+    0: "constant",
+    1: "linear_increase",
+    2: "linear_decrease",
+    3: "sharp_pericentral",
+    4: "sharp_periportal",
+}
+
+pattern_colors = {
+    0: "tab:blue",
+    1: "tab:orange",
+    2: "tab:green",
+    3: "sharp_pericentral",
+    4: "sharp_periportal",
+}
+
+colors = [
+
+    "tab:orange",
+    "tab:green",
+    "tab:red",
+    "tab:purple",
+]
 
 def simulation_conditions_df() -> pd.DataFrame:
     """Create simulation condition DataFrame."""
 
-    pattern_names = {
-        0: "constant",
-        1: "linear_increase",
-        2: "linear_decrease",
-        3: "sharp_pericentral",
-        4: "sharp_periportal",
-    }
+
 
     zonation_pattern = [0, 1, 2, 3, 4]
     boundary_flow = [-1.0937948e-05, -1.2713134e-05, -1.448832e-05, -1.6263506e-05, -1.8038692e-05]

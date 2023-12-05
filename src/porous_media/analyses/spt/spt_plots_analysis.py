@@ -1,4 +1,4 @@
-"""Visualization of liver simulations."""
+"""Analysis of results."""
 from typing import Dict, List
 
 import xarray as xr
@@ -41,10 +41,11 @@ def plot_necrosis_over_time(
 
 
 if __name__ == "__main__":
-    """Visualize 2D plots of the necrosis area."""
+    """Analysis plots of the 2D geometry simulations."""
 
     # zonation analysis
     console.rule(title="XDMF calculations", style="white")
+
     # interpolated dataframe for zonation patterns
     xdmf_paths = [
         # RESULTS_DIR
@@ -71,13 +72,7 @@ if __name__ == "__main__":
         "Sharp pericentral",
         "Sharp periportal",
     ]
-    colors = [
-        "tab:blue",
-        "tab:orange",
-        "tab:green",
-        "tab:red",
-        "tab:purple",
-    ]
+
 
     # calculate the necrosis area
     plot_necrosis_over_time(
