@@ -55,6 +55,9 @@ def calculate_necrosis_fraction(xr_cells: xr.Dataset) -> xr.Dataset:
     necrosis_fraction = necrosis.sum(dim="cell") / necrosis.count(dim="cell")
     # FIXME: calculate and add the cell volumes for proper normalization, i.e., the
     # different cells have different volumes.
+    # Variable should exist: Element volume TPM !!!!
+    # FIXME: `element_volume_TPM` -> Position dependent necrosis;
+
 
     return necrosis_fraction
 

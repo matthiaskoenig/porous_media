@@ -1,11 +1,11 @@
-"""Substrate scan simulation."""
+"""Process all SPT simulations."""
 
 from pathlib import Path
 from typing import Dict, Iterable, List, Set
 
 import numpy as np
 
-from porous_media import BASE_DIR, DATA_DIR
+
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     DataLimits,
@@ -114,9 +114,9 @@ if __name__ == "__main__":
     # Substrate scan
     # -----------------------------------
     # process files
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_219")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-05")
     xdmf_paths: Dict[Path, Path] = xdmfs_from_directory(
-        input_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"),
+        input_dir=Path("/data/qualiperf/P7-Perf/spt_results/simulation"),
         xdmf_dir=xdmf_dir,
         overwrite=False,
     )
@@ -124,14 +124,15 @@ if __name__ == "__main__":
     console.print(info)
 
     # create visualizations
-    from porous_media.analyses.spt import data_layers_spt, selection_spt
-
-    results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan_219"
-    visualize_scan(
-        xdmf_paths=xdmf_paths,
-        data_layers=data_layers_spt,
-        selection=selection_spt,
-        results_dir=results_dir,
-        create_panels=False,
-    )
+    # from porous_media import BASE_DIR, DATA_DIR
+    # from porous_media.analyses.spt import data_layers_spt, selection_spt
+    #
+    # results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan_219"
+    # visualize_scan(
+    #     xdmf_paths=xdmf_paths,
+    #     data_layers=data_layers_spt,
+    #     selection=selection_spt,
+    #     results_dir=results_dir,
+    #     create_panels=False,
+    # )
 
