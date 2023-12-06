@@ -1,5 +1,10 @@
 # TODO SPT results
 
+## Model updates
+- [ ] uncouple toxic compound from product; i.e. only a subset of the product results in 
+      toxicity (better decoupling)
+- [ ] use switch-like behavior for model;
+
 ## Analysis
 - [x] distributions over time (protein, S, P, T)
   - [ ] boxplot/violinplot

@@ -58,7 +58,7 @@ def mesh_datasets_from_xdmf(
         tnum = reader.num_steps
         timepoints = np.ndarray(shape=(tnum,))
         for k in track(
-            range(tnum), description="Creating DataFrames for mesh data ..."
+            range(tnum), description=f"Create dataframes for mesh data '{xdmf_path}' ..."
         ):
             t, point_data, cell_data = reader.read_data(k)
             timepoints[k] = t
@@ -102,7 +102,6 @@ def mesh_datasets_from_xdmf(
         xr_cells = xr_cells.assign_coords(coords={"time": timepoints})
         # serialize to netCDF4
         xr_cells.to_netcdf(xr_cells_path)
-        progress.update(task1, advance=0.5)
 
         # (point, time) xarray Dataset
         xr_points: xr.Dataset = xr.concat(
@@ -113,7 +112,6 @@ def mesh_datasets_from_xdmf(
         xr_points = xr_points.assign_coords(coords={"time": timepoints})
         # serialize to netCDF4
         xr_points.to_netcdf(xr_points_path)
-        progress.update(task1, advance=1.0)
 
     return xr_cells, xr_points
 
