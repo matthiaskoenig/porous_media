@@ -1,7 +1,7 @@
 """Process all SPT simulations."""
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from porous_media.console import console
 from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
@@ -11,7 +11,7 @@ from porous_media.data.xdmf_tools import (
 )
 
 
-def process_spt_simulations(input_dir: Path, xdmf_dir: Path) -> None:
+def process_spt_simulations(input_dir: Path, xdmf_dir: Path) -> List[Path]:
     """Process SPT simulation results."""
     # process files
 

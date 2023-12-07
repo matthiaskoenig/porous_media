@@ -19,6 +19,67 @@ from porous_media.analyses.spt.spt_information import (
 )
 
 
+def plot_positions(
+    xr_cells_dict: Dict[str, xr.Dataset],
+) -> None:
+    """Plot positions."""
+    console.rule(title="SPT positions", style="white")
+
+    # DataFrame information
+    df = simulation_conditions_df()
+    n_patterns = len(pattern_order)
+    n_cols = 1
+
+    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.5, n_patterns*2.5),
+                             dpi=300, layout="constrained")
+    # [1] necrosis fraction ~ time
+    for ax in axes[-1, :].flatten():
+        ax.set_xlabel("time [hr]", fontsize=9, fontdict={"weight": "bold"})
+
+    for k_row in range(n_patterns):
+        axes[k_row, 0].set_ylabel("Positions", fontsize=9, fontdict={"weight": "bold"})
+
+    for k_row, pattern_name in enumerate(pattern_order):
+        for boundary_flow_key in range(len(boundary_flows)):
+            pattern_key = pattern_name2idx[pattern_name]
+            df_sim = df[(df.pattern_key == pattern_key) & (df.boundary_flow_key == boundary_flow_key)]
+            sim_id = df_sim.index[0]
+            color = df_sim.color.values[0]
+            xr_cells_raw = xr_cells_dict[sim_id]
+
+            # Access first timepoint
+            xr_cells = xr_cells_raw.sel(time=0)
+
+            kwargs = {
+                "linestyle": "-",
+                "marker": "o",
+                "color": color,
+                "markeredgecolor": "black",
+            }
+
+
+                y = xr_cells[sid].mean(dim="cell")
+                yerr = xr_cells[sid].std(dim="cell")
+
+
+                ax = axes[k_row, k_col]
+                ax.errorbar(
+                    x=x,
+                    y=y,
+                    yerr=yerr,
+                    label=sim_id,
+                    **kwargs,
+                )
+                # ax.legend()
+
+    for k_row, pattern_name in enumerate(pattern_order):
+        axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
+        for kax, sid in enumerate(["rr_(S)", "rr_(P)", "rr_(T)"]):
+            axes[k_row, kax].set_ylim([0, 1.05*ylim_maxs[sid]])
+
+    plt.show()
+
+
 def plot_spt_over_time(
     xr_cells_dict: Dict[str, xr.Dataset],
     times: np.ndarray,
@@ -196,11 +257,16 @@ if __name__ == "__main__":
 
     # figure out end time
     times: np.ndarray = np.linspace(start=0, stop=tend, num=51)
-    plot_spt_over_time(
+
+    plot_positions(
         xr_cells_dict=xr_cells_dict,
-        times=times,
     )
 
-    plot_spt_over_position(
-        xr_cells_dict=xr_cells_dict,
-    )
+    # plot_spt_over_time(
+    #     xr_cells_dict=xr_cells_dict,
+    #     times=times,
+    # )
+    #
+    # plot_spt_over_position(
+    #     xr_cells_dict=xr_cells_dict,
+    # )
