@@ -8,13 +8,10 @@ from porous_media.console import console
 import matplotlib
 from matplotlib import pyplot as plt
 
-# substrate boundary flows (2023-12-05)
+# substrate boundary flows (2023-12-13)
 boundary_flows = [
-    -1.0937948e-05,
-    -1.2713134e-05,
-    -1.448832e-05,
-    -1.6263506e-05,
-    -1.8038692e-05
+    1.80386920e-07, 2.73157336e-06, 5.28275980e-06, 7.83394624e-06,
+    1.03851327e-05, 1.29363191e-05, 1.54875056e-05, 1.80386920e-05
 ]
 # substrate boundary flows (2023-12-06)
 # boundary_flows = [
@@ -146,7 +143,7 @@ def plot_colors(df: pd.DataFrame):
 if __name__ == "__main__":
     df = simulation_conditions_df()
     # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-05")
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-06")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13")
     df.to_excel(xdmf_dir / "information.xlsx", index=True)
 
     plot_boundary_flux(df)

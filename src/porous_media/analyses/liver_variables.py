@@ -19,7 +19,11 @@ def calculate_necrosis_fraction(xr_cells: xr.Dataset) -> xr.Dataset:
         raise ValueError(f"No attribute/variable 'necrosis' in cell data: {xr_cells}")
 
     necrosis = xr_cells.rr_necrosis
-    cell_volumes = xr_cells.element_volume_TPM
+    if "element_volume_point_TPM" in xr_cells:
+        cell_volumes = xr_cells.element_volume_point_TPM
+    else:
+        # FIXME: bugfix
+        cell_volumes = xr_cells.element_volume_TPM
     if necrosis.min() < 0.0:
         raise ValueError(f"'necrosis' must be => 0.0, but minimum is {necrosis.min()}")
     if necrosis.max() > 1.0:

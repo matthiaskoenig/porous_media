@@ -94,15 +94,15 @@ def plot_positions(
             **kwargs_scatter,
         )
         # Volume scatter
-        y = xr_cells["element_volume_TPM"]/1000/1E-9  # [m^3] -> nl
-        ymax = y.max()
-        if ymax > ymax_vol:
-            ymax_vol = ymax
-        axes[k_row, 2].plot(
-            xr_cells["rr_position"],
-            y,
-            **kwargs_scatter,
-        )
+        # y = xr_cells["element_volume_point_TPM"]/1000/1E-9  # [m^3] -> nl
+        # ymax = y.max()
+        # if ymax > ymax_vol:
+        #     ymax_vol = ymax
+        # axes[k_row, 2].plot(
+        #     xr_cells["rr_position"],
+        #     y,
+        #     **kwargs_scatter,
+        # )
         # Fluid volume scatter
         y = xr_cells["rr_Vext"]/1E-9  # [l] -> [nl]
         ymax = y.max()
@@ -180,6 +180,10 @@ def plot_spt_over_time(
             df_sim = df[(df.pattern_key == pattern_key) & (df.boundary_flow_key == boundary_flow_key)]
             sim_id = df_sim.index[0]
             color = df_sim.color.values[0]
+            if sim_id not in xr_cells_dict:
+                # FIXME bugfix for sim 006
+                console.print(f"Missing simulation: {sim_id}")
+                continue
             xr_cells_raw = xr_cells_dict[sim_id]
 
             # interpolate time
@@ -262,6 +266,11 @@ def plot_spt_over_position(
             df_sim = df[(df.pattern_key == pattern_key) & (df.boundary_flow_key == boundary_flow_key)]
             sim_id = df_sim.index[0]
             color = df_sim.color[0]
+            if sim_id not in xr_cells_dict:
+                # FIXME bugfix for sim 006
+                console.print(f"Missing simulation: {sim_id}")
+                continue
+
             xr_cells_raw = xr_cells_dict[sim_id]
 
             # interpolate time (only last timepoint)
@@ -313,7 +322,7 @@ if __name__ == "__main__":
     console.rule(title="Dataset calculation", style="white")
 
     # XDMF
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-06/xdmf")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13/xdmf")
     xdmf_paths = [f for f in xdmf_dir.glob("*.xdmf")]
 
     # Load xarray datasets
@@ -341,11 +350,11 @@ if __name__ == "__main__":
         xr_points_dict=xr_points_dict,
     )
 
-    # plot_spt_over_time(
-    #     xr_cells_dict=xr_cells_dict,
-    #     times=times,
-    # )
-    #
-    # plot_spt_over_position(
-    #     xr_cells_dict=xr_cells_dict,
-    # )
+    plot_spt_over_time(
+        xr_cells_dict=xr_cells_dict,
+        times=times,
+    )
+
+    plot_spt_over_position(
+        xr_cells_dict=xr_cells_dict,
+    )
