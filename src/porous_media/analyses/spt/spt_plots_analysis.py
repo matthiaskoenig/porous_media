@@ -51,6 +51,7 @@ def plot_positions(
 
     ymax_vol = 0.0
     for k_row, pattern_name in enumerate(pattern_order):
+
         # only plot for the last pattern (full color)
         boundary_flow_key = len(boundary_flows) - 1
         pattern_key = pattern_name2idx[pattern_name]
