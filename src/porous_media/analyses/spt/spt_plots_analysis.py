@@ -95,15 +95,16 @@ def plot_positions(
             **kwargs_scatter,
         )
         # Volume scatter
-        # y = xr_cells["element_volume_point_TPM"]/1000/1E-9  # [m^3] -> nl
-        # ymax = y.max()
-        # if ymax > ymax_vol:
-        #     ymax_vol = ymax
-        # axes[k_row, 2].plot(
-        #     xr_cells["rr_position"],
-        #     y,
-        #     **kwargs_scatter,
-        # )
+        y = xr_cells["element_volume_point_TPM"]/1E-12  # [m^3] -> [nl]
+        ymax = y.max()
+        if ymax > ymax_vol:
+            ymax_vol = ymax
+        axes[k_row, 2].plot(
+            xr_cells["rr_position"],
+            y,
+            **kwargs_scatter,
+        )
+
         # Fluid volume scatter
         y = xr_cells["rr_Vext"]/1E-9  # [l] -> [nl]
         ymax = y.max()
@@ -139,7 +140,7 @@ def plot_positions(
         for k_col in range(n_cols-1):
             axes[k_row, k_col].set_ylim(bottom=0)
 
-        for k_col in [2, 3, 4]:
+        for k_col in [3, 4]:
             axes[k_row, k_col].set_ylim(top=1.05*ymax_vol)
 
     plt.show()
@@ -181,10 +182,6 @@ def plot_spt_over_time(
             df_sim = df[(df.pattern_key == pattern_key) & (df.boundary_flow_key == boundary_flow_key)]
             sim_id = df_sim.index[0]
             color = df_sim.color.values[0]
-            if sim_id not in xr_cells_dict:
-                # FIXME bugfix for sim 006
-                console.print(f"Missing simulation: {sim_id}")
-                continue
             xr_cells_raw = xr_cells_dict[sim_id]
 
             # interpolate time
@@ -267,10 +264,6 @@ def plot_spt_over_position(
             df_sim = df[(df.pattern_key == pattern_key) & (df.boundary_flow_key == boundary_flow_key)]
             sim_id = df_sim.index[0]
             color = df_sim.color[0]
-            if sim_id not in xr_cells_dict:
-                # FIXME bugfix for sim 006
-                console.print(f"Missing simulation: {sim_id}")
-                continue
 
             xr_cells_raw = xr_cells_dict[sim_id]
 
