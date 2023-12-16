@@ -73,37 +73,37 @@ class ZonationPatterns:
         return 1.0 - ZonationPatterns.exp_increase(p, value_min, value_max)
 
     @staticmethod
-    def only_periportal(
+    def only_periveneous(
         p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
     ) -> np.ndarray:
-        """Sharp periportal pattern in [0, 1]."""
+        """Sharp periveneous pattern in [0, 1]."""
         data = np.zeros_like(p)
         data[p <= 0.2] = value_max
         data[p > 0.2] = value_min
         return data
 
     @staticmethod
-    def only_pericentral(
+    def only_periportal(
         p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
     ) -> np.ndarray:
-        """Sharp pericentral pattern in [0, 1]."""
+        """Sharp periportal pattern in [0, 1]."""
         data = np.zeros_like(p)
         data[p >= 0.8] = value_max
         data[p < 0.2] = value_min
         return data
 
     @staticmethod
+    def sharp_periveneous(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
+    ) -> np.ndarray:
+        """Sharp periveneous pattern in [0, 1]."""
+        return value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n))
+
+    @staticmethod
     def sharp_periportal(
         p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
     ) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n))
-
-    @staticmethod
-    def sharp_pericentral(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
-    ) -> np.ndarray:
-        """Sharp pericentral pattern in [0, 1]."""
         return value_min + (value_max - value_min) * p**n / (p**n + 0.75**n)
 
 
@@ -117,11 +117,11 @@ class ZonatedMesh:
         ZonationPatterns.linear_increase,
         ZonationPatterns.linear_decrease,
         ZonationPatterns.exp_increase,
-        ZonationPatterns.sharp_pericentral,
-        ZonationPatterns.only_pericentral,
-        ZonationPatterns.exp_decrease,
         ZonationPatterns.sharp_periportal,
         ZonationPatterns.only_periportal,
+        ZonationPatterns.exp_decrease,
+        ZonationPatterns.sharp_periveneous,
+        ZonationPatterns.only_periveneous,
     ]
 
     @classmethod
@@ -208,12 +208,12 @@ class ZonatedMesh:
                     count += 1
                 center = center / count
 
-                # periportal cell
+                # periportal cell (inside)
                 if np.isclose(cell_type[kc], 1.0):
                     position[kc] = 0
                     pp_cells[kc] = center
 
-                # pericentral cell
+                # periveneous cell (outside)
                 elif np.isclose(cell_type[kc], 2.0):
                     position[kc] = 1.0
                     pv_cells[kc] = center
@@ -225,14 +225,14 @@ class ZonatedMesh:
 
         # calculate pp-pv position for all inner cells
         for kc, center in inner_cells.items():
-            # shortest distance periportal
+            # shortest distance perivenous
             dpv = 1.0
             for center_pv in pv_cells.values():
                 d = np.linalg.norm(center - center_pv)
                 if d < dpv:
                     dpv = d
 
-            # shortest distance pericentral
+            # shortest distance periportal
             dpp = 1.0
             for center_pp in pp_cells.values():
                 d = np.linalg.norm(center - center_pp)
@@ -254,8 +254,8 @@ class ZonatedMesh:
         :param f_zonation: function to calculate zonation
 
         position:
-            0: periportal
-            1: perivenous/pericentral
+            0: periveneous
+            1: periportal
         """
         # check for variables
         m = mesh
@@ -369,11 +369,11 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     selected_patterns = [
         "pattern__constant",
         "pattern__linear_increase",
-        "pattern__sharp_pericentral",
-        # "pattern__only_pericentral",
-        "pattern__linear_decrease",
         "pattern__sharp_periportal",
         # "pattern__only_periportal",
+        "pattern__linear_decrease",
+        "pattern__sharp_periveneous",
+        # "pattern__only_periveneous",
     ]
     data_layers_dict = {dl.sid: dl for dl in data_layers}
     data_layers_selected = [data_layers_dict[key] for key in selected_patterns]
