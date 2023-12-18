@@ -26,102 +26,105 @@ class ZonationPatterns:
     """
 
     @staticmethod
-    def position(p: np.ndarray, value: float = 1.0) -> np.ndarray:
+    def position(p: np.ndarray, value: float = 1.0, f_scale: float = 1.0) -> np.ndarray:
         """Pattern based on position information."""
-        return value * p
+        return f_scale * value * p
 
     @staticmethod
-    def constant(p: np.ndarray, value: float = 0.5) -> np.ndarray:
+    def constant(p: np.ndarray, value: float = 0.5, f_scale: float = 1.0) -> np.ndarray:
         """Constant zonation with value."""
-        return value * np.ones_like(p)
+        return f_scale * value * np.ones_like(p)
 
     @staticmethod
     def random(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
         """Random zonation in [min_value, max_value]."""
-        return value_min + (value_max - value_min) * np.random.rand(*p.shape)
+        return f_scale * (value_min + (value_max - value_min) * np.random.rand(*p.shape))
 
     @staticmethod
     def linear_increase(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
         """Linear increasing pattern in [min_value, max_value]."""
-        return value_min + (value_max - value_min) * p
+        return f_scale * (value_min + (value_max - value_min) * p)
 
     @staticmethod
     def linear_decrease(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
         """Linear decreasing pattern in [min_value, max_value]."""
-        return value_min + (value_max - value_min) * (1.0 - p)
+        return f_scale * (value_min + (value_max - value_min) * (1.0 - p))
 
     @staticmethod
     def exp_increase(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
         """Exponential increasing pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * (np.exp(p) - 1.0) / (
-            np.exp(1.0) - 1.0
+        return f_scale * (value_min + (value_max - value_min) * (np.exp(p) - 1.0) / (
+            np.exp(1.0) - 1.0)
         )
 
     @staticmethod
     def exp_decrease(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
         """Exponential decreasing pattern in [0, 1]."""
-        return 1.0 - ZonationPatterns.exp_increase(p, value_min, value_max)
+        return f_scale * (1.0 - ZonationPatterns.exp_increase(p, value_min, value_max))
 
     @staticmethod
     def only_periveneous(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
-        """Sharp periveneous pattern in [0, 1]."""
-        data = np.zeros_like(p)
-        data[p <= 0.2] = value_max
-        data[p > 0.2] = value_min
-        return data
-
-    @staticmethod
-    def only_periportal(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0
-    ) -> np.ndarray:
-        """Sharp periportal pattern in [0, 1]."""
+        """Only periveneous pattern in [0, 1]."""
         data = np.zeros_like(p)
         data[p >= 0.8] = value_max
         data[p < 0.2] = value_min
-        return data
+        return f_scale * data
 
     @staticmethod
-    def sharp_periveneous(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
+    def only_periportal(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
     ) -> np.ndarray:
-        """Sharp periveneous pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n))
+        """Only periportal pattern in [0, 1]."""
+        data = np.zeros_like(p)
+        data[p <= 0.2] = value_max
+        data[p > 0.2] = value_min
+        return f_scale * data
 
     @staticmethod
     def sharp_periportal(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0, f_scale: float = 1.0
     ) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
-        return value_min + (value_max - value_min) * p**n / (p**n + 0.75**n)
+        return f_scale * (value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n)))
+
+    @staticmethod
+    def sharp_periveneous(
+        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0, f_scale: float = 1.0
+    ) -> np.ndarray:
+        """Sharp periveneous pattern in [0, 1]."""
+        return f_scale * (value_min + (value_max - value_min) * (1 - (1-p)**n / ((1-p)**n + 0.25**n)))
 
 
 class ZonatedMesh:
     """Class for zonated meshes."""
 
     patterns: List[Callable] = [
+        # increasing patterns
+        ZonationPatterns.linear_increase,
+        ZonationPatterns.exp_increase,
+        ZonationPatterns.sharp_periveneous,
+        ZonationPatterns.only_periveneous,
+        # decreasing patterns
+        ZonationPatterns.linear_decrease,
+        ZonationPatterns.exp_decrease,
+        ZonationPatterns.sharp_periportal,
+        ZonationPatterns.only_periportal,
+        # misc patterns
         ZonationPatterns.position,
         ZonationPatterns.constant,
         ZonationPatterns.random,
-        ZonationPatterns.linear_increase,
-        ZonationPatterns.linear_decrease,
-        ZonationPatterns.exp_increase,
-        ZonationPatterns.sharp_periportal,
-        ZonationPatterns.only_periportal,
-        ZonationPatterns.exp_decrease,
-        ZonationPatterns.sharp_periveneous,
-        ZonationPatterns.only_periveneous,
     ]
 
     @classmethod
@@ -134,7 +137,6 @@ class ZonatedMesh:
         copy_mesh: bool = True,
     ) -> meshio.Mesh:
         """Create a zonated mesh from VTK and serialize results to XDMF."""
-        # patterns
         f_patterns: List[Callable] = cls.patterns if patterns is None else patterns
 
         # mesh
@@ -148,7 +150,7 @@ class ZonatedMesh:
 
         for f_pattern in f_patterns:
             cls._add_zonated_variable(
-                mesh=m,
+                m=m,
                 variable_id=f"pattern__{f_pattern.__name__}",
                 f_zonation=f_pattern,
             )
@@ -178,12 +180,17 @@ class ZonatedMesh:
             m = mesh
 
         # check for variables
+        # console.print(m.cell_data.keys())
         if "cell_type" not in m.cell_data:
             raise IOError("'cell_type' required in cell_data for zonation patterns")
 
         # remove cell data
         if remove_cell_data:
-            m.cell_data = {"cell_type": m.cell_data["cell_type"]}
+            # keep cell_type and volume (for normalization of pattern)
+            m.cell_data = {
+                "cell_type": m.cell_data["cell_type"],
+                "volume": m.cell_data["element_volume_point_TPM"],
+            }
 
         # remove point data
         if remove_point_data:
@@ -246,7 +253,7 @@ class ZonatedMesh:
 
     @staticmethod
     def _add_zonated_variable(
-        mesh: meshio.Mesh, variable_id: str, f_zonation: Callable
+        m: meshio.Mesh, variable_id: str, f_zonation: Callable
     ) -> meshio.Mesh:
         """Add zonation variable to the mesh based on the position variable in [0,1].
 
@@ -258,15 +265,27 @@ class ZonatedMesh:
             1: periportal
         """
         # check for variables
-        m = mesh
-        if "position" not in m.cell_data:
-            raise IOError(
-                "'position' required in calculate zonation patterns, 'create_zonated_mesh' first."
-            )
+        for key in ["position", "volume"]:
+            if key not in m.cell_data:
+                raise IOError(
+                    f"'{key}' required in calculate zonation patterns, 'create_zonated_mesh' first."
+                )
 
         position: np.ndarray = m.cell_data["position"][0]
-        data = f_zonation(position)
-        m.cell_data[variable_id] = [data]
+        volume: np.ndarray = m.cell_data["volume"][0]
+
+        # unscaled zonation data
+        protein_constant = ZonationPatterns.constant(position)
+        protein = f_zonation(position)
+
+        # scaling factor
+        volume_fraction = volume/volume.sum()
+        f_scale = (protein_constant*volume_fraction).sum() / (protein*volume_fraction).sum()
+        console.print(f"{variable_id}: {f_scale=}")
+
+        protein_scaled = f_zonation(position, f_scale=f_scale)
+
+        m.cell_data[variable_id] = [protein_scaled]
         return m
 
 
@@ -342,16 +361,16 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
 
     results_path: Path = results_dir / "mesh_zonation"
     results_path.mkdir(parents=True, exist_ok=True)
-    vtk_path = RESOURCES_DIR / "zonation" / "mesh_zonation.vtk"
+    vtk_path = RESOURCES_DIR / "zonation" / "mesh_zonation_lobulus.vtk"
 
     # create zonated mesh
     zm = ZonatedMesh()
     m: meshio.Mesh = zm.create_zonated_mesh_from_vtk(vtk_path=vtk_path)
 
     # serialize mesh with results
-    xdmf_path = results_path / "mesh_zonation.xdmf"
+    xdmf_path = results_path / "mesh_zonation_lobulus.xdmf"
     mesh_to_xdmf(m=m, xdmf_path=xdmf_path)
-    vtk_path = results_path / "mesh_zonation.vtk"
+    vtk_path = results_path / "mesh_zonation_lobulus.vtk"
     mesh_to_vtk(m=m, vtk_path=vtk_path)
 
     # visualize mesh
@@ -369,11 +388,9 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     selected_patterns = [
         "pattern__constant",
         "pattern__linear_increase",
-        "pattern__sharp_periportal",
-        # "pattern__only_periportal",
-        "pattern__linear_decrease",
         "pattern__sharp_periveneous",
-        # "pattern__only_periveneous",
+        "pattern__linear_decrease",
+        "pattern__sharp_periportal",
     ]
     data_layers_dict = {dl.sid: dl for dl in data_layers}
     data_layers_selected = [data_layers_dict[key] for key in selected_patterns]
@@ -383,7 +400,8 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
         image_name="mesh_zonation_selected",
         direction="horizontal",
         data_layers=data_layers_selected,
-        drange_type=DataRangeType.GLOBAL,
+        # drange_type=DataRangeType.GLOBAL,
+        drange_type=DataRangeType.LOCAL,
     )
 
 

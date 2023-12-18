@@ -14,7 +14,7 @@ import pyvista as pv
 from pyvista.plotting.utilities import cubemap
 from rich.progress import track
 
-from porous_media import RESOURCES_DIR, RESULTS_DIR
+from porous_media import RESOURCES_DIR, RESULTS_DIR, DATA_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     AttributeType,
@@ -385,6 +385,7 @@ if __name__ == "__main__":
     # vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
     vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
     xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
+
     vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)

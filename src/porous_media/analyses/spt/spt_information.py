@@ -39,18 +39,19 @@ pattern_order = [
 
 # colors
 pattern_colors = {
-    0: "tab:blue",
-    1: "tab:orange",
-    2: "tab:green",
-    3: "tab:red",
-    4: "tab:purple",
+    0: "tab:black",
+    1: "tab:blue",
+    2: "tab:purple",
+    3: "tab:green",
+    4: "tab:red",
+
 }
 pattern_colormaps = {
     0: "Greys",
     1: "Blues",
+    4: "Purples",
     2: "Greens",
     3: "Reds",
-    4: "Purples",
 }
 
 
