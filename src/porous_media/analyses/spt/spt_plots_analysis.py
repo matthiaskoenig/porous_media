@@ -86,6 +86,7 @@ def plot_positions(
             "linestyle": "",
             "color": color,
             "markeredgecolor": "black",
+            # "markeredgewidth": 0.5,
             "alpha": 0.7,
         }
         # Protein scatter
@@ -197,6 +198,7 @@ def plot_spt_over_time(
                 "marker": "o",
                 "color": color,
                 "markeredgecolor": "black",
+                #"markeredgewidth": 0.5,
             }
 
             for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)"]):
