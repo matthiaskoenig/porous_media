@@ -1,4 +1,9 @@
-"""Analysis of results."""
+"""Analysis of results.
+
+TODO: add pattern labels
+TODO: fix necrosis issue (remove values > 0)
+
+"""
 from pathlib import Path
 from typing import Dict, List
 
@@ -11,15 +16,20 @@ from porous_media.console import console
 from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
 
 from porous_media.analyses.spt.spt_information import (
-    pattern_idx2name,
     pattern_name2idx,
     pattern_order,
     boundary_flows,
     simulation_conditions_df,
 )
 
+label_kwargs = {
+    "fontsize": 12,
+    "fontweight": "bold",
+}
+
 
 def plot_positions(
+    results_dir: Path,
     xr_cells_dict: Dict[str, xr.Dataset],
     xr_points_dict: Dict[str, xr.Dataset],
 ) -> None:
@@ -31,23 +41,20 @@ def plot_positions(
     n_patterns = len(pattern_order)
     n_cols = 6
 
-    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.5, n_patterns*2.5),
+    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.7, n_patterns*2.5),
                              dpi=300, layout="constrained")
     # [1] necrosis fraction ~ time
 
     for k_col in range(n_cols):
-        axes[-1, k_col].set_xlabel("Position [-]", fontsize=9, fontdict={"weight": "bold"})
+        axes[-1, k_col].set_xlabel("Position [-]", **label_kwargs)
 
     for k_row in range(n_patterns):
-        axes[k_row, 0].set_ylabel("Frequency [-]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 1].set_ylabel("Protein [-]", fontsize=9,
-                                  fontdict={"weight": "bold"})
-        axes[k_row, 2].set_ylabel("Mesh cell volume [nl]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 3].set_ylabel("Fluid volume [nl]", fontsize=9,
-                                  fontdict={"weight": "bold"})
-        axes[k_row, 4].set_ylabel("Solid volume [nl]", fontsize=9,
-                                  fontdict={"weight": "bold"})
-        axes[k_row, 5].set_ylabel("Pressure [?]", fontsize=9, fontdict={"weight": "bold"})
+        axes[k_row, 0].set_ylabel("Frequency [-]", **label_kwargs)
+        axes[k_row, 1].set_ylabel("Protein [-]",  **label_kwargs)
+        axes[k_row, 2].set_ylabel("Mesh cell volume [nl]", **label_kwargs)
+        axes[k_row, 3].set_ylabel("Fluid volume [nl]", **label_kwargs)
+        axes[k_row, 4].set_ylabel("Solid volume [nl]", **label_kwargs)
+        axes[k_row, 5].set_ylabel("Pressure [?]", **label_kwargs)
 
     ymax_vol = 0.0
     for k_row, pattern_name in enumerate(pattern_order):
@@ -65,14 +72,12 @@ def plot_positions(
         xr_points_raw = xr_points_dict[sim_id]
 
         # Access last timepoint
-        # FIXME: this is a bug should be the first time point, i.e. sel(time=0), isel(time=0)
+        # FIXME: should be first point with all the data
         xr_cells: xr.Dataset = xr_cells_raw.isel(time=-1)
         xr_points: xr.Dataset = xr_points_raw.isel(time=-1)
 
         console.rule("cells")
         console.print(list(xr_cells.keys()))
-        console.rule("points")
-        console.print(list(xr_points.keys()))
 
         # Position histogram
         axes[k_row, 0].hist(
@@ -131,7 +136,6 @@ def plot_positions(
             xr_cells["pressure"],
             **kwargs_scatter,
         )
-        console.print(xr_cells["pressure"].values)
 
     for k_row, pattern_name in enumerate(pattern_order):
         axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
@@ -141,12 +145,20 @@ def plot_positions(
             axes[k_row, k_col].set_ylim(bottom=0)
 
         for k_col in [3, 4]:
-            axes[k_row, k_col].set_ylim(top=1.05*ymax_vol)
+            axes[k_row, k_col].set_ylim(bottom=-0.05*ymax_vol, top=1.05*ymax_vol)
+
+    for ax in axes[:-1, :].flatten():
+        ax.set_xticks([0, 0.5, 1.0])
+        ax.set_xticklabels([])
+    for ax in axes[-1, :].flatten():
+        ax.xaxis.set_ticks([0, 0.5, 1], labels=["PP", "0.5", "PV"])
 
     plt.show()
+    fig.savefig(results_dir / "position_tests.png", bbox_inches="tight")
 
 
 def plot_spt_over_time(
+    results_dir: Path,
     xr_cells_dict: Dict[str, xr.Dataset],
     times: np.ndarray,
 ) -> None:
@@ -156,24 +168,21 @@ def plot_spt_over_time(
     # DataFrame information
     df = simulation_conditions_df()
     n_patterns = len(pattern_order)
-    n_cols = 6
+    n_cols = 5
 
-    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.5, n_patterns*2.5),
+    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.7, n_patterns*2.5),
                              dpi=300, layout="constrained")
     # [1] necrosis fraction ~ time
     for ax in axes[-1, :].flatten():
-        ax.set_xlabel("time [hr]", fontsize=9, fontdict={"weight": "bold"})
+        ax.set_xlabel("Time [hr]", **label_kwargs)
 
     for k_row in range(n_patterns):
-        axes[k_row, 0].set_ylabel("Substrate ext [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 1].set_ylabel("Product ext [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 2].set_ylabel("Substrate [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 3].set_ylabel("Product [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 4].set_ylabel("Toxic [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 5].set_ylabel("Necrosis [%]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 5].set_ylim([0, 100*1.05])
-
-    # TODO: boxplots with mean!
+        axes[k_row, 0].set_ylabel("Substrate [mM]", **label_kwargs)
+        axes[k_row, 1].set_ylabel("Product [mM]", **label_kwargs)
+        axes[k_row, 2].set_ylabel("Protein [-]", **label_kwargs)
+        axes[k_row, 3].set_ylabel("Toxic compound [mM]", **label_kwargs)
+        axes[k_row, 4].set_ylabel("Necrosis [%]", **label_kwargs)
+        axes[k_row, 4].set_ylim([0, 100*1.05])
 
     ylim_maxs = {}
     for k_row, pattern_name in enumerate(pattern_order):
@@ -194,7 +203,7 @@ def plot_spt_over_time(
                 "markeredgecolor": "black",
             }
 
-            for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_(S)", "rr_(P)", "rr_(T)"]):
+            for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)"]):
 
                 x = xr_cells.time / 60 / 60  # [s] -> [hr]
                 y = xr_cells[sid].mean(dim="cell")
@@ -217,7 +226,7 @@ def plot_spt_over_time(
                 # ax.legend()
 
             necrosis_fraction = calculate_necrosis_fraction(xr_cells=xr_cells)
-            axes[k_row, 5].plot(
+            axes[k_row, 4].plot(
                 # convert to hr and percent
                 necrosis_fraction.time / 60 / 60,  # [s] -> [hr]
                 necrosis_fraction * 100,
@@ -226,36 +235,43 @@ def plot_spt_over_time(
             )
 
     for k_row, pattern_name in enumerate(pattern_order):
-        axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
-        for kax, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_(S)", "rr_(P)", "rr_(T)"]):
-            axes[k_row, kax].set_ylim([0, 1.05*ylim_maxs[sid]])
+        # FIXME: different location
+        # axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
+
+        for kax, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)"]):
+            axes[k_row, kax].set_ylim([-0.05*ylim_maxs[sid], 1.05*ylim_maxs[sid]])
+
+    for ax in axes[:-1, :].flatten():
+        ax.set_xticks([0, 10, 20])
+        ax.set_xticklabels([])
+    for ax in axes[-1, :].flatten():
+        ax.xaxis.set_ticks([0, 10, 20], labels=["0", "10", "20"])
 
     plt.show()
+    fig.savefig(results_dir / "time_dependency.png", bbox_inches="tight")
 
 
 def plot_spt_over_position(
+    results_dir: Path,
     xr_cells_dict: Dict[str, xr.Dataset],
 ) -> None:
     """Plot SPT over position."""
     console.rule(title="SPT position", style="white")
     df = simulation_conditions_df()
     n_patterns = len(pattern_order)
-    n_cols = 6
-    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.5, n_patterns*2.5),
+    n_cols = 5
+    fig, axes = plt.subplots(nrows=n_patterns, ncols=n_cols, figsize=(n_cols*2.7, n_patterns*2.5),
                              dpi=300, layout="constrained")
 
     for ax in axes[-1, :].flatten():
-        ax.set_xlabel("Position [-]", fontsize=9, fontdict={"weight": "bold"})
+        ax.set_xlabel("Position [-]",  **label_kwargs)
 
     for k_row in range(n_patterns):
-        axes[k_row, 0].set_ylabel("Substrate ext [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 1].set_ylabel("Product ext [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 2].set_ylabel("Substrate [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 3].set_ylabel("Product [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 4].set_ylabel("Toxic [mM]", fontsize=9, fontdict={"weight": "bold"})
-        axes[k_row, 5].set_ylabel("Necrosis [-]", fontsize=9, fontdict={"weight": "bold"})
-
-    # TODO: boxplots with mean!
+        axes[k_row, 0].set_ylabel("Substrate [mM]", **label_kwargs)
+        axes[k_row, 1].set_ylabel("Product [mM]", **label_kwargs)
+        axes[k_row, 2].set_ylabel("Protein [-]", **label_kwargs)
+        axes[k_row, 3].set_ylabel("Toxic compound [mM]", **label_kwargs)
+        axes[k_row, 4].set_ylabel("Necrosis [-]", **label_kwargs)
 
     ylim_maxs = {}
     for k_row, pattern_name in enumerate(pattern_order):
@@ -277,9 +293,14 @@ def plot_spt_over_position(
                 "markeredgecolor": "black",
             }
 
-            for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_(S)", "rr_(P)", "rr_(T)", "rr_necrosis"]):
+            for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)", "rr_necrosis"]):
                 x = xr_cells.rr_position
                 y = xr_cells[sid]
+
+                # FIXME
+                # if sid == "rr_necrosis":
+                #     # set nonzero values to zero
+                #     y = y.where(y > 1E-3, other=1.0)
 
                 # update max
                 if not sid in ylim_maxs:
@@ -297,26 +318,30 @@ def plot_spt_over_position(
                 # ax.legend()
 
     for k_row, pattern_name in enumerate(pattern_order):
-        axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
-        for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_(S)", "rr_(P)", "rr_(T)", "rr_necrosis"]):
-            axes[k_row, k_col].set_ylim([0, 1.05*ylim_maxs[sid]])
+        # FIXME
+        # axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
+        for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)", "rr_necrosis"]):
+            axes[k_row, k_col].set_ylim([-0.05*ylim_maxs[sid], 1.05*ylim_maxs[sid]])
+
+    for ax in axes[:-1, :].flatten():
+        ax.set_xticks([0, 0.5, 1.0])
+        ax.set_xticklabels([])
+    for ax in axes[-1, :].flatten():
+        ax.xaxis.set_ticks([0, 0.5, 1], labels=["PP", "", "PV"])
 
     plt.show()
+    fig.savefig(results_dir / "position_dependency.png", bbox_inches="tight")
 
 
 if __name__ == "__main__":
-    """Analysis plots of the TMP simulations."""
+    """Analysis plots of the SPT simulations."""
 
-    # TODO: add protein to visualization
-    # TODO: fix the zonation axes to 0, 1
-    # TODO: create boxplots
-
-
-    # zonation analysis
-    console.rule(title="Dataset calculation", style="white")
+    date = "2023-12-13"
+    # date = "2023-12-19
+    console.rule(title=f"SPT analysis: {date}", style="white")
 
     # XDMF
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13/xdmf")
+    xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
     xdmf_paths = [f for f in xdmf_dir.glob("*.xdmf")]
 
     # Load xarray datasets
@@ -332,23 +357,29 @@ if __name__ == "__main__":
         xr_points_dict[sim_id] = xr_points
 
         tend_sim = xr_cells.time[-1]
-        print(tend_sim)
         if tend_sim < tend:
             tend = tend_sim
 
     # figure out end time
     times: np.ndarray = np.linspace(start=0, stop=tend, num=51)
 
+    from porous_media import RESULTS_DIR
+    results_dir = RESULTS_DIR / "spt" / date
+    results_dir.mkdir(exist_ok=True, parents=True)
+
     plot_positions(
+        results_dir=results_dir,
         xr_cells_dict=xr_cells_dict,
         xr_points_dict=xr_points_dict,
     )
 
     plot_spt_over_time(
+        results_dir=results_dir,
         xr_cells_dict=xr_cells_dict,
         times=times,
     )
 
     plot_spt_over_position(
+        results_dir=results_dir,
         xr_cells_dict=xr_cells_dict,
     )

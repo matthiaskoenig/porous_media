@@ -113,6 +113,9 @@ def visualize_scan(
 
 
 if __name__ == "__main__":
+    # TODO: create 2D geometry visualization from substrate and
+
+
     # -----------------------------------
     # Substrate scan
     # -----------------------------------

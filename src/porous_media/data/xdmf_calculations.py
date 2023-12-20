@@ -93,7 +93,6 @@ def mesh_datasets_from_xdmf(
         task1 = progress.add_task("Create xarray datasets ...", total=None)
 
         # (cell, time) xarray Dataset
-        console.print("Create")
         xr_cells: xr.Dataset = xr.concat(
             [df.to_xarray() for df in dfs_cell_data],
             dim="time",
