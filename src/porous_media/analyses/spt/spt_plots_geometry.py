@@ -29,7 +29,7 @@ from porous_media.visualization.video import create_gif_from_video, create_video
 logger = get_logger(__name__)
 
 
-def visualize_scan(
+def visualize_spt_2d(
     xdmf_paths: Iterable[Path],
     data_layers: List[DataLayer],
     results_dir: Path,
@@ -50,7 +50,7 @@ def visualize_scan(
     data_layers_selected = [data_layers_dict[sid] for sid in selection]
 
     if create_panels:
-        for num in [10, 100]:
+        for num in [10, ]:  # [10, 100]:
             output_dir = results_dir / f"{num}_{tend}"
             output_dir.mkdir(exist_ok=True, parents=True)
 
@@ -83,7 +83,7 @@ def visualize_scan(
                 )
 
     # Create combined images for all simulations
-    for num in [10, 100]:
+    for num in [10, 100]:  # [10, 100]:
         for xdmf_path in xdmf_paths:
             output_dir = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}"
             rows: List[Path] = create_combined_images(
@@ -113,60 +113,26 @@ def visualize_scan(
 
 
 if __name__ == "__main__":
-    # TODO: create 2D geometry visualization from substrate and
+    # TODO: create videos for plots (40 x)
+    # TODO: create timecourse plots (40 x) -> select one plot
 
+    # TODO: combine static plots at 10 hr from panels
+    # TODO: combine 2D necrosis patterns from panels (zonation pattern vs. substrate flux)
 
-    # -----------------------------------
-    # Substrate scan
-    # -----------------------------------
-    # process files
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_219")
-    xdmf_paths: Dict[Path, Path] = xdmfs_from_directory(
-        input_dir=Path("/home/mkoenig/git/porous_media/data/spt/simulation_spt_219"),
-        xdmf_dir=xdmf_dir,
-        overwrite=False,
-    )
-    info: XDMFInfo = XDMFInfo.from_path(list(xdmf_paths.keys())[0])
-    console.print(info)
+    date = "2023-12-13"
+    # date = "2023-12-19
+    xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
+    xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
     # create visualizations
     from porous_media.analyses.spt import data_layers_spt, selection_spt
 
-    results_dir: Path = BASE_DIR / "results" / "spt_substrate_scan_219"
-    visualize_scan(
+    results_dir: Path = BASE_DIR / "results" / "spt" / date / "2D"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    visualize_spt_2d(
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,
         selection=selection_spt,
         results_dir=results_dir,
-        create_panels=False,
-    )
-
-    # -----------------------------------
-    # Zonation scan
-    # -----------------------------------
-    # process files
-    xdmf_dir = Path(
-        "/home/mkoenig/git/porous_media/data/spt/simulation_zonation_2023_09_21"
-    )
-    xdmf_dict: Dict[Path, Path] = xdmfs_from_directory(
-        input_dir=Path(
-            "/home/mkoenig/git/porous_media/data/spt/simulation_zonation_2023_09_21"
-        ),
-        xdmf_dir=xdmf_dir,
-        overwrite=False,
-    )
-    xdmf_paths = list(xdmf_dict.keys())
-    info: XDMFInfo = XDMFInfo.from_path(xdmf_path=xdmf_paths[0])
-    console.print(info)
-
-    # create visualizations
-    from porous_media.analyses.spt import data_layers_spt, selection_spt
-
-    results_dir: Path = BASE_DIR / "results" / "spt_zonation_patterns_2023_09_21"
-    visualize_scan(
-        xdmf_paths=xdmf_paths,
-        data_layers=data_layers_spt,
-        results_dir=results_dir,
-        selection=selection_spt,
-        create_panels=False,
+        create_panels=True,
     )

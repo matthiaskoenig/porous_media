@@ -52,9 +52,9 @@ data_layers_spt: List[DataLayer] = [
 
 # subset of scalars to visualize
 selection_spt: List[str] = [
+    "rr_(S_ext)",
+    "rr_(P_ext)",
     "rr_protein",
-    "rr_(S)",
-    "rr_(P)",
     "rr_(T)",
     "rr_necrosis",
     # "pressure",
