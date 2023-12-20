@@ -1,9 +1,4 @@
-"""Analysis of results.
-
-TODO: add pattern labels
-TODO: fix necrosis issue (remove values > 0)
-
-"""
+"""Analysis of results."""
 from pathlib import Path
 from typing import Dict, List
 
@@ -139,6 +134,7 @@ def plot_positions(
 
     for k_row, pattern_name in enumerate(pattern_order):
         axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
+
         for k_col in range(n_cols):
             axes[k_row, k_col].set_xlim([0, 1])
         for k_col in range(n_cols-1):
@@ -235,8 +231,7 @@ def plot_spt_over_time(
             )
 
     for k_row, pattern_name in enumerate(pattern_order):
-        # FIXME: different location
-        # axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
+        axes[k_row, 2].set_title(pattern_name, fontsize=20, fontweight="bold")
 
         for kax, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)"]):
             axes[k_row, kax].set_ylim([-0.05*ylim_maxs[sid], 1.05*ylim_maxs[sid]])
@@ -297,10 +292,10 @@ def plot_spt_over_position(
                 x = xr_cells.rr_position
                 y = xr_cells[sid]
 
-                # FIXME
-                # if sid == "rr_necrosis":
-                #     # set nonzero values to zero
-                #     y = y.where(y > 1E-3, other=1.0)
+                # filter necrosis values != 0.0 or 1.0 (partial necrosis due to point averaging)
+                if sid == "rr_necrosis":
+                    x = x.where((y == 0.0) | (y == 1.0))
+                    y = y.where((y == 0.0) | (y == 1.0))
 
                 # update max
                 if not sid in ylim_maxs:
@@ -318,8 +313,7 @@ def plot_spt_over_position(
                 # ax.legend()
 
     for k_row, pattern_name in enumerate(pattern_order):
-        # FIXME
-        # axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
+        axes[k_row, 2].set_title(pattern_name, fontsize=20, fontweight="bold")
         for k_col, sid in enumerate(["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)", "rr_necrosis"]):
             axes[k_row, k_col].set_ylim([-0.05*ylim_maxs[sid], 1.05*ylim_maxs[sid]])
 
