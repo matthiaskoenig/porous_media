@@ -392,19 +392,21 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
         "pattern__sharp_periveneous",
         "pattern__linear_decrease",
         "pattern__sharp_periportal",
-        "pattern__random",
+        # "pattern__random",
     ]
     data_layers_dict = {dl.sid: dl for dl in data_layers}
     data_layers_selected = [data_layers_dict[key] for key in selected_patterns]
-    visualize_zonation_patterns(
-        m,
-        results_path=results_path,
-        image_name="mesh_zonation_selected",
-        direction="horizontal",
-        data_layers=data_layers_selected,
-        # drange_type=DataRangeType.GLOBAL,
-        drange_type=DataRangeType.LOCAL,
-    )
+
+    for direction in ["horizontal", "vertical"]:
+        visualize_zonation_patterns(
+            m,
+            results_path=results_path,
+            image_name=f"mesh_zonation_selected_{direction}",
+            direction=direction,
+            data_layers=data_layers_selected,
+            # drange_type=DataRangeType.GLOBAL,
+            drange_type=DataRangeType.LOCAL,
+        )
 
 
 if __name__ == "__main__":
