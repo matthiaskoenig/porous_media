@@ -332,13 +332,13 @@ def plot_spt_over_position(
 if __name__ == "__main__":
     """Analysis plots of the SPT simulations."""
 
-    date = "2023-12-13"
-    # date = "2023-12-19
+    # date = "2023-12-13"
+    date = "2023-12-19"
     console.rule(title=f"SPT analysis: {date}", style="white")
 
     # XDMF
     xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
-    xdmf_paths = [f for f in xdmf_dir.glob("*.xdmf")]
+    xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
     # Load xarray datasets
     xr_cells_dict: Dict[str, xr.Dataset] = {}

@@ -23,9 +23,10 @@ boundary_flows = [
 pattern_idx2name = {
     0: "constant",
     1: "linear_increase",
-    2: "linear decrease",
-    3: "sharp_pericentral",
+    2: "sharp_pericentral",
+    3: "linear decrease",
     4: "sharp_periportal",
+    # 5: "random",
 }
 pattern_name2idx = {v: k for k, v in pattern_idx2name.items()}
 
@@ -35,6 +36,7 @@ pattern_order = [
     "sharp_pericentral",
     "linear decrease",
     "sharp_periportal",
+    # "random",
 ]
 
 # colors
@@ -42,16 +44,17 @@ pattern_colors = {
     0: "tab:black",
     1: "tab:blue",
     2: "tab:purple",
-    3: "tab:green",
-    4: "tab:red",
-
+    3: "tab:red",
+    4: "tab:orange",
+    # 5: "tab:purple",
 }
 pattern_colormaps = {
     0: "Greys",
     1: "Blues",
-    4: "Purples",
-    2: "Greens",
+    2: "Purples",
     3: "Reds",
+    4: "Oranges",
+    # 5: "Greens",
 }
 
 
@@ -94,6 +97,7 @@ plot_kwargs = {
     "markersize": 10,
     "markeredgecolor": "black",
 }
+
 
 def plot_boundary_flux(df: pd.DataFrame):
     """Analysis of boundary scan"""
@@ -143,8 +147,9 @@ def plot_colors(df: pd.DataFrame):
 
 if __name__ == "__main__":
     df = simulation_conditions_df()
-    # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-05")
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13")
+
+    # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-19")
     df.to_excel(xdmf_dir / "information.xlsx", index=True)
 
     plot_boundary_flux(df)

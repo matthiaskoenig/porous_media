@@ -50,7 +50,7 @@ def visualize_spt_2d(
     data_layers_selected = [data_layers_dict[sid] for sid in selection]
 
     if create_panels:
-        for num in [10, ]:  # [10, 100]:
+        for num in [100, ]:  # [10, 100]:
             output_dir = results_dir / f"{num}_{tend}"
             output_dir.mkdir(exist_ok=True, parents=True)
 
@@ -112,6 +112,35 @@ def visualize_spt_2d(
                 create_gif_from_video(video_path=video_path, gif_path=gif_path)
 
 
+def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
+    """Combine panels for the necrosis plots."""
+    console.rule("Create necrosis plots", style="white", align="left")
+
+    # Calculate tend time from all simulations
+    tends: np.ndarray = np.zeros(shape=(len(list(xdmf_paths)),))
+    for k, xdmf_path in enumerate(xdmf_paths):
+        xdmf_info = XDMFInfo.from_path(xdmf_path)
+        tends[k] = xdmf_info.tend
+    tend = tends.min()
+
+    # get all necrosis pictures
+    num = 100
+    necrosis_paths: List[Path] = []
+    for xdmf_path in xdmf_paths:
+        p = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{num-1:05d}.png"
+        necrosis_paths.append(p)
+
+    image_path = results_dir / f"{xdmf_path.stem}_necrosis.png"
+    merge_images(
+        paths=necrosis_paths,
+        direction="custom",
+        ncols=8,  # num substrate flux
+        nrows=5,  # num zonation patterns
+        output_path=image_path,
+    )
+    console.print(f"file://{image_path}")
+
+
 if __name__ == "__main__":
     # TODO: create videos for plots (40 x)
     # TODO: create timecourse plots (40 x) -> select one plot
@@ -120,7 +149,7 @@ if __name__ == "__main__":
     # TODO: combine 2D necrosis patterns from panels (zonation pattern vs. substrate flux)
 
     date = "2023-12-13"
-    # date = "2023-12-19
+    # date = "2023-12-19"
     xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
@@ -128,11 +157,14 @@ if __name__ == "__main__":
     from porous_media.analyses.spt import data_layers_spt, selection_spt
 
     results_dir: Path = BASE_DIR / "results" / "spt" / date / "2D"
-    results_dir.mkdir(parents=True, exist_ok=True)
-    visualize_spt_2d(
-        xdmf_paths=xdmf_paths,
-        data_layers=data_layers_spt,
-        selection=selection_spt,
-        results_dir=results_dir,
-        create_panels=True,
-    )
+
+    necrosis_plots(xdmf_paths=xdmf_paths, results_dir=results_dir)
+
+    # results_dir.mkdir(parents=True, exist_ok=True)
+    # visualize_spt_2d(
+    #     xdmf_paths=xdmf_paths,
+    #     data_layers=data_layers_spt,
+    #     selection=selection_spt,
+    #     results_dir=results_dir,
+    #     create_panels=True,
+    # )
