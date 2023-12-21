@@ -124,18 +124,25 @@ def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
     tend = tends.min()
 
     # get all necrosis pictures
-    num = 100
-    necrosis_paths: List[Path] = []
-    for xdmf_path in xdmf_paths:
-        p = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{num-1:05d}.png"
-        necrosis_paths.append(p)
+    num_time = 100
+    num_substrate = 8
+    num_patterns = 5
 
-    image_path = results_dir / f"{xdmf_path.stem}_necrosis.png"
+    necrosis_paths: List[Path] = []
+    for k, xdmf_path in enumerate(xdmf_paths):
+        p = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{num_time-1:05d}.png"
+        necrosis_paths.append(p)
+        # add the zonation pattern at the end
+        if (k > 0) & ((k+1) % num_substrate == 0):
+            p_pattern = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_protein" / f"sim_{num_time - 1:05d}.png"
+            necrosis_paths.append(p_pattern)
+
+    image_path = results_dir / f"zonation_pattern_necrosis.png"
     merge_images(
         paths=necrosis_paths,
         direction="custom",
-        ncols=8,  # num substrate flux
-        nrows=5,  # num zonation patterns
+        ncols=num_substrate + 1,
+        nrows=num_patterns,
         output_path=image_path,
     )
     console.print(f"file://{image_path}")
@@ -146,7 +153,7 @@ if __name__ == "__main__":
     # TODO: create timecourse plots (40 x) -> select one plot
 
     # TODO: combine static plots at 10 hr from panels
-    # TODO: combine 2D necrosis patterns from panels (zonation pattern vs. substrate flux)
+
 
     date = "2023-12-13"
     # date = "2023-12-19"
