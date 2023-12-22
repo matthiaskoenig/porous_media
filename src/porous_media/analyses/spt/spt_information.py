@@ -26,7 +26,7 @@ pattern_idx2name = {
     2: "sharp_pericentral",
     3: "linear decrease",
     4: "sharp_periportal",
-    # 5: "random",
+    5: "random",
 }
 pattern_name2idx = {v: k for k, v in pattern_idx2name.items()}
 
@@ -36,7 +36,7 @@ pattern_order = [
     "sharp_pericentral",
     "linear decrease",
     "sharp_periportal",
-    # "random",
+    "random",
 ]
 
 # colors
@@ -46,7 +46,7 @@ pattern_colors = {
     2: "tab:purple",
     3: "tab:red",
     4: "tab:orange",
-    # 5: "tab:purple",
+    5: "tab:green",
 }
 pattern_colormaps = {
     0: "Greys",
@@ -54,7 +54,7 @@ pattern_colormaps = {
     2: "Purples",
     3: "Reds",
     4: "Oranges",
-    # 5: "Greens",
+    5: "Greens",
 }
 
 

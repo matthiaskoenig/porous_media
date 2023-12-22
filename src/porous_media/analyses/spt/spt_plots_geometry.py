@@ -50,7 +50,7 @@ def visualize_spt_2d(
     data_layers_selected = [data_layers_dict[sid] for sid in selection]
 
     if create_panels:
-        for num in [100, ]:  # [10, 100]:
+        for num in [10, 200]:  # [10, 100]:
             output_dir = results_dir / f"{num}_{tend}"
             output_dir.mkdir(exist_ok=True, parents=True)
 
@@ -65,7 +65,7 @@ def visualize_spt_2d(
                     overwrite=False,
                 )
 
-                limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
+                limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=True)
                 all_limits.append(limits)
 
             # merge limits from different simulations
@@ -83,7 +83,7 @@ def visualize_spt_2d(
                 )
 
     # Create combined images for all simulations
-    for num in [10, 100]:  # [10, 100]:
+    for num in [10, 200]:  # [10, 100]:
         for xdmf_path in xdmf_paths:
             output_dir = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}"
             rows: List[Path] = create_combined_images(
@@ -102,7 +102,7 @@ def visualize_spt_2d(
                 )
 
             # Create video
-            if num == 100:
+            if num == 200:
                 video_path = results_dir / f"{xdmf_path.stem}_{num}_{tend}.mp4"
                 gif_path = results_dir / f"{xdmf_path.stem}_{num}_{tend}.gif"
                 create_video(
@@ -124,9 +124,9 @@ def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
     tend = tends.min()
 
     # get all necrosis pictures
-    num_time = 100
+    num_time = 200
     num_substrate = 8
-    num_patterns = 5
+    num_patterns = 6
 
     necrosis_paths: List[Path] = []
     for k, xdmf_path in enumerate(xdmf_paths):
@@ -155,8 +155,8 @@ if __name__ == "__main__":
     # TODO: combine static plots at 10 hr from panels
 
 
-    date = "2023-12-13"
-    # date = "2023-12-19"
+    # date = "2023-12-13"
+    date = "2023-12-19"
     xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
@@ -164,14 +164,13 @@ if __name__ == "__main__":
     from porous_media.analyses.spt import data_layers_spt, selection_spt
 
     results_dir: Path = BASE_DIR / "results" / "spt" / date / "2D"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    visualize_spt_2d(
+        xdmf_paths=xdmf_paths,
+        data_layers=data_layers_spt,
+        selection=selection_spt,
+        results_dir=results_dir,
+        create_panels=True,
+    )
 
     necrosis_plots(xdmf_paths=xdmf_paths, results_dir=results_dir)
-
-    # results_dir.mkdir(parents=True, exist_ok=True)
-    # visualize_spt_2d(
-    #     xdmf_paths=xdmf_paths,
-    #     data_layers=data_layers_spt,
-    #     selection=selection_spt,
-    #     results_dir=results_dir,
-    #     create_panels=True,
-    # )
