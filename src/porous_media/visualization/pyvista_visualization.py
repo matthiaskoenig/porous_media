@@ -4,6 +4,7 @@ Figure out how to add multiple layers to the visualization.
 E.g. streamlines in addition to other data.
 
 """
+
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -14,7 +15,7 @@ import pyvista as pv
 from pyvista.plotting.utilities import cubemap
 from rich.progress import track
 
-from porous_media import RESOURCES_DIR, RESULTS_DIR, DATA_DIR
+from porous_media import DATA_DIR, RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     AttributeType,

@@ -17,6 +17,8 @@ from porous_media.visualization.pyvista_visualization import (
     VisualizationSettings,
     visualize_data_layers,
 )
+
+
 np.random.seed(42)
 
 
@@ -38,44 +40,65 @@ class ZonationPatterns:
 
     @staticmethod
     def random(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Random zonation in [min_value, max_value]."""
-        return f_scale * (value_min + (value_max - value_min) * np.random.rand(*p.shape))
+        return f_scale * (
+            value_min + (value_max - value_min) * np.random.rand(*p.shape)
+        )
 
     @staticmethod
     def linear_increase(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Linear increasing pattern in [min_value, max_value]."""
         return f_scale * (value_min + (value_max - value_min) * p)
 
     @staticmethod
     def linear_decrease(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Linear decreasing pattern in [min_value, max_value]."""
         return f_scale * (value_min + (value_max - value_min) * (1.0 - p))
 
     @staticmethod
     def exp_increase(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Exponential increasing pattern in [0, 1]."""
-        return f_scale * (value_min + (value_max - value_min) * (np.exp(p) - 1.0) / (
-            np.exp(1.0) - 1.0)
+        return f_scale * (
+            value_min
+            + (value_max - value_min) * (np.exp(p) - 1.0) / (np.exp(1.0) - 1.0)
         )
 
     @staticmethod
     def exp_decrease(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Exponential decreasing pattern in [0, 1]."""
         return f_scale * (1.0 - ZonationPatterns.exp_increase(p, value_min, value_max))
 
     @staticmethod
     def only_periveneous(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Only periveneous pattern in [0, 1]."""
         data = np.zeros_like(p)
@@ -85,7 +108,10 @@ class ZonationPatterns:
 
     @staticmethod
     def only_periportal(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Only periportal pattern in [0, 1]."""
         data = np.zeros_like(p)
@@ -95,17 +121,30 @@ class ZonationPatterns:
 
     @staticmethod
     def sharp_periportal(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        n: float = 10.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
-        return f_scale * (value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n)))
+        return f_scale * (
+            value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n))
+        )
 
     @staticmethod
     def sharp_periveneous(
-        p: np.ndarray, value_min: float = 0.0, value_max: float = 1.0, n: float = 10.0, f_scale: float = 1.0
+        p: np.ndarray,
+        value_min: float = 0.0,
+        value_max: float = 1.0,
+        n: float = 10.0,
+        f_scale: float = 1.0,
     ) -> np.ndarray:
         """Sharp periveneous pattern in [0, 1]."""
-        return f_scale * (value_min + (value_max - value_min) * (1 - (1-p)**n / ((1-p)**n + 0.25**n)))
+        return f_scale * (
+            value_min
+            + (value_max - value_min) * (1 - (1 - p) ** n / ((1 - p) ** n + 0.25**n))
+        )
 
 
 class ZonatedMesh:
@@ -280,8 +319,10 @@ class ZonatedMesh:
         protein = f_zonation(position)
 
         # scaling factor
-        volume_fraction = volume/volume.sum()
-        f_scale = (protein_constant*volume_fraction).sum() / (protein*volume_fraction).sum()
+        volume_fraction = volume / volume.sum()
+        f_scale = (protein_constant * volume_fraction).sum() / (
+            protein * volume_fraction
+        ).sum()
         console.print(f"{variable_id}: {f_scale=}")
 
         protein_scaled = f_zonation(position, f_scale=f_scale)

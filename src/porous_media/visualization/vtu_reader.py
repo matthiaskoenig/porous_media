@@ -1,14 +1,18 @@
 """Read VTU files for visualization."""
+
 from pathlib import Path
 from typing import List
 
 import meshio
 
-from porous_media.console import console
 from porous_media import RESOURCES_DIR
+from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType
-from porous_media.visualization.pyvista_visualization import visualize_interactive, \
-    DataLayer, VisualizationSettings
+from porous_media.visualization.pyvista_visualization import (
+    DataLayer,
+    VisualizationSettings,
+    visualize_interactive,
+)
 
 
 def vtu_to_xdmf(vtu_path: Path, xdmf_path: Path) -> meshio.Mesh:
@@ -35,7 +39,6 @@ def vtu_to_xdmf(vtu_path: Path, xdmf_path: Path) -> meshio.Mesh:
 
 
 if __name__ == "__main__":
-
     vtu_path = RESOURCES_DIR / "vtu" / "1ptestfv-00001.vtu"
     xdmf_path = vtu_path.parent / f"{vtu_path.stem}.xdmf"
     mesh = vtu_to_xdmf(vtu_path=vtu_path, xdmf_path=xdmf_path)

@@ -1,4 +1,5 @@
 """Definition of SPT information."""
+
 from typing import List
 
 from porous_media.data.xdmf_tools import AttributeType

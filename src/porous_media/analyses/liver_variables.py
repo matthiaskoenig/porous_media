@@ -4,6 +4,7 @@ Here reused variables should be defined.
 """
 
 import xarray as xr
+
 from porous_media.console import console
 
 
@@ -37,6 +38,8 @@ def calculate_necrosis_fraction(xr_cells: xr.Dataset) -> xr.Dataset:
         raise ValueError(f"'necrosis' must be <= 1.0, but maximum is {necrosis.max()}")
 
     # calculate necrosis fraction over time
-    necrosis_fraction = (necrosis * cell_volumes).sum(dim="cell")/cell_volumes.sum(dim="cell")
+    necrosis_fraction = (necrosis * cell_volumes).sum(dim="cell") / cell_volumes.sum(
+        dim="cell"
+    )
 
     return necrosis_fraction

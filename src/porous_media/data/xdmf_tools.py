@@ -3,6 +3,7 @@
 https://www.xdmf.org/index.php/XDMF_Model_and_Format
 
 """
+
 from __future__ import annotations
 
 import json
