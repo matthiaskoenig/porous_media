@@ -3,7 +3,7 @@
 from pathlib import Path
 
 __author__ = "Matthias König"
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 program_name: str = "porous_media"
 
