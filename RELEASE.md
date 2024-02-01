@@ -10,6 +10,6 @@
 
 * test installation in virtualenv from pypi
 ```
-mkvirtualenv test --python=python3.9
+mkvirtualenv test --python=python3.11
 (test) pip install porous_media
 ```
