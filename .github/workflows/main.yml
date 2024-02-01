@@ -62,12 +62,8 @@ jobs:
        password: ${{ secrets.PYPI_API_TOKEN }}
        packages-dir: dist
     - name: Create GitHub release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: ${{ github.ref }}
-        body_path: "release-notes/${{ steps.tag.outputs.version }}.md"
+        body_path: "release-notes/${{ github.ref_name }}.md"
         draft: false
         prerelease: false
