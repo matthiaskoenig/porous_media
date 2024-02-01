@@ -56,11 +56,11 @@ jobs:
     - name: Check the package
       run: twine check dist/*
     - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run:
-        twine upload --skip-existing --non-interactive dist/*
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+       user: __token__
+       password: ${{ secrets.PYPI_API_TOKEN }}
+       packages-dir: dist
     - name: Create GitHub release
       uses: actions/create-release@v1
       env:
