@@ -1,5 +1,11 @@
 # TODO SPT results
 
+## Run analysis
+- copy data in the `porous_media/data/spt/<YYYY-MM-DD>` folder
+- update and run `porous_media/src/analysis/spt_information.py`
+- update and run `porous_media/src/analysis/spt_plots_analysis.py`
+
+
 ## Model updates
 - [ ] test simulations under realistic volumes;
 

@@ -161,7 +161,9 @@ if __name__ == "__main__":
     df = simulation_conditions_df()
 
     # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13")
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-19")
+    # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-19")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2024-02-02")
+
     df.to_excel(xdmf_dir / "information.xlsx", index=True)
 
     plot_boundary_flux(df)

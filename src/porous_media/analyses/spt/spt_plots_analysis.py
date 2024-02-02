@@ -362,7 +362,9 @@ if __name__ == "__main__":
     """Analysis plots of the SPT simulations."""
 
     # date = "2023-12-13"
-    date = "2023-12-19"
+    # date = "2023-12-19"
+    date = "2024-02-02"
+
     console.rule(title=f"SPT analysis: {date}", style="white")
 
     # XDMF
