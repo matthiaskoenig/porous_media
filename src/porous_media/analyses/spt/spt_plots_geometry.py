@@ -128,49 +128,60 @@ def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
     num_substrate = 8
     num_patterns = 6
 
-    necrosis_paths: List[Path] = []
-    for k, xdmf_path in enumerate(xdmf_paths):
-        p = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{num_time-1:05d}.png"
-        necrosis_paths.append(p)
-        # add the zonation pattern at the end
-        if (k > 0) & ((k+1) % num_substrate == 0):
-            p_pattern = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_protein" / f"sim_{num_time - 1:05d}.png"
-            necrosis_paths.append(p_pattern)
+    necrosis_dir: Path = results_dir / "zonation_pattern_necrosis"
+    necrosis_dir.mkdir(parents=True, exist_ok=True)
 
-    image_path = results_dir / f"zonation_pattern_necrosis.png"
-    merge_images(
-        paths=necrosis_paths,
-        direction="custom",
-        ncols=num_substrate + 1,
-        nrows=num_patterns,
-        output_path=image_path,
+    for kt in range(num_time):
+        necrosis_paths: List[Path] = []
+        for kp, xdmf_path in enumerate(xdmf_paths):
+            p = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{kt:05d}.png"
+            necrosis_paths.append(p)
+
+            # # add the zonation pattern at the end
+            # if (kp > 0) & ((kp+1) % num_substrate == 0):
+            #     p_pattern = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_protein" / f"sim_{num_time - 1:05d}.png"
+            #     necrosis_paths.append(p_pattern)
+
+        merge_images(
+            paths=necrosis_paths,
+            direction="custom",
+            ncols=num_substrate,  # num_substrate + 1
+            nrows=num_patterns,
+            output_path=necrosis_dir / f"zonation_pattern_necrosis_{kt:05d}.png",
+        )
+
+    # Create video
+    video_path = necrosis_dir / f"zonation_pattern_necrosis_{num_time}.mp4"
+    gif_path = necrosis_dir / f"zonation_pattern_necrosis_{num_time}_{tend}.gif"
+    create_video(
+        image_pattern=str(necrosis_dir / "zonation_pattern_necrosis_%05d.png"),
+        video_path=video_path,
     )
-    console.print(f"file://{image_path}")
+    create_gif_from_video(video_path=video_path, gif_path=gif_path)
+
 
 
 if __name__ == "__main__":
     # TODO: create videos for plots (40 x)
     # TODO: create timecourse plots (40 x) -> select one plot
-
-    # TODO: combine static plots at 10 hr from panels
+    # TODO: combine static plots at 10 hr from panels (not at end time timepoint)
 
 
     # date = "2023-12-13"
     date = "2023-12-19"
     xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
-
-    # create visualizations
-    from porous_media.analyses.spt import data_layers_spt, selection_spt
-
     results_dir: Path = BASE_DIR / "results" / "spt" / date / "2D"
     results_dir.mkdir(parents=True, exist_ok=True)
-    visualize_spt_2d(
-        xdmf_paths=xdmf_paths,
-        data_layers=data_layers_spt,
-        selection=selection_spt,
-        results_dir=results_dir,
-        create_panels=True,
-    )
+
+    # create visualizations
+    # from porous_media.analyses.spt import data_layers_spt, selection_spt
+    # visualize_spt_2d(
+    #     xdmf_paths=xdmf_paths,
+    #     data_layers=data_layers_spt,
+    #     selection=selection_spt,
+    #     results_dir=results_dir,
+    #     create_panels=True,
+    # )
 
     necrosis_plots(xdmf_paths=xdmf_paths, results_dir=results_dir)
