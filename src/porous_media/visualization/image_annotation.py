@@ -1,4 +1,5 @@
 """Annotate images with text."""
+
 from pathlib import Path
 from typing import Tuple
 

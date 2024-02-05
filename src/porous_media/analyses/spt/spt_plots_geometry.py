@@ -166,7 +166,6 @@ if __name__ == "__main__":
     # TODO: create timecourse plots (40 x) -> select one plot
     # TODO: combine static plots at 10 hr from panels (not at end time timepoint)
 
-
     # date = "2023-12-13"
     date = "2023-12-19"
     xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")

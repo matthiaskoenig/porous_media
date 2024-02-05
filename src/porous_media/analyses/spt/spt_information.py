@@ -1,17 +1,25 @@
-"""Information on the boundary scans"""
+"""Information on the boundary scans."""
 
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
-from porous_media.console import console
-import matplotlib
 from matplotlib import pyplot as plt
+
+from porous_media.console import console
+
 
 # substrate boundary flows (2023-12-13)
 boundary_flows = [
-    1.80386920e-07, 2.73157336e-06, 5.28275980e-06, 7.83394624e-06,
-    1.03851327e-05, 1.29363191e-05, 1.54875056e-05, 1.80386920e-05
+    1.80386920e-07,
+    2.73157336e-06,
+    5.28275980e-06,
+    7.83394624e-06,
+    1.03851327e-05,
+    1.29363191e-05,
+    1.54875056e-05,
+    1.80386920e-05,
 ]
 # substrate boundary flows (2023-12-06)
 # boundary_flows = [
@@ -66,7 +74,6 @@ def simulation_conditions_df() -> pd.DataFrame:
     for pattern_key, pattern_name in pattern_idx2name.items():
         kmax = len(boundary_flows)
         for k_flow, flow in enumerate(boundary_flows):
-
             # calculate colors
             cmap_key = pattern_colormaps[pattern_key]
             cmap = matplotlib.cm.get_cmap(cmap_key)
@@ -92,6 +99,7 @@ def simulation_conditions_df() -> pd.DataFrame:
     console.print(df)
     return df
 
+
 plot_kwargs = {
     "marker": "o",
     "markersize": 10,
@@ -99,11 +107,13 @@ plot_kwargs = {
 }
 
 
-def plot_boundary_flux(df: pd.DataFrame):
-    """Analysis of boundary scan"""
-    y = np.abs(df.boundary_flow.values[0:len(boundary_flows)])
+def plot_boundary_flux(df: pd.DataFrame) -> None:
+    """Analysis of boundary scan."""
+    y = np.abs(df.boundary_flow.values[0 : len(boundary_flows)])
 
-    f, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained")
+    f, ax = plt.subplots(
+        nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained"
+    )
 
     ax.plot(
         y,
@@ -111,7 +121,7 @@ def plot_boundary_flux(df: pd.DataFrame):
         **plot_kwargs,
     )
 
-    ynew = np.linspace(start=y[-1]*0.01, stop=y[-1], num=8)
+    ynew = np.linspace(start=y[-1] * 0.01, stop=y[-1], num=8)
     console.print(ynew)
     ax.plot(
         ynew,
@@ -126,11 +136,13 @@ def plot_boundary_flux(df: pd.DataFrame):
     plt.show()
 
 
-def plot_colors(df: pd.DataFrame):
-    """Plot colors"""
-    f, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained")
+def plot_colors(df: pd.DataFrame) -> None:
+    """Plot colors."""
+    f, ax = plt.subplots(
+        nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained"
+    )
 
-    for sim_id, row in df.iterrows():
+    for _, row in df.iterrows():
         ax.plot(
             row.pattern_key,
             row.boundary_flow_key,
@@ -149,7 +161,9 @@ if __name__ == "__main__":
     df = simulation_conditions_df()
 
     # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13")
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-19")
+    # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-19")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2024-02-02")
+
     df.to_excel(xdmf_dir / "information.xlsx", index=True)
 
     plot_boundary_flux(df)

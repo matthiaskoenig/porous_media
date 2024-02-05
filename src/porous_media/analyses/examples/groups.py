@@ -1,4 +1,5 @@
 """Visualization of example results."""
+
 from pathlib import Path
 from typing import Dict, List
 

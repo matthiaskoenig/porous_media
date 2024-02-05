@@ -2,6 +2,7 @@
 
 Combine and annotate images using PIL.
 """
+
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 

@@ -1,4 +1,5 @@
 """Test that all resources for the app are available."""
+
 from pathlib import Path
 
 import pytest

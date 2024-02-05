@@ -13,14 +13,15 @@ A lot of the information should be position dependent for analysis.
 Support selections of positions; histogramm over position.
 
 """
+
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 
 import meshio
 import numpy as np
 import pandas as pd
 import xarray as xr
-from rich.progress import track, Progress
+from rich.progress import Progress, track
 
 from porous_media import DATA_DIR, RESULTS_DIR
 from porous_media.console import console
@@ -29,7 +30,7 @@ from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
 
 def mesh_datasets_from_xdmf(
     xdmf_path: Path,
-    overwrite=False,
+    overwrite: bool = False,
 ) -> Tuple[xr.Dataset, xr.Dataset]:
     """Create the cell_data and point_data xarray DataSet.
 
@@ -39,7 +40,9 @@ def mesh_datasets_from_xdmf(
     xr_cells_path = xdmf_path.parent / f"{xdmf_path.stem}_cells.nc"
     xr_points_path = xdmf_path.parent / f"{xdmf_path.stem}_points.nc"
     if not overwrite and xr_cells_path.exists() and xr_points_path.exists():
-        console.print(f"cells and points files exist: {xr_cells_path} | {xr_points_path}")
+        console.print(
+            f"cells and points files exist: {xr_cells_path} | {xr_points_path}"
+        )
         xr_cells: xr.Dataset = xr.open_dataset(xr_cells_path)
         xr_points: xr.Dataset = xr.open_dataset(xr_points_path)
         return xr_cells, xr_points
@@ -58,7 +61,8 @@ def mesh_datasets_from_xdmf(
         tnum = reader.num_steps
         timepoints = np.ndarray(shape=(tnum,))
         for k in track(
-            range(tnum), description=f"Create dataframes for mesh data '{xdmf_path}' ..."
+            range(tnum),
+            description=f"Create dataframes for mesh data '{xdmf_path}' ...",
         ):
             t, point_data, cell_data = reader.read_data(k)
             timepoints[k] = t
@@ -90,10 +94,10 @@ def mesh_datasets_from_xdmf(
             dfs_point_data.append(df_point)
 
     with Progress() as progress:
-        task1 = progress.add_task("Create xarray datasets ...", total=None)
+        _ = progress.add_task("Create xarray datasets ...", total=None)
 
         # (cell, time) xarray Dataset
-        xr_cells: xr.Dataset = xr.concat(
+        xr_cells = xr.concat(
             [df.to_xarray() for df in dfs_cell_data],
             dim="time",
         )
@@ -103,7 +107,7 @@ def mesh_datasets_from_xdmf(
         xr_cells.to_netcdf(xr_cells_path)
 
         # (point, time) xarray Dataset
-        xr_points: xr.Dataset = xr.concat(
+        xr_points = xr.concat(
             [df.to_xarray() for df in dfs_point_data],
             dim="time",
         )
