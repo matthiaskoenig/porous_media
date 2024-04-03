@@ -31,7 +31,7 @@ def process_spt_meshes(xdmf_dir: Path) -> None:
 
 if __name__ == "__main__":
     input_dir = Path("/data/qualiperf/P7-Perf/spt_results/simulation")
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13/xdmf")
+    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2024-02-02/xdmf")
 
     # process_spt_simulations(input_dir=input_dir, output_dir=output_dir)
     process_spt_meshes(xdmf_dir=xdmf_dir)

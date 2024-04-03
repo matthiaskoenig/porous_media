@@ -1,7 +1,5 @@
 """Information on the boundary scans."""
 
-from pathlib import Path
-
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -10,22 +8,17 @@ from matplotlib import pyplot as plt
 from porous_media.console import console
 
 
-# substrate boundary flows (2023-12-13)
+# substrate boundary flows (2024-02-02)
 boundary_flows = [
-    1.80386920e-07,
-    2.73157336e-06,
-    5.28275980e-06,
-    7.83394624e-06,
-    1.03851327e-05,
-    1.29363191e-05,
-    1.54875056e-05,
-    1.80386920e-05,
+    -3.797784e-06,
+    -4.6576515e-06,
+    -5.5176906e-06,
+    -7.2377693e-06,
+    -1.0677926e-05,
+    -1.4118084e-05,
+    -1.755824e-05,
+    -2.0938397e-05
 ]
-# substrate boundary flows (2023-12-06)
-# boundary_flows = [
-#     -1.09379480e-07, -2.93431871e-07, -7.87188447e-07, -2.11178714e-06,
-#     -5.66528247e-06, -1.51982295e-05, -4.07722263e-05, -1.09379480e-04
-# ]
 
 # zonation patterns
 pattern_idx2name = {
@@ -121,13 +114,13 @@ def plot_boundary_flux(df: pd.DataFrame) -> None:
         **plot_kwargs,
     )
 
-    ynew = np.linspace(start=y[-1] * 0.01, stop=y[-1], num=8)
-    console.print(ynew)
-    ax.plot(
-        ynew,
-        label="ynew",
-        **plot_kwargs,
-    )
+    # ynew = np.linspace(start=y[-1] * 0.01, stop=y[-1], num=8)
+    # console.print(ynew)
+    # ax.plot(
+    #     ynew,
+    #     label="ynew",
+    #     **plot_kwargs,
+    # )
 
     ax.set_ylim(bottom=0)
     ax.set_xlabel("simulation index", fontsize=15, fontweight="bold")
@@ -158,11 +151,10 @@ def plot_colors(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
+    from porous_media import DATA_DIR
+    from porous_media.analyses.spt import results_date
     df = simulation_conditions_df()
-
-    # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-13")
-    # xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2023-12-19")
-    xdmf_dir = Path("/home/mkoenig/git/porous_media/data/spt/2024-02-02")
+    xdmf_dir = DATA_DIR / "spt" / results_date
 
     df.to_excel(xdmf_dir / "information.xlsx", index=True)
 

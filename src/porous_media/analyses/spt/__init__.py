@@ -5,6 +5,9 @@ from typing import List
 from porous_media.data.xdmf_tools import AttributeType
 from porous_media.visualization.pyvista_visualization import DataLayer
 
+
+results_date: str = "2024-02-02"
+
 data_layers_spt: List[DataLayer] = [
     DataLayer(
         sid="rr_necrosis",

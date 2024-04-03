@@ -50,7 +50,7 @@ def visualize_spt_2d(
     data_layers_selected = [data_layers_dict[sid] for sid in selection]
 
     if create_panels:
-        for num in [10, 200]:  # [10, 100]:
+        for num in [10, 200]:
             output_dir = results_dir / f"{num}_{tend}"
             output_dir.mkdir(exist_ok=True, parents=True)
 
@@ -83,7 +83,7 @@ def visualize_spt_2d(
                 )
 
     # Create combined images for all simulations
-    for num in [10, 200]:  # [10, 100]:
+    for num in [10, 200]:
         for xdmf_path in xdmf_paths:
             output_dir = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}"
             rows: List[Path] = create_combined_images(
@@ -96,7 +96,7 @@ def visualize_spt_2d(
             # Create combined figure for timecourse
             if num == 10:
                 merge_images(
-                    paths=[rows[k] for k in [1, 3, 5, 7, 9]],  # FIXME: hardcoded subset
+                    paths=[rows[k] for k in [1, 3, 5, 7, 9]],
                     direction="vertical",
                     output_path=results_dir / f"{xdmf_path.stem}_{num}_{tend}.png",
                 )
@@ -160,27 +160,21 @@ def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
     create_gif_from_video(video_path=video_path, gif_path=gif_path)
 
 
-
 if __name__ == "__main__":
-    # TODO: create videos for plots (40 x)
-    # TODO: create timecourse plots (40 x) -> select one plot
-    # TODO: combine static plots at 10 hr from panels (not at end time timepoint)
-
-    # date = "2023-12-13"
-    date = "2023-12-19"
-    xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{date}/xdmf")
+    from porous_media.analyses.spt import results_date
+    xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{results_date}/xdmf")
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
-    results_dir: Path = BASE_DIR / "results" / "spt" / date / "2D"
+    results_dir: Path = BASE_DIR / "results" / "spt" / results_date / "2D"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # create visualizations
-    # from porous_media.analyses.spt import data_layers_spt, selection_spt
-    # visualize_spt_2d(
-    #     xdmf_paths=xdmf_paths,
-    #     data_layers=data_layers_spt,
-    #     selection=selection_spt,
-    #     results_dir=results_dir,
-    #     create_panels=True,
-    # )
+    from porous_media.analyses.spt import data_layers_spt, selection_spt
+    visualize_spt_2d(
+        xdmf_paths=xdmf_paths,
+        data_layers=data_layers_spt,
+        selection=selection_spt,
+        results_dir=results_dir,
+        create_panels=True,
+    )
 
     necrosis_plots(xdmf_paths=xdmf_paths, results_dir=results_dir)

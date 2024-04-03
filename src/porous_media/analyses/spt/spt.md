@@ -1,27 +1,15 @@
-# TODO SPT results
+# SPT analysis
 
 ## Run analysis
-- copy data in the `porous_media/data/spt/<YYYY-MM-DD>` folder
+- run simulations on cluster
+- process results using the `porous_media/src/analysis/spt_data_processing.py` 
+- copy data in the `porous_media/data/spt/<results_date>` folder
+- update `results_date` in `porous_media/src/analysis/__init__.py`
 - update and run `porous_media/src/analysis/spt_information.py`
 - update and run `porous_media/src/analysis/spt_plots_analysis.py`
 
-
-## Model updates
-- [ ] test simulations under realistic volumes;
-
-## Analysis
-- [x] distributions over time (protein, S, P, T)
-  - [ ] boxplot/violinplot
 
 ## 2D Geometry visualization
 - zonation pattern plot
 - videos (all simulations)
 - snapshots of selected timepoints (all simulations)
-
-## Changenotes
-### 2023-12-?
-- fixed 
-
-### 2023-12-13
-- updated cell model (faster, S & P exchange necrosis independent)
-- zonation positions fixed in model
