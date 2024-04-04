@@ -69,8 +69,7 @@ def simulation_conditions_df() -> pd.DataFrame:
         for k_flow, flow in enumerate(boundary_flows):
             # calculate colors
             cmap_key = pattern_colormaps[pattern_key]
-            cmap = matplotlib.cm.get_cmap(cmap_key)
-            # color
+            cmap = matplotlib.colormaps.get_cmap(cmap_key)
 
             # dose_relative = np.log(dose) / np.log(dose_max)
             color_rgba = cmap((k_flow + 1) / kmax)
@@ -89,7 +88,6 @@ def simulation_conditions_df() -> pd.DataFrame:
 
     df = pd.DataFrame(feb_data).T
     df = df.astype({"pattern_key": int, "boundary_flow_key": int, "color": str})
-    console.print(df)
     return df
 
 
@@ -151,12 +149,18 @@ def plot_colors(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    from porous_media import DATA_DIR
+    from porous_media import DATA_DIR, RESULTS_DIR
     from porous_media.analyses.spt import results_date
     df = simulation_conditions_df()
     xdmf_dir = DATA_DIR / "spt" / results_date
+    results_dir = RESULTS_DIR / "spt" / results_date
 
-    df.to_excel(xdmf_dir / "information.xlsx", index=True)
+    df.reset_index(level=0, inplace=True)
+    df.rename(columns={"index": "simulation_key"}, inplace=True)
+    console.print(df)
+    df.to_excel(results_dir / "information.xlsx", index=False)
+    df.to_csv(results_dir / "information.tsv", index=False, sep="\t")
+    df.to_latex(results_dir / "information.tex", index=False, float_format="%.7g")
 
     plot_boundary_flux(df)
     plot_colors(df)
