@@ -158,9 +158,9 @@ if __name__ == "__main__":
     df.reset_index(level=0, inplace=True)
     df.rename(columns={"index": "simulation_key"}, inplace=True)
     console.print(df)
-    df.to_excel(results_dir / "information.xlsx", index=False)
-    df.to_csv(results_dir / "information.tsv", index=False, sep="\t")
-    df.to_latex(results_dir / "information.tex", index=False, float_format="%.7g")
+    df.to_excel(results_dir / "simulations.xlsx", index=False)
+    # df.to_csv(results_dir / "simulations.tsv", index=False, sep="\t")
+    # df.to_latex(results_dir / "simulations.tex", index=False, float_format="%.7g")
 
     plot_boundary_flux(df)
     plot_colors(df)
