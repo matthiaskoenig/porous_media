@@ -48,21 +48,32 @@ for kg, lobulus_geometry in enumerate(data["features"]):
     poly = lobulus_geometry["geometry"]
 
     # visualize geojson polygon
-    ax.add_patch(PolygonPatch(poly, fc=BLUE, ec=BLUE, alpha=0.5, zorder=2 ))
+    ax.add_patch(PolygonPatch(poly, fc=BLUE, ec="black", alpha=0.5, zorder=2))
 
-    if kg > 10:
-        break
+    # if kg > 10:
+    #     break
 
-for k, row in df.iterrows():
-    x, y, intensity = row["width"], row["height"], row["intensity"]
-    console.print(x, y, intensity)
-    # relative protein amount
-    cmap = matplotlib.cm.get_cmap('Spectral')
-    color = cmap(intensity)
-    ax.plot(x, y, color=color, marker="o")
-
-
-ax.axis('scaled')
-plt.show()
+# for k, row in df.iterrows():
+#     x, y, intensity, pv_dist = row["width"], row["height"], row["intensity"], row["pv_dist"]
+#
+#     # relative protein amount
+#     cmap = matplotlib.cm.get_cmap('Spectral')
+#     color = cmap(pv_dist)
+#     # careful with x and y
+#     ax.plot(y, x, color=color, marker="o", alpha=0.5)
+#
+# for k, row in df.iterrows():
+#     x, y, intensity, pv_dist = row["width"], row["height"], row["intensity"], row[
+#         "pv_dist"]
+#
+#     # relative protein amount
+#     # use percentiles
+#     if pv_dist > 0.95:
+#         ax.plot(y, x, color="black", marker="s")
+#     elif pv_dist < 0.1:
+#         ax.plot(y, x, color="white", marker="s")
+#
+# ax.axis('scaled')
+# plt.show()
 
 # position and protein information;
