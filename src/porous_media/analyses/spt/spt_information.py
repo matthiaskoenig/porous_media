@@ -23,20 +23,20 @@ boundary_flows = [
 # zonation patterns
 pattern_idx2name = {
     0: "constant",
-    1: "linear_increase",
-    2: "sharp_pericentral",
+    1: "linear increase",
+    2: "sharp pericentral",
     3: "linear decrease",
-    4: "sharp_periportal",
+    4: "sharp periportal",
     5: "random",
 }
 pattern_name2idx = {v: k for k, v in pattern_idx2name.items()}
 
 pattern_order = [
     "constant",
-    "linear_increase",
-    "sharp_pericentral",
+    "linear increase",
+    "sharp pericentral",
     "linear decrease",
-    "sharp_periportal",
+    "sharp periportal",
     "random",
 ]
 
@@ -156,10 +156,10 @@ if __name__ == "__main__":
     results_dir = RESULTS_DIR / "spt" / results_date
 
     df.reset_index(level=0, inplace=True)
-    df.rename(columns={"index": "simulation_key"}, inplace=True)
+    df.rename(columns={"index": "sim_key"}, inplace=True)
     console.print(df)
     df.to_excel(results_dir / "simulations.xlsx", index=False)
-    # df.to_csv(results_dir / "simulations.tsv", index=False, sep="\t")
+    df.to_csv(results_dir / "simulations.tsv", index=False, sep="\t")
     # df.to_latex(results_dir / "simulations.tex", index=False, float_format="%.7g")
 
     plot_boundary_flux(df)
