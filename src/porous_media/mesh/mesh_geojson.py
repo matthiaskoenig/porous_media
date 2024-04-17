@@ -73,7 +73,7 @@ for kg, lobulus_geometry in enumerate(data["features"]):
 #     elif pv_dist < 0.1:
 #         ax.plot(y, x, color="white", marker="s")
 #
-# ax.axis('scaled')
-# plt.show()
+ax.axis('scaled')
+plt.show()
 
 # position and protein information;
