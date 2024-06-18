@@ -31,6 +31,32 @@ def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
     return np.dot(points, rotation_matrix)
 
 
+def find_reflection_angle(points) -> float:
+    """Find the reflection angle from points through the origin."""
+    # Extract x and y coordinates
+    xy_points = points[:, :2]
+
+    # Calculate angles with respect to the origin
+    # angle of all points
+    angles = np.arctan2(xy_points[:, 1], xy_points[:, 0])
+
+    # find mean angle for flipping
+    return (np.nanmin(angles) + np.nanmax(angles))/2
+
+
+def reflect_points(points, angle):
+    """Reflect points at mirror line defined by angle from origin."""
+    # Construct the 3D reflection matrix for the given angle
+    reflection_matrix = np.array([
+        [np.cos(2 * angle), np.sin(2 * angle), 0],
+        [np.sin(2 * angle), -np.cos(2 * angle), 0],
+        [0, 0, 1]
+    ])
+
+    # Apply the reflection matrix to each point
+    return np.dot(points, reflection_matrix.T)
+
+
 def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Create the lobulus from the sixth element."""
     # Duplicate and rotate the mesh five times
@@ -41,9 +67,14 @@ def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarr
 
     # create points
     n_points = len(points)
+    mirror_angle = find_reflection_angle(points)
     for k, angle in enumerate(angles):
+
+        # mirror for matching points
+        reflected_points = reflect_points(points, mirror_angle)
+
         # Rotate only x and y
-        rotated_points = rotate_points(points, angle)
+        rotated_points = rotate_points(reflected_points, angle)
         all_points.append(rotated_points)
 
         # Adjust cell connectivity
