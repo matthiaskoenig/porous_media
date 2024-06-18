@@ -14,7 +14,6 @@ import meshio
 import pyvista as pv
 from pyvista.plotting.utilities import cubemap
 from rich.progress import track
-
 from porous_media import DATA_DIR, RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
@@ -299,11 +298,13 @@ def visualize_interactive(
     elif data_layer.viz_type == "Tensor":
         pvmesh.set_active_tensors(name=name)
 
+    p.show_grid()
+
     # FIXME: add multiple layers on top of each other, combination of data layers
     actor = p.add_mesh(
         pvmesh,
-        show_vertices=False,
-        show_edges=False,
+        show_vertices=True,
+        show_edges=True,
         render_points_as_spheres=True,
         point_size=3,
         line_width=1.0,
