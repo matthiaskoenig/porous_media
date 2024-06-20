@@ -1,4 +1,7 @@
-# Simple test that all variables are read
+"""Reconstruction of geometries from parts.
+
+Helper function for composition and manipulation of mesh geometries.
+"""
 import os
 from pathlib import Path
 from typing import List, Tuple
@@ -31,7 +34,7 @@ def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
     return np.dot(points, rotation_matrix)
 
 
-def find_reflection_angle(points) -> float:
+def find_reflection_angle_in_sixth(points) -> float:
     """Find the reflection angle from points through the origin."""
     # Extract x and y coordinates
     xy_points = points[:, :2]
@@ -56,6 +59,53 @@ def reflect_points(points, angle):
     # Apply the reflection matrix to each point
     return np.dot(points, reflection_matrix.T)
 
+def minimal_distance(points: np.ndarray):
+    """Calculate the minimal distance between points."""
+    # Calculate the pairwise distance matrix
+    distances = np.linalg.norm(points[:, np.newaxis] - points, axis=2)
+
+    # Set the diagonal to infinity to ignore zero distances between the same points
+    np.fill_diagonal(distances, np.inf)
+
+    # Find the minimum distance
+    min_distance = np.min(distances)
+
+    return min_distance
+
+
+def unique_with_tolerance(points: np.ndarray, tol: float):
+    """Find the unique points within a given tolerance."""
+    unique_points = []
+    unique_inverse = np.zeros(points.shape[0], dtype=int)
+    current_label = 0
+    for i, point in enumerate(points):
+        if unique_inverse[i] == 0:
+            distances = np.linalg.norm(points - point, axis=1)
+            close_points = distances < tol
+            unique_inverse[close_points] = current_label
+            unique_points.append(points[close_points].mean(axis=0))
+            current_label += 1
+
+    unique_points = np.array(unique_points)
+    return unique_points, unique_inverse
+
+def remove_duplicate_points(mesh, unique_points, unique_indices):
+    """REmove the duplicate points from."""
+    # Step 2: Update cell data to use new point indices
+    new_cells = []
+    for cell_block in mesh.cells:
+        new_cell_data = unique_indices[cell_block.data]
+        new_cells.append(meshio.CellBlock(cell_block.type, new_cell_data))
+    # Step 3: Filter point data to keep only the rows corresponding to unique points
+    new_point_data = {}
+    for key, data in mesh.point_data.items():
+        new_point_data[key] = np.zeros((len(unique_points), data.shape[1]))
+        for i, index in enumerate(np.unique(unique_indices)):
+            new_point_data[key][i] = data[index]
+    # Step 4: Create a new mesh with unique points and updated cells
+    new_mesh = meshio.Mesh(points=unique_points, cells=new_cells, point_data=new_point_data, cell_data=mesh.cell_data, field_data=mesh.field_data)
+    return new_mesh
+
 
 def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Create the lobulus from the sixth element."""
@@ -67,7 +117,7 @@ def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarr
 
     # create points
     n_points = len(points)
-    mirror_angle = find_reflection_angle(points)
+    mirror_angle = find_reflection_angle_in_sixth(points)
     for k, angle in enumerate(angles):
 
         # mirror for matching points
@@ -105,6 +155,12 @@ def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarr
         full_circle_cells.append(
             meshio.CellBlock(cell_type, np.vstack(cells_for_type))
         )
+
+    # remove duplicate points
+    mesh = meshio.Mesh(points=points, cells=cells, point_data=point_data,
+                       cell_data=cell_data)
+    # Remove duplicate points and update cells
+    modified_mesh = remove_duplicate_points(mesh, unique_points, unique_indices)
 
     return full_circle_points, full_circle_cells
 
@@ -155,54 +211,57 @@ def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> DataLayer
     shutil.move(f"{xdmf_out.stem}.h5", str(xdmf_out.parent))
 
 
-xdmf_path = DATA_DIR / "lobulus_composition" / "sim003.xdmf"
-xdmf_lobulus_path = DATA_DIR / "lobulus_composition" / "sim003_lobulus.xdmf"
-reconstruct_lobulus_from_hexagon(xdmf_in=xdmf_path, xdmf_out=xdmf_lobulus_path)
+if __name__ == "__main__":
+    
 
-xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_lobulus_path)
-console.print(xdmf_info)
-
-
-# --- Visualization
-
-data_layers: List[DataLayer] = [
-    DataLayer(
-        sid="displacement",
-        title="displacement",
-        colormap="magma",
-        viz_type=AttributeType.VECTOR,
-    ),
-    DataLayer(
-        sid="fluid_flux_TPM",
-        title="fluid flux [m/s]",
-        colormap="magma",
-        viz_type=AttributeType.VECTOR,
-    ),
-    DataLayer(
-        sid="pressure",
-        title="Pressure",
-        colormap="magma",
-        viz_type=AttributeType.SCALAR,
-    ),
-    DataLayer(
-        sid="effective_fluid_pressure_TPM",
-        title="Effective fluid pressure [Pa]",
-        colormap="magma",
-        viz_type=AttributeType.SCALAR,
-    ),
-    DataLayer(
-        sid="rr_(S)",
-        title="Substrate S [mM]",
-        colormap="magma",
-        viz_type=AttributeType.SCALAR,
-    ),
-]
-data_layers_dict = {dl.sid: dl for dl in data_layers}
-
-mesh = xdmf_to_mesh(xdmf_path, k=1)
-mesh = xdmf_to_mesh(xdmf_lobulus_path, k=1)
-console.print(mesh)
-visualize_interactive(
-    mesh, data_layer=data_layers_dict["rr_(S)"], visualization_settings=VisualizationSettings()
-)
+    xdmf_path = DATA_DIR / "lobulus_composition" / "sim003.xdmf"
+    xdmf_lobulus_path = DATA_DIR / "lobulus_composition" / "sim003_lobulus.xdmf"
+    reconstruct_lobulus_from_hexagon(xdmf_in=xdmf_path, xdmf_out=xdmf_lobulus_path)
+    
+    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_lobulus_path)
+    console.print(xdmf_info)
+    
+    
+    # --- Visualization
+    
+    data_layers: List[DataLayer] = [
+        DataLayer(
+            sid="displacement",
+            title="displacement",
+            colormap="magma",
+            viz_type=AttributeType.VECTOR,
+        ),
+        DataLayer(
+            sid="fluid_flux_TPM",
+            title="fluid flux [m/s]",
+            colormap="magma",
+            viz_type=AttributeType.VECTOR,
+        ),
+        DataLayer(
+            sid="pressure",
+            title="Pressure",
+            colormap="magma",
+            viz_type=AttributeType.SCALAR,
+        ),
+        DataLayer(
+            sid="effective_fluid_pressure_TPM",
+            title="Effective fluid pressure [Pa]",
+            colormap="magma",
+            viz_type=AttributeType.SCALAR,
+        ),
+        DataLayer(
+            sid="rr_(S)",
+            title="Substrate S [mM]",
+            colormap="magma",
+            viz_type=AttributeType.SCALAR,
+        ),
+    ]
+    data_layers_dict = {dl.sid: dl for dl in data_layers}
+    
+    mesh = xdmf_to_mesh(xdmf_path, k=1)
+    mesh = xdmf_to_mesh(xdmf_lobulus_path, k=1)
+    console.print(mesh)
+    visualize_interactive(
+        mesh, data_layer=data_layers_dict["rr_(S)"], visualization_settings=VisualizationSettings()
+    )
 
