@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "porous_media"
+dynamic = ["version"]
+description = "Python utilities for SBML."
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [
+	{name="Matthias König", email="konigmatt@googlemail.com"},
+]
+maintainers = [
+	{name="Matthias König", email="konigmatt@googlemail.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+	"Intended Audience :: Science/Research",
+	"License :: OSI Approved :: MIT License",
+	"Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+	"Programming Language :: Python :: Implementation :: CPython",
+	"Topic :: Scientific/Engineering",
+	"Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+keywords = [
+    "modeling",
+    "standardization",
+    "theory of porous media",
+    "TPM",
+    "FEM",
+]
+dependencies = [
+    "PyArrow>=23.0.1",
+    "pandas>=3.0.2",
+    "xarray>=2026.2.0",
+    "openpyxl>=3.1.5",
+    "rich>=14.3.3",
+    "meshio>=5.3.5",
+    "pyvista>=0.47.2",
+    "scipy>=1.17.1",
+    "dataclasses-json>=0.6.7",
+    "jinja2>=3.1.6",
+    "Pillow>=12.2.0",
+    "h5py>=3.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "bump-my-version>=1.3.0",
+	"ruff>=0.15.9",
+	"pre-commit>=4.5.1",
+	"mypy>=1.20.0",
+    "tox-uv>=1.34.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+
+[project_urls]
+Homepage = "https://github.com/matthiaskoenig/porous_media"
+Repository = "https://github.com/matthiaskoenig/porous_media"
+Documentation = "https://github.com/matthiaskoenig/porous_media"
+Issues = "https://github.com/matthiaskoenig/porous_media/issues"
+Download = "https://pypi.org/project/porous_media"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/porous_media"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "./src/porous_media/__init__.py"

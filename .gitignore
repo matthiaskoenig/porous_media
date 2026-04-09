@@ -24,3 +24,5 @@ data/simliva_2023-09-20/
 
 *.xplt
 *.vtu
+
+uv.lock

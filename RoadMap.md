@@ -1,4 +1,4 @@
-# Analysis
+# RoadMap
 
 ## XPLT -> VTK conversion
 
@@ -7,7 +7,6 @@
 - [ ] FIXME: calculate the inflow & outflow surfaces; use the cell type to get the inflow and outflow areas
 - [ ] FIXME: calculate perfusion with vector data and geometry; visualization of perfusion
 
----------
 ## Vector fields and streamlines
 - [ ] FIXME: visualize vector data: fluid-flux: vector field & streamlines
 - [ ] FIXME: better combination of panels into figure; i.e. title and colorbar only on selected panels (i.e. different variants of the panels)
@@ -18,7 +17,6 @@
       could also be injected later on.
       This is similar to the added geometry parameters for the mesh, reuse funcationality
 
----------
 # Mesh generation
 - [ ] Histology image with staining; mesh generation from image (spatialPCA) -> species comparison
 

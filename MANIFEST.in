@@ -1,5 +1,0 @@
-include LICENSE
-include README.rst
-include src/porous_media/py.typed
-
-recursive-include src/porous_media *.*

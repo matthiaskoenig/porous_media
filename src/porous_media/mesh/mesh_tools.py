@@ -5,34 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import meshio
-import meshplex
 
 from porous_media.console import console
 from porous_media.data.xdmf_tools import XDMFInfo
-
-
-def add_geometry_variables(xdmf_path: Path) -> None:
-    """Calculate volumes and other important variables using meshplex.
-
-    These will be added to the cell_data and point data.
-    https://meshplex.readthedocs.io/
-
-    necessary to create volume meshes from surface meshes: see https://github.com/meshpro/pygalmesh/issues/93
-
-    meshio.write('out.vtu', xyz, {'tetra': tets})
-
-    """
-
-    console.rule(title="Geometry calculation", style="white")
-    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
-        # FIXME: problem of moving meshes! Is XDMF the right format
-        points, cells = reader.read_points_cells()
-
-        m: meshio.Mesh = meshio.Mesh(points=points, cells=cells)
-
-        mplex = meshplex.from_meshio(m)
-        console.print(type(mplex))
-        console.print(mplex)
 
 
 def mesh_to_xdmf(m: meshio.Mesh, xdmf_path: Path, test_read: bool = False) -> None:
