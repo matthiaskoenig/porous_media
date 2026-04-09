@@ -15,7 +15,6 @@ Support selections of positions; histogramm over position.
 """
 
 from pathlib import Path
-from typing import Optional
 
 import meshio
 import numpy as np
@@ -23,7 +22,6 @@ import pandas as pd
 import xarray as xr
 from rich.progress import Progress, track
 
-from porous_media import DATA_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
 

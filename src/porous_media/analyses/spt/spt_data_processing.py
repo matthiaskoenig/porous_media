@@ -4,7 +4,7 @@ from pathlib import Path
 
 from porous_media.console import console
 from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
-from porous_media.data.xdmf_tools import XDMFInfo, xdmfs_from_directory
+from porous_media.data.xdmf_tools import xdmfs_from_directory
 
 
 def process_spt_simulations(input_dir: Path, xdmf_dir: Path) -> dict[Path, Path]:

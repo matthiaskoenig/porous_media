@@ -9,17 +9,21 @@ from porous_media.console import console
 import pandas as pd
 
 
-
-
-path = Path("/home/mkoenig/work/qualiperf/zonation_meshes/image_data/control/LobuliSegmentation/MNT-021/0")
+path = Path(
+    "/home/mkoenig/work/qualiperf/zonation_meshes/image_data/control/LobuliSegmentation/MNT-021/0"
+)
 geojson_path = path / "lobuli.geojson"
 
-distances_path = Path("/home/mkoenig/work/qualiperf/zonation_meshes/image_data/control/PortalityMap/lobule_distances.csv")
+distances_path = Path(
+    "/home/mkoenig/work/qualiperf/zonation_meshes/image_data/control/PortalityMap/lobule_distances.csv"
+)
 df = pd.read_csv(distances_path)
 console.print(df.head())
 
-df = df[(df.roi==0) & (df.subject=="MNT-021") & (df.protein=="cyp1a2")].copy()
-df = df[(df.width>150) & (df.width<200) & (df.width>150) & (df.height<200)].copy()
+df = df[(df.roi == 0) & (df.subject == "MNT-021") & (df.protein == "cyp1a2")].copy()
+df = df[
+    (df.width > 150) & (df.width < 200) & (df.width > 150) & (df.height < 200)
+].copy()
 print(len(df))
 
 # x: width
@@ -31,16 +35,12 @@ print(len(df))
 # ---
 
 
-
-
-
 with open(geojson_path, "r") as f:
     data = geojson.load(f)
 
-import matplotlib
 fig = plt.figure(figsize=(20, 20), dpi=300)
 ax = fig.gca()
-BLUE = '#6699cc'
+BLUE = "#6699cc"
 
 for kg, lobulus_geometry in enumerate(data["features"]):
     console.rule(style="white")
@@ -73,7 +73,7 @@ for kg, lobulus_geometry in enumerate(data["features"]):
 #     elif pv_dist < 0.1:
 #         ax.plot(y, x, color="white", marker="s")
 #
-ax.axis('scaled')
+ax.axis("scaled")
 plt.show()
 
 # position and protein information;

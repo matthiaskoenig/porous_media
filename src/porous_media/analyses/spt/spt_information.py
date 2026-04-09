@@ -4,7 +4,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from typing import TypedDict, Any
+from typing import Any
 
 from porous_media.console import console
 
@@ -18,7 +18,7 @@ boundary_flows = [
     -1.0677926e-05,
     -1.4118084e-05,
     -1.755824e-05,
-    -2.0938397e-05
+    -2.0938397e-05,
 ]
 
 # zonation patterns
@@ -152,6 +152,7 @@ def plot_colors(df: pd.DataFrame) -> None:
 if __name__ == "__main__":
     from porous_media import DATA_DIR, RESULTS_DIR
     from porous_media.analyses.spt import results_date
+
     df = simulation_conditions_df()
     xdmf_dir = DATA_DIR / "spt" / results_date
     results_dir = RESULTS_DIR / "spt" / results_date

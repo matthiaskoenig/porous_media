@@ -8,13 +8,12 @@ from typing import Iterable
 
 import numpy as np
 
-from porous_media import BASE_DIR, DATA_DIR
+from porous_media import BASE_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     DataLimits,
     XDMFInfo,
     interpolate_xdmf,
-    xdmfs_from_directory,
 )
 from porous_media.log import get_logger
 from porous_media.visualization.image_manipulation import merge_images
@@ -134,7 +133,14 @@ def necrosis_plots(xdmf_paths: list[Path], results_dir: Path) -> None:
     for kt in range(num_time):
         necrosis_paths: list[Path] = []
         for kp, xdmf_path in enumerate(xdmf_paths):
-            p = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{kt:05d}.png"
+            p = (
+                results_dir
+                / f"{num_time}_{tend}"
+                / f"{xdmf_path.stem}"
+                / "panels"
+                / "rr_necrosis"
+                / f"sim_{kt:05d}.png"
+            )
             necrosis_paths.append(p)
 
             # # add the zonation pattern at the end
@@ -162,6 +168,7 @@ def necrosis_plots(xdmf_paths: list[Path], results_dir: Path) -> None:
 
 if __name__ == "__main__":
     from porous_media.analyses.spt import results_date
+
     xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{results_date}/xdmf")
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
     results_dir: Path = BASE_DIR / "results" / "spt" / results_date / "2D"
@@ -169,6 +176,7 @@ if __name__ == "__main__":
 
     # create visualizations
     from porous_media.analyses.spt import data_layers_spt, selection_spt
+
     visualize_spt_2d(
         xdmf_paths=xdmf_paths,
         data_layers=data_layers_spt,

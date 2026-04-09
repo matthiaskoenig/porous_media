@@ -9,8 +9,6 @@ from typing import Iterable, Optional
 import numpy as np
 from PIL import Image
 
-from porous_media.console import console
-
 
 def merge_images(
     paths: Iterable[Path],
