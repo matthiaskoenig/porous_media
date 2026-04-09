@@ -4,6 +4,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from typing import TypedDict, Any
 
 from porous_media.console import console
 
@@ -21,7 +22,7 @@ boundary_flows = [
 ]
 
 # zonation patterns
-pattern_idx2name = {
+pattern_idx2name: dict[int, str] = {
     0: "constant",
     1: "linear increase",
     2: "sharp pericentral",
@@ -31,7 +32,7 @@ pattern_idx2name = {
 }
 pattern_name2idx = {v: k for k, v in pattern_idx2name.items()}
 
-pattern_order = [
+pattern_order: list[str] = [
     "constant",
     "linear increase",
     "sharp pericentral",
@@ -41,7 +42,7 @@ pattern_order = [
 ]
 
 # colors
-pattern_colors = {
+pattern_colors: dict[int, str] = {
     0: "tab:black",
     1: "tab:blue",
     2: "tab:purple",
@@ -49,7 +50,7 @@ pattern_colors = {
     4: "tab:orange",
     5: "tab:green",
 }
-pattern_colormaps = {
+pattern_colormaps: dict[int, str] = {
     0: "Greys",
     1: "Blues",
     2: "Purples",
@@ -91,7 +92,7 @@ def simulation_conditions_df() -> pd.DataFrame:
     return df
 
 
-plot_kwargs = {
+plot_kwargs: dict[str, Any] = {
     "marker": "o",
     "markersize": 10,
     "markeredgecolor": "black",

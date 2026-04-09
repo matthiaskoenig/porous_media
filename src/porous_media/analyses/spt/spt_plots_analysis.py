@@ -1,7 +1,6 @@
 """Analysis of results."""
 
 from pathlib import Path
-from typing import Dict, List
 
 import numpy as np
 import xarray as xr
@@ -26,8 +25,8 @@ label_kwargs = {
 
 def plot_positions(
     results_dir: Path,
-    xr_cells_dict: Dict[str, xr.Dataset],
-    xr_points_dict: Dict[str, xr.Dataset],
+    xr_cells_dict: dict[str, xr.Dataset],
+    xr_points_dict: dict[str, xr.Dataset],
 ) -> None:
     """Plot positions."""
     console.rule(title="SPT positions", style="white")
@@ -105,7 +104,7 @@ def plot_positions(
         )
         # Volume scatter
         y = xr_cells["element_volume_point_TPM"] / 1e-12  # [m^3] -> [nl]
-        ymax = y.max()
+        ymax: float = float(y.max())
         if ymax > ymax_vol:
             ymax_vol = ymax
         axes[k_row, 2].plot(
@@ -116,7 +115,7 @@ def plot_positions(
 
         # Fluid volume scatter
         y = xr_cells["rr_Vext"] / 1e-9  # [l] -> [nl]
-        ymax = y.max()
+        ymax = float(y.max())
         if ymax > ymax_vol:
             ymax_vol = ymax
         axes[k_row, 3].plot(
@@ -126,7 +125,7 @@ def plot_positions(
         )
         # Solid volume scatter
         y = xr_cells["rr_Vli"] / 1e-9  # [l] -> [nl]
-        ymax = y.max()
+        ymax = float(y.max())
         if ymax > ymax_vol:
             ymax_vol = ymax
         axes[k_row, 4].plot(
@@ -141,7 +140,7 @@ def plot_positions(
             **kwargs_scatter,
         )
 
-    for k_row, _ in enumerate(pattern_order):
+    for k_row in range(len(pattern_order)):
         # axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
 
         for k_col in range(n_cols):
@@ -164,7 +163,7 @@ def plot_positions(
 
 def plot_spt_over_time(
     results_dir: Path,
-    xr_cells_dict: Dict[str, xr.Dataset],
+    xr_cells_dict: dict[str, xr.Dataset],
     times: np.ndarray,
 ) -> None:
     """Plot SPT over time."""
@@ -228,7 +227,7 @@ def plot_spt_over_time(
                 if sid not in ylim_maxs:
                     ylim_maxs[sid] = 0.0
                 if (y + yerr).max() > ylim_maxs[sid]:
-                    ylim_maxs[sid] = (y + yerr).max()
+                    ylim_maxs[sid] = float((y + yerr).max())
 
                 ax = axes[k_row, k_col]
                 ax.errorbar(
@@ -267,7 +266,7 @@ def plot_spt_over_time(
 
 def plot_spt_over_position(
     results_dir: Path,
-    xr_cells_dict: Dict[str, xr.Dataset],
+    xr_cells_dict: dict[str, xr.Dataset],
 ) -> None:
     """Plot SPT over position."""
     console.rule(title="SPT position", style="white")
@@ -330,7 +329,7 @@ def plot_spt_over_position(
                 if sid not in ylim_maxs:
                     ylim_maxs[sid] = 0.0
                 if y.max() > ylim_maxs[sid]:
-                    ylim_maxs[sid] = y.max()
+                    ylim_maxs[sid] = float(y.max())
 
                 ax = axes[k_row, k_col]
                 ax.plot(
@@ -370,9 +369,9 @@ if __name__ == "__main__":
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
     # Load xarray datasets
-    xr_cells_dict: Dict[str, xr.Dataset] = {}
-    xr_points_dict: Dict[str, xr.Dataset] = {}
-    tend: float = np.Inf
+    xr_cells_dict: dict[str, xr.Dataset] = {}
+    xr_points_dict: dict[str, xr.Dataset] = {}
+    tend: float = np.inf
     for xdmf_path in xdmf_paths:
         xr_cells, xr_points = mesh_datasets_from_xdmf(xdmf_path)
 

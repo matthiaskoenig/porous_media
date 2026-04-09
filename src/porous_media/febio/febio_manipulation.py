@@ -6,8 +6,6 @@ dependencies:
 """
 
 from pathlib import Path
-from typing import Dict, List
-
 import jinja2
 import numpy as np
 
@@ -16,7 +14,7 @@ import numpy as np
 
 
 def create_feb_files(
-    feb_template: Path, feb_data: Dict[str, Dict], output_dir: Path
+    feb_template: Path, feb_data: dict[str, dict], output_dir: Path
 ) -> None:
     """Create feb files from template by rendering the template tags with information.
 

@@ -4,7 +4,7 @@ Creates static plots and videos of the TPM simulations.
 """
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Set
+from typing import Iterable
 
 import numpy as np
 
@@ -31,9 +31,9 @@ logger = get_logger(__name__)
 
 def visualize_spt_2d(
     xdmf_paths: Iterable[Path],
-    data_layers: List[DataLayer],
+    data_layers: list[DataLayer],
     results_dir: Path,
-    selection: List[str],
+    selection: list[str],
     create_panels: bool = True,
 ) -> None:
     """Create static images and video."""
@@ -55,7 +55,7 @@ def visualize_spt_2d(
             output_dir.mkdir(exist_ok=True, parents=True)
 
             # interpolate and global limits
-            all_limits: List[DataLimits] = []
+            all_limits: list[DataLimits] = []
             for xdmf_path in xdmf_paths:
                 # interpolate & calculate limits
                 interpolate_xdmf(
@@ -86,7 +86,7 @@ def visualize_spt_2d(
     for num in [10, 200]:
         for xdmf_path in xdmf_paths:
             output_dir = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}"
-            rows: List[Path] = create_combined_images(
+            rows: list[Path] = create_combined_images(
                 num_steps=num,
                 direction="horizontal",
                 output_dir=output_dir,
@@ -112,7 +112,7 @@ def visualize_spt_2d(
                 create_gif_from_video(video_path=video_path, gif_path=gif_path)
 
 
-def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
+def necrosis_plots(xdmf_paths: list[Path], results_dir: Path) -> None:
     """Combine panels for the necrosis plots."""
     console.rule("Create necrosis plots", style="white", align="left")
 
@@ -132,7 +132,7 @@ def necrosis_plots(xdmf_paths: List[Path], results_dir: Path) -> None:
     necrosis_dir.mkdir(parents=True, exist_ok=True)
 
     for kt in range(num_time):
-        necrosis_paths: List[Path] = []
+        necrosis_paths: list[Path] = []
         for kp, xdmf_path in enumerate(xdmf_paths):
             p = results_dir / f"{num_time}_{tend}" / f"{xdmf_path.stem}" / "panels" / "rr_necrosis" / f"sim_{kt:05d}.png"
             necrosis_paths.append(p)

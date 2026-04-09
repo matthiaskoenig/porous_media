@@ -40,8 +40,6 @@ if __name__ == "__main__":
     xdmf_info = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)
 
-    add_geometry_variables(xdmf_path)
-
     # console.rule(style="white")
     # xr_cells: xr.Dataset
     # xr_points: xr.Dataset

@@ -1,7 +1,6 @@
 """Visualization of example results."""
 
 from pathlib import Path
-from typing import Dict, List
 
 import numpy as np
 
@@ -17,7 +16,7 @@ from porous_media.visualization.pyvista_visualization import (
 from porous_media.visualization.video import create_video
 
 
-def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> None:
+def visualize_group(scalars: list[DataLayer], create_panels: bool = True) -> None:
     """Gradient dependency."""
     sim_dir = DATA_DIR / "examples" / "Group_PF_ideal_TPM"
     xdmf_path = sim_dir / "results.xdmf"
@@ -48,7 +47,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
         )
 
     # subset of scalars to visualize
-    scalars_selection: List[str] = [
+    scalars_selection: list[str] = [
         "stress",
         "fluid_flux_TPM",
         "seepage_velocity_TPM",
@@ -58,7 +57,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
     ]
 
     # Create combined image
-    rows: List[Path] = create_combined_images(
+    rows: list[Path] = create_combined_images(
         num_steps=num_steps,
         output_dir=output_dir,
         selection=scalars_selection,
@@ -85,7 +84,7 @@ def visualize_group(scalars: List[DataLayer], create_panels: bool = True) -> Non
 
 
 if __name__ == "__main__":
-    scalars: List[DataLayer] = [
+    scalars: list[DataLayer] = [
         DataLayer(sid="stress", title="Stress", colormap="RdBu"),
         DataLayer(sid="fluid_flux_TPM", title="Fluid flux TPM", colormap="RdBu"),
         DataLayer(

@@ -1,7 +1,7 @@
 """Helpers for zonated meshes."""
 
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Optional
 
 import meshio
 import numpy as np
@@ -78,10 +78,11 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Exponential increasing pattern in [0, 1]."""
-        return f_scale * (
+        result: np.ndarray = f_scale * (
             value_min
             + (value_max - value_min) * (np.exp(p) - 1.0) / (np.exp(1.0) - 1.0)
         )
+        return result
 
     @staticmethod
     def exp_decrease(
@@ -128,9 +129,10 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Sharp periportal pattern in [0, 1]."""
-        return f_scale * (
+        result: np.ndarray = f_scale * (
             value_min + (value_max - value_min) * (1 - p**n / (p**n + 0.25**n))
         )
+        return result
 
     @staticmethod
     def sharp_periveneous(
@@ -141,16 +143,18 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Sharp periveneous pattern in [0, 1]."""
-        return f_scale * (
-            value_min
-            + (value_max - value_min) * (1 - (1 - p) ** n / ((1 - p) ** n + 0.25**n))
-        )
+        result: np.ndarray = f_scale * (value_min + (value_max - value_min) *
+                                        (1 - (1 - p) ** n / ((1 - p) ** n + 0.25**n)))
+        return result
+
+
+
 
 
 class ZonatedMesh:
     """Class for zonated meshes."""
 
-    patterns: List[Callable] = [
+    patterns: list[Callable] = [
         # increasing patterns
         ZonationPatterns.linear_increase,
         ZonationPatterns.exp_increase,
@@ -171,13 +175,13 @@ class ZonatedMesh:
     def create_zonated_mesh_from_vtk(
         cls,
         vtk_path: Path,
-        patterns: Optional[List[Callable]] = None,
+        patterns: Optional[list[Callable]] = None,
         remove_point_data: bool = True,
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
     ) -> meshio.Mesh:
         """Create a zonated mesh from VTK and serialize results to XDMF."""
-        f_patterns: List[Callable] = cls.patterns if patterns is None else patterns
+        f_patterns: list[Callable] = cls.patterns if patterns is None else patterns
 
         # mesh
         mesh: meshio.Mesh = meshio.read(vtk_path)
@@ -238,11 +242,11 @@ class ZonatedMesh:
 
         # calculate positions based on cell_type info
         cell_type: np.ndarray = m.cell_data["cell_type"][0]
-        position = np.NaN * np.ones_like(cell_type)
+        position = np.nan * np.ones_like(cell_type)
 
-        pp_cells: Dict[int, np.ndarray] = {}
-        pv_cells: Dict[int, np.ndarray] = {}
-        inner_cells: Dict[int, np.ndarray] = {}
+        pp_cells: dict[int, np.ndarray] = {}
+        pv_cells: dict[int, np.ndarray] = {}
+        inner_cells: dict[int, np.ndarray] = {}
         cell_block: meshio._mesh.CellBlock
 
         for _, cell_block in enumerate(m.cells):
@@ -267,7 +271,7 @@ class ZonatedMesh:
 
                 # inner cell
                 elif np.isclose(cell_type[kc], 0.0):
-                    position[kc] = np.NaN
+                    position[kc] = np.nan
                     inner_cells[kc] = center
 
         # calculate pp-pv position for all inner cells
@@ -275,14 +279,14 @@ class ZonatedMesh:
             # shortest distance perivenous
             dpv = 1.0
             for center_pv in pv_cells.values():
-                d = np.linalg.norm(center - center_pv)
+                d: float = float(np.linalg.norm(center - center_pv))
                 if d < dpv:
                     dpv = d
 
             # shortest distance periportal
             dpp = 1.0
             for center_pp in pp_cells.values():
-                d = np.linalg.norm(center - center_pp)
+                d = float(np.linalg.norm(center - center_pp))
                 if d < dpp:
                     dpp = d
 
@@ -350,16 +354,16 @@ def visualize_zonation_patterns(
     mesh: meshio.Mesh,
     results_path: Path,
     image_name: str,
-    data_layers: List[DataLayer],
+    data_layers: list[DataLayer],
     direction: str = "horizontal",
     drange_type: DataRangeType = DataRangeType.LOCAL,
 ) -> None:
     """Visualize zonation patterns."""
-    dl_sids: List[str] = [dl.sid for dl in data_layers]
+    dl_sids: list[str] = [dl.sid for dl in data_layers]
 
     # calculate the data ranges
-    dmins: Dict[str, float] = {}
-    dmaxs: Dict[str, float] = {}
+    dmins: dict[str, float] = {}
+    dmaxs: dict[str, float] = {}
 
     for key in dl_sids:
         data = mesh.cell_data[key][0]
@@ -388,7 +392,7 @@ def visualize_zonation_patterns(
         visualization_settings=VisualizationSettings(off_screen=True),
     )
     # combine images
-    images: List[Path] = []
+    images: list[Path] = []
     for scalar in data_layers:
         img_path = results_path / scalar.sid / f"{image_name}.png"
         images.append(img_path)

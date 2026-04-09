@@ -15,7 +15,7 @@ Support selections of positions; histogramm over position.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import meshio
 import numpy as np
@@ -31,7 +31,7 @@ from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
 def mesh_datasets_from_xdmf(
     xdmf_path: Path,
     overwrite: bool = False,
-) -> Tuple[xr.Dataset, xr.Dataset]:
+) -> tuple[xr.Dataset, xr.Dataset]:
     """Create the cell_data and point_data xarray DataSet.
 
     Here the actual mesh geometry is not important, but information is stored for
@@ -50,12 +50,12 @@ def mesh_datasets_from_xdmf(
     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     # console.print(xdmf_info)
 
-    dfs_cell_data: List[pd.DataFrame] = []
-    dfs_point_data: List[pd.DataFrame] = []
+    dfs_cell_data: list[pd.DataFrame] = []
+    dfs_point_data: list[pd.DataFrame] = []
 
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
-        data_cell: Dict[str, np.ndarray] = {}
-        data_point: Dict[str, np.ndarray] = {}
+        data_cell: dict[str, np.ndarray] = {}
+        data_point: dict[str, np.ndarray] = {}
 
         _, _ = reader.read_points_cells()
         tnum = reader.num_steps

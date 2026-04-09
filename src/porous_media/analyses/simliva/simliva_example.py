@@ -1,7 +1,6 @@
 """Example for plotting."""
 
 from pathlib import Path
-from typing import Dict, List
 
 from porous_media import BASE_DIR
 from porous_media.analyses.spt.spt_plots_geometry import visualize_spt_2d
@@ -15,7 +14,7 @@ logger = get_logger(__name__)
 
 # Definition of variables for which panels are generated (this should be pretty
 # complete and be created based on the XMDFInfo
-data_layers_simliva: List[DataLayer] = [
+data_layers_simliva: list[DataLayer] = [
     DataLayer(
         sid="rr_necrosis",
         title="Necrosis (0: alive, 1: death)",
@@ -55,7 +54,7 @@ data_layers_simliva: List[DataLayer] = [
 ]
 
 # subset of scalars to visualize
-selection_simliva: List[str] = [
+selection_simliva: list[str] = [
     "rr_necrosis",
     "rr_(glc)",
     "rr_(o2)",
@@ -74,7 +73,7 @@ if __name__ == "__main__":
     # Put all simulations in a single folder and call the xdmfs_from_directory on the
     # folder
     xdmf_dir = Path("/home/mkoenig/git/porous_media/data/simliva_2023-09-20/")
-    xdmf_dict: Dict[Path, Path] = xdmfs_from_directory(
+    xdmf_dict: dict[Path, Path] = xdmfs_from_directory(
         input_dir=Path("/home/mkoenig/git/porous_media/data/simliva_2023-09-20/"),
         xdmf_dir=xdmf_dir,
         overwrite=False,

@@ -5,16 +5,16 @@ E.g. streamlines in addition to other data.
 
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable, Optional
 
 import meshio
 import pyvista as pv
-from pyvista.plotting.utilities import cubemap
+from pyvista.plotting._typing import ColormapOptions
 from rich.progress import track
-from porous_media import DATA_DIR, RESOURCES_DIR, RESULTS_DIR
+from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     AttributeType,
@@ -71,9 +71,9 @@ class DataLayer:
 
     sid: str
     title: str
-    colormap: str = "magma"
+    colormap: ColormapOptions = "magma"
     viz_type: AttributeType = AttributeType.SCALAR
-    color_limits: Optional[Tuple[float, float]] = None
+    color_limits: Optional[tuple[float, float]] = None
     scalar_bar: bool = True
     conversion_factor: Optional[float] = None
 
@@ -95,7 +95,7 @@ def visualize_datalayers_timecourse(
     xdmf_path: Path,
     output_dir: Path,
     data_layers: Iterable[DataLayer],
-    window_size: Tuple[int, int] = (600, 600),
+    window_size: tuple[int, int] = (600, 600),
 ) -> None:
     """Create visualizations for individual panels.
 
@@ -142,12 +142,12 @@ class VisualizationSettings:
     """
 
     # plotter settings
-    window_size: Tuple[float, float] = (1000, 1000)
+    window_size: list[int] = field(default_factory=lambda: [1000, 1000])
     off_screen: bool = (
         True  # False: blocking interactive visualization, True: batch mode
     )
 
-    camera_position: Tuple[float, float, float] = (0, 3e-4, 1e-3)
+    camera_position: tuple[float, float, float] = (0, 3e-4, 1e-3)
     zoom: float = 1.1
 
 
@@ -175,7 +175,7 @@ def visualize_data_layers(
     pvmesh.set_active_vectors(None)
 
     # visualize data_layers
-    data_layers_dict: Dict[str, DataLayer] = {dl.sid: dl for dl in data_layers}
+    data_layers_dict: dict[str, DataLayer] = {dl.sid: dl for dl in data_layers}
     for name, data_layer in data_layers_dict.items():
         p = pv.Plotter(
             window_size=visualization_settings.window_size,
@@ -204,7 +204,7 @@ def visualize_data_layers(
             clim=data_layer.color_limits,
         )
         if data_layer.scalar_bar:
-            p.add_scalar_bar(
+            p.add_scalar_bar(  # type: ignore[call-arg]
                 title=data_layer.title,
                 n_labels=5,
                 bold=True,
@@ -245,14 +245,14 @@ def create_combined_images(
     direction: str,
     ncols: Optional[int] = None,
     nrows: Optional[int] = None,
-) -> List[Path]:
+) -> list[Path]:
     """Create combined images for all timepoints."""
 
     image_dir: Path = output_dir / direction
     image_dir.mkdir(parents=True, exist_ok=True)
-    all_images: List[Path] = []
+    all_images: list[Path] = []
     for k in track(range(num_steps), description="Creating combined images ..."):
-        images: List[Path] = []
+        images: list[Path] = []
         for name in selection:
             img_path = output_dir / "panels" / name / f"sim_{k:05d}.png"
             images.append(img_path)
@@ -298,7 +298,9 @@ def visualize_interactive(
     elif data_layer.viz_type == "Tensor":
         pvmesh.set_active_tensors(name=name)
 
-    p.show_grid()
+    p.show_grid(
+        # type: ignore[call-arg]
+    )
 
     # FIXME: add multiple layers on top of each other, combination of data layers
     actor = p.add_mesh(
@@ -329,8 +331,12 @@ def visualize_interactive(
     # p.add_light(light)
 
     # p.add_floor('-z', lighting=True, color='white', pad=1.0)
-    p.add_floor("-z", lighting=True, color="white", pad=0.5)
-    p.enable_shadows()
+    p.add_floor(  # type: ignore[call-arg]
+        face="-z", lighting=True, color="white", pad=0.5
+    )
+    p.enable_shadows(
+        # type: ignore[call-arg]
+    )
 
     # TODO:
     # # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
@@ -341,7 +347,7 @@ def visualize_interactive(
     # )
 
     if data_layer.scalar_bar:
-        p.add_scalar_bar(
+        p.add_scalar_bar(  # type: ignore[call-arg]
             title=data_layer.title,
             n_labels=5,
             bold=True,
@@ -392,7 +398,7 @@ if __name__ == "__main__":
     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)
 
-    data_layers: List[DataLayer] = [
+    data_layers: list[DataLayer] = [
         DataLayer(
             sid="displacement",
             title="displacement",

@@ -13,7 +13,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import meshio
 import numpy as np
@@ -46,7 +46,7 @@ class AttributeInfo:
 
     name: str
     attribute_type: AttributeType
-    shape: Tuple
+    shape: tuple
 
 
 @dataclass
@@ -69,10 +69,10 @@ class XDMFInfo:
     num_steps: int
     num_points: int
     num_cells: int
-    points: List[Any]
-    cells: List[Any]
-    point_data: Dict[str, AttributeInfo]
-    cell_data: Dict[str, AttributeInfo]
+    points: list[Any]
+    cells: list[Any]
+    point_data: dict[str, AttributeInfo]
+    cell_data: dict[str, AttributeInfo]
 
     @staticmethod
     def from_path(xdmf_path: Path) -> XDMFInfo:
@@ -127,7 +127,7 @@ class XDMFInfo:
 class DataLimits:
     """Limits of numerical data."""
 
-    limits: Dict[str, Tuple[float, float]]
+    limits: dict[str, tuple[float, float]]
 
     @classmethod
     def json_path_from_xdmf(cls, xdmf_path: Path) -> Path:
@@ -153,8 +153,8 @@ class DataLimits:
         # read information
         xdmf_info = XDMFInfo.from_path(xdmf_path)
 
-        point_limits: Dict[str, Tuple[float, float]] = {}
-        cell_limits: Dict[str, Tuple[float, float]] = {}
+        point_limits: dict[str, tuple[float, float]] = {}
+        cell_limits: dict[str, tuple[float, float]] = {}
         with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
             _, _ = reader.read_points_cells()
 
@@ -172,7 +172,7 @@ class DataLimits:
                     dmin = float(data.min())  # casting for JSON serialization
                     dmax = float(data.max())
 
-                    limits: Tuple[float, float]
+                    limits: tuple[float, float]
                     if k == 0:
                         point_limits[name] = (dmin, dmax)
 
@@ -209,14 +209,14 @@ class DataLimits:
             }
         )
         with open(json_path, "w") as f_json:
-            djson: Dict = data_limits.to_dict()  # type: ignore
+            djson: dict = data_limits.to_dict()  # type: ignore
             json.dump(djson, fp=f_json, indent=2)
 
         console.print(f"json file created: {json_path}")
         return data_limits
 
     @staticmethod
-    def merge_limits(data_limits: List[DataLimits]) -> DataLimits:
+    def merge_limits(data_limits: list[DataLimits]) -> DataLimits:
         """Merge the limits from multiple data limits."""
 
         # copy limits from simulation 0
@@ -237,7 +237,7 @@ class DataLimits:
 
 def xdmfs_from_directory(
     input_dir: Path, xdmf_dir: Path, overwrite: bool = False
-) -> Dict[Path, Path]:
+) -> dict[Path, Path]:
     """Create the XDMF files from a given input directory.
 
     E.g. this is the FEBIO output directory. This should be a directory with possible
@@ -255,7 +255,7 @@ def xdmfs_from_directory(
     # processes all folders with vtk
 
     # iterate over all directories and subdirectories to collect vtk directories
-    vtk_dirs: List[Path] = []
+    vtk_dirs: list[Path] = []
     all_dirs = sorted([input_dir] + list(input_dir.rglob("*")))
 
     for d in all_dirs:
@@ -272,7 +272,7 @@ def xdmfs_from_directory(
         )
 
     # process the VTKs in the directory
-    xdmf_dict: Dict[Path, Path] = {}
+    xdmf_dict: dict[Path, Path] = {}
     for vtk_dir in vtk_dirs:
         d_name = str(vtk_dir.relative_to(input_dir))
         d_name = d_name.replace("/", "__")
@@ -435,7 +435,7 @@ if __name__ == "__main__":
     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
     console.print(xdmf_info)
 
-    xdmf_paths: List[Path] = [
+    xdmf_paths: list[Path] = [
         Path(f"/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf")
         for k in range(21, 26)
     ]
@@ -447,7 +447,7 @@ if __name__ == "__main__":
     console.print(xdmf_info)
 
     # limits of individual simulations
-    all_limits: List[DataLimits] = []
+    all_limits: list[DataLimits] = []
     for xdmf_path in xdmf_paths:
         limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
         all_limits.append(limits)

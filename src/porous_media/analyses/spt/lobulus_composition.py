@@ -4,7 +4,6 @@ Helper function for composition and manipulation of mesh geometries.
 """
 import os
 from pathlib import Path
-from typing import List, Tuple
 import shutil
 import meshio
 import numpy as np
@@ -31,10 +30,11 @@ def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
         [0.0, 0.0, 1.0],
     ])
 
-    return np.dot(points, rotation_matrix)
+    result: np.ndarray = np.dot(points, rotation_matrix)
+    return result
 
 
-def find_reflection_angle_in_sixth(points) -> float:
+def find_reflection_angle_in_sixth(points: np.ndarray) -> float:
     """Find the reflection angle from points through the origin."""
     # Extract x and y coordinates
     xy_points = points[:, :2]
@@ -44,10 +44,11 @@ def find_reflection_angle_in_sixth(points) -> float:
     angles = np.arctan2(xy_points[:, 1], xy_points[:, 0])
 
     # find mean angle for flipping
-    return (np.nanmin(angles) + np.nanmax(angles))/2
+    result: float = (np.nanmin(angles) + np.nanmax(angles))/2
+    return result
 
 
-def reflect_points(points, angle):
+def reflect_points(points: np.ndarray, angle: float) -> np.ndarray:
     """Reflect points at mirror line defined by angle from origin."""
     # Construct the 3D reflection matrix for the given angle
     reflection_matrix = np.array([
@@ -57,9 +58,10 @@ def reflect_points(points, angle):
     ])
 
     # Apply the reflection matrix to each point
-    return np.dot(points, reflection_matrix.T)
+    result: np.ndarray = np.dot(points, reflection_matrix.T)
+    return result
 
-def minimal_distance(points: np.ndarray):
+def minimal_distance(points: np.ndarray) -> float:
     """Calculate the minimal distance between points."""
     # Calculate the pairwise distance matrix
     distances = np.linalg.norm(points[:, np.newaxis] - points, axis=2)
@@ -68,12 +70,12 @@ def minimal_distance(points: np.ndarray):
     np.fill_diagonal(distances, np.inf)
 
     # Find the minimum distance
-    min_distance = np.min(distances)
+    min_distance: float = np.min(distances)
 
     return min_distance
 
 
-def unique_with_tolerance(points: np.ndarray, tol: float):
+def unique_with_tolerance(points: np.ndarray, tol: float) -> tuple[np.ndarray, np.ndarray]:
     """Find the unique points within a given tolerance."""
     unique_points = []
     unique_inverse = np.zeros(points.shape[0], dtype=int)
@@ -89,8 +91,8 @@ def unique_with_tolerance(points: np.ndarray, tol: float):
     unique_points = np.array(unique_points)
     return unique_points, unique_inverse
 
-def remove_duplicate_points(mesh, unique_points, unique_indices):
-    """REmove the duplicate points from."""
+def remove_duplicate_points(mesh: meshio.Mesh, unique_points: np.ndarray, unique_indices) -> meshio.Mesh:
+    """Remove the duplicate points."""
     # Step 2: Update cell data to use new point indices
     new_cells = []
     for cell_block in mesh.cells:
@@ -107,7 +109,7 @@ def remove_duplicate_points(mesh, unique_points, unique_indices):
     return new_mesh
 
 
-def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Create the lobulus from the sixth element."""
     # Duplicate and rotate the mesh five times
     angles = 2 * np.pi / 6 * np.linspace(start=1, stop=5, num=5)
@@ -116,6 +118,7 @@ def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarr
     all_cells = [cells]
 
     # create points
+    cell_block: meshio.CellBlock
     n_points = len(points)
     mirror_angle = find_reflection_angle_in_sixth(points)
     for k, angle in enumerate(angles):
@@ -146,7 +149,6 @@ def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarr
 
     for cell_type in cell_types:
         cells_for_type = []
-        cell_block: meshio.CellBlock
         for cell_block_list in all_cells:
             for cell_block in cell_block_list:
                 if cell_block.type == cell_type:
@@ -165,7 +167,7 @@ def create_lobulus_mesh(points: np.ndarray, cells: np.ndarray) -> Tuple[np.ndarr
     return full_circle_points, full_circle_cells
 
 
-def create_lobulus_data(point_data: np.ndarray, cell_data: List[np.ndarray]) -> Tuple:
+def create_lobulus_data(point_data: np.ndarray, cell_data: list[np.ndarray]) -> tuple:
     """Create the lobulus data from the sixth element."""
     new_point_data = {}
     for key, data in point_data.items():
@@ -182,7 +184,7 @@ def create_lobulus_data(point_data: np.ndarray, cell_data: List[np.ndarray]) -> 
     return new_point_data, new_cell_data
 
 
-def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> DataLayer:
+def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> None:
     """Construct lobulus data layer from hexagonal xdmf file."""
 
     # Read the original sixth of the circle mesh
@@ -212,19 +214,19 @@ def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> DataLayer
 
 
 if __name__ == "__main__":
-    
+
 
     xdmf_path = DATA_DIR / "lobulus_composition" / "sim003.xdmf"
     xdmf_lobulus_path = DATA_DIR / "lobulus_composition" / "sim003_lobulus.xdmf"
     reconstruct_lobulus_from_hexagon(xdmf_in=xdmf_path, xdmf_out=xdmf_lobulus_path)
-    
+
     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_lobulus_path)
     console.print(xdmf_info)
-    
-    
+
+
     # --- Visualization
-    
-    data_layers: List[DataLayer] = [
+
+    data_layers: list[DataLayer] = [
         DataLayer(
             sid="displacement",
             title="displacement",
@@ -257,7 +259,7 @@ if __name__ == "__main__":
         ),
     ]
     data_layers_dict = {dl.sid: dl for dl in data_layers}
-    
+
     mesh = xdmf_to_mesh(xdmf_path, k=1)
     mesh = xdmf_to_mesh(xdmf_lobulus_path, k=1)
     console.print(mesh)

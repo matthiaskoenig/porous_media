@@ -1,7 +1,6 @@
 """Read VTU files for visualization."""
 
 from pathlib import Path
-from typing import List
 
 import meshio
 
@@ -49,7 +48,7 @@ if __name__ == "__main__":
     console.print(f"{mesh.cell_data}")
     console.print(f"{mesh.point_data}")
 
-    data_layers: List[DataLayer] = [
+    data_layers: list[DataLayer] = [
         DataLayer(
             sid="p",
             title="pressure p",

@@ -13,25 +13,6 @@ uv venv --python 3.14
 uv pip install porous_media
 ```
 
-# Development
-## Setup environment
-```bash
-uv sync --group dev
-```
-Setup pre-commit
-```bash
-pre-commit install
-pre-commit run
-```
 
-## Testing
-Run single target
-```bash
-tox r -e py314
-```
-Run all tests in parallel
-```bash
-tox run-parallel
-```
 
 

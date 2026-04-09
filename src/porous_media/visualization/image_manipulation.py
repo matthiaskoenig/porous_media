@@ -4,7 +4,7 @@ Combine and annotate images using PIL.
 """
 
 from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 import numpy as np
 from PIL import Image

@@ -38,7 +38,7 @@ def calculate_necrosis_fraction(xr_cells: xr.Dataset) -> xr.Dataset:
         raise ValueError(f"'necrosis' must be <= 1.0, but maximum is {necrosis.max()}")
 
     # calculate necrosis fraction over time
-    necrosis_fraction = (necrosis * cell_volumes).sum(dim="cell") / cell_volumes.sum(
+    necrosis_fraction: xr.Dataset = (necrosis * cell_volumes).sum(dim="cell") / cell_volumes.sum(
         dim="cell"
     )
 

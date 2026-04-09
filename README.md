@@ -52,6 +52,29 @@ The develop version can be installed via
 pip install git+https://github.com/matthiaskoenig/porous_media.git@develop
 ```
 
+## Development
+Setup develop environment
+```bash
+uv sync --group dev
+```
+Setup pre-commit
+```bash
+pre-commit install
+pre-commit run
+```
+
+## Testing
+Run all tests in parallel
+```bash
+tox run-parallel
+```
+
+Run single target
+```bash
+tox r -e py314
+```
+
+
 ## Funding
 Matthias König is supported and by the German Research Foundation (DFG) within the Research Unit Programme FOR 5151 
 "QuaLiPerF (Quantifying Liver Perfusion-Function Relationship in Complex Resection - 

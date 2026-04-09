@@ -1,7 +1,6 @@
 """Annotate images with text."""
 
 from pathlib import Path
-from typing import Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -10,7 +9,7 @@ from porous_media.console import console
 
 
 def annotate_image_text(
-    image_in_path: Path, image_out_path: Path, text: str, xy: Tuple[int, int] = (10, 10)
+    image_in_path: Path, image_out_path: Path, text: str, xy: tuple[int, int] = (10, 10)
 ) -> None:
     """Annotate images with text and store the resulting image."""
     console.print(f"Annotate: {image_in_path}")
