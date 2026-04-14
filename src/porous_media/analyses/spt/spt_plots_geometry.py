@@ -169,7 +169,9 @@ def necrosis_plots(xdmf_paths: list[Path], results_dir: Path) -> None:
 if __name__ == "__main__":
     from porous_media.analyses.spt import results_date
 
-    xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{results_date}/xdmf")
+    xdmf_dir = Path(
+        f"/home/mkoenig/git/porous_media/data/spt/{results_date}/simulations/xdmf"
+    )
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
     results_dir: Path = BASE_DIR / "results" / "spt" / results_date / "2D"
     results_dir.mkdir(parents=True, exist_ok=True)

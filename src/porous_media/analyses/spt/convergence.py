@@ -230,8 +230,8 @@ def create_lobulus_data(point_data: np.ndarray, cell_data: list[np.ndarray]) -> 
 
 
 if __name__ == "__main__":
-    xdmf_path = DATA_DIR / "lobulus_composition" / "sim003.xdmf"
-    xdmf_lobulus_path = DATA_DIR / "lobulus_composition" / "sim003_lobulus.xdmf"
+    xdmf_path = DATA_DIR / "convergence" / "sim003.xdmf"
+    xdmf_lobulus_path = DATA_DIR / "convergence" / "sim003_lobulus.xdmf"
     # FIXME
     # reconstruct_lobulus_from_hexagon(xdmf_in=xdmf_path, xdmf_out=xdmf_lobulus_path)
 

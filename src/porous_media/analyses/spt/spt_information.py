@@ -9,7 +9,7 @@ from typing import Any
 from porous_media.console import console
 
 
-# substrate boundary flows (2024-02-02)
+# substrate boundary flows (2026-04-14)
 boundary_flows = [
     -3.797784e-06,
     -4.6576515e-06,
@@ -156,6 +156,7 @@ if __name__ == "__main__":
     df = simulation_conditions_df()
     xdmf_dir = DATA_DIR / "spt" / results_date
     results_dir = RESULTS_DIR / "spt" / results_date
+    results_dir.mkdir(parents=True, exist_ok=True)
 
     df.reset_index(level=0, inplace=True)
     df.rename(columns={"index": "sim_key"}, inplace=True)

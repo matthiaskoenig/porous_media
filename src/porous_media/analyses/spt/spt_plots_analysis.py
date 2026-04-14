@@ -299,8 +299,10 @@ def plot_spt_over_position(
                 (df.pattern_key == pattern_key)
                 & (df.boundary_flow_key == boundary_flow_key)
             ]
+
+            console.print(df_sim)
             sim_id = df_sim.index[0]
-            color = df_sim.color[0]
+            color = df_sim.color[sim_id]
 
             xr_cells_raw = xr_cells_dict[sim_id]
 
@@ -360,12 +362,16 @@ def plot_spt_over_position(
 if __name__ == "__main__":
     """Analysis plots of the SPT simulations."""
 
-    results_date = "2024-02-02"
+    from porous_media import RESULTS_DIR
+
+    results_date = "2026-04-14"
 
     console.rule(title=f"SPT analysis: {results_date}", style="white")
 
     # XDMF
-    xdmf_dir = Path(f"/home/mkoenig/git/porous_media/data/spt/{results_date}/xdmf")
+    xdmf_dir = Path(
+        f"/home/mkoenig/git/porous_media/data/spt/{results_date}/simulations/xdmf"
+    )
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
     # Load xarray datasets
@@ -380,14 +386,12 @@ if __name__ == "__main__":
         xr_cells_dict[sim_id] = xr_cells
         xr_points_dict[sim_id] = xr_points
 
-        tend_sim = xr_cells.time[-1]
+        tend_sim: float = xr_cells.time.values[-1]
         if tend_sim < tend:
             tend = tend_sim
 
     # figure out end time
-    times: np.ndarray = np.linspace(start=0, stop=tend, num=51)
-
-    from porous_media import RESULTS_DIR
+    time_vec: np.ndarray = np.linspace(start=0, stop=tend, num=51)
 
     results_dir = RESULTS_DIR / "spt" / results_date
     results_dir.mkdir(exist_ok=True, parents=True)
@@ -401,7 +405,7 @@ if __name__ == "__main__":
     plot_spt_over_time(
         results_dir=results_dir,
         xr_cells_dict=xr_cells_dict,
-        times=times,
+        times=time_vec,
     )
 
     plot_spt_over_position(

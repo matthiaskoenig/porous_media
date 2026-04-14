@@ -4,7 +4,7 @@ from porous_media.data.xdmf_tools import AttributeType
 from porous_media.visualization.pyvista_visualization import DataLayer
 
 
-results_date: str = "2024-02-02"
+results_date: str = "2026-04-14"
 
 data_layers_spt: list[DataLayer] = [
     DataLayer(
