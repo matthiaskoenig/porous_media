@@ -364,7 +364,7 @@ if __name__ == "__main__":
 
     from porous_media import RESULTS_DIR
 
-    results_date = "2026-04-14"
+    results_date = "2026-04-21"
 
     console.rule(title=f"SPT analysis: {results_date}", style="white")
 
