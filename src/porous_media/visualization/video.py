@@ -3,7 +3,7 @@
 Requires `ffmpeg` for video generation.
 """
 
-import os
+import subprocess
 from pathlib import Path
 
 from porous_media.console import console
@@ -21,10 +21,22 @@ def create_video(
     :param overwrite: flag for overwriting existing videos
     """
     overwrite_flag = "-y" if overwrite else ""
-    command = f"ffmpeg {overwrite_flag} -f image2 -r {frame_rate} -i {image_pattern} -vcodec {codec} {video_path}"
+    command = [
+        "ffmpeg",
+        overwrite_flag,
+        "-f",
+        "image2",
+        "-r",
+        str(frame_rate),
+        "-i",
+        image_pattern,
+        "-vcodec",
+        codec,
+        video_path,
+    ]
     console.print(f"Create video: {video_path}")
     console.print(command)
-    os.system(command)
+    subprocess.run(command)
 
 
 def create_gif_from_video(
@@ -38,10 +50,10 @@ def create_gif_from_video(
         raise IOError(f"Video path does not exist: {video_path}")
 
     overwrite_flag = "-y" if overwrite else ""
-    command = f"ffmpeg {overwrite_flag} -i {video_path} {gif_path}"
+    command = ["ffmpeg", overwrite_flag, "-i", video_path, gif_path]
     console.print(f"Create gif: {gif_path}")
     console.print(command)
-    os.system(command)
+    subprocess.run(command)
 
 
 if __name__ == "__main__":
