@@ -14,6 +14,9 @@ Support selections of positions; histogramm over position.
 
 """
 
+import os
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from pathlib import Path
 
 import meshio
@@ -24,6 +27,20 @@ from rich.progress import Progress, track
 
 from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
+
+
+def mesh_datasets_from_xdmf_dir(xdmf_dir: Path, overwrite: bool = True) -> None:
+    """Create the cell_data and point_data xarray DataSet in parallel."""
+    # prepare datasets for analysis
+    xdmf_paths = sorted([p for p in xdmf_dir.glob("*.xdmf")])
+    console.print(xdmf_paths)
+
+    # inject arguments with partial
+    mesh_datasets_from_xdmf_args = partial(mesh_datasets_from_xdmf, overwrite=overwrite)
+
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        # _ = list(executor.map(lambda args: mesh_datasets_from_xdmf(*args), arguments))
+        _ = list(executor.map(mesh_datasets_from_xdmf_args, xdmf_paths))
 
 
 def mesh_datasets_from_xdmf(

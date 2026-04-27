@@ -11,14 +11,7 @@ from pathlib import Path
 import meshio
 import numpy as np
 from rich.progress import track
-
-from porous_media import DATA_DIR
-from porous_media.console import console
-from porous_media.data.xdmf_tools import AttributeType
-from porous_media.visualization.pyvista_visualization import (
-    DataLayer,
-    xdmf_to_mesh,
-)
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
@@ -238,82 +231,26 @@ def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> None:
     shutil.move(f"{xdmf_out.stem}.h5", str(xdmf_out.parent))
 
 
-if __name__ == "__main__":
-    date = "2026-04-21"
+def reconstruct_lobulus_from_hexagon_dir(xdmf_in_dir: Path, xdmf_out_dir: Path) -> None:
+    """Parallel reconstruction of lobulus."""
 
-    grid_sizes = [
-        "00005",
-        "000025",
-        "00001",
-        "000015",
-        "0000125",
-        "00000625",
+    xdmf_out_dir.mkdir(parents=True, exist_ok=True)
+
+    files = [
+        (xdmf_in, Path(xdmf_out_dir / xdmf_in.name))
+        for xdmf_in in xdmf_in_dir.glob("*.xdmf")
     ]
-    # for grid_size in grid_sizes:
-    #     xdmf_path = DATA_DIR / "spt" / date / "convergence" / "xdmf" / f"lobule_sixth_{grid_size}.xdmf"
-    #     xdmf_lobulus_path = DATA_DIR / "spt" / date / "convergence" / "xdmf" / f"lobule_{grid_size}.xdmf"
-    #
-    #     reconstruct_lobulus_from_hexagon(xdmf_in=xdmf_path, xdmf_out=xdmf_lobulus_path)
-    #     xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_lobulus_path)
-    #     console.print(xdmf_info)
+    # parallel processing
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        futures = {
+            executor.submit(
+                reconstruct_lobulus_from_hexagon, xdmf_in, xdmf_out
+            ): xdmf_in
+            for xdmf_in, xdmf_out in files
+        }
+        for future in as_completed(futures):
+            _ = future.result()
 
-    # --- Visualization ---
-    data_layers: list[DataLayer] = [
-        DataLayer(
-            sid="displacement",
-            title="displacement",
-            colormap="magma",
-            viz_type=AttributeType.VECTOR,
-        ),
-        DataLayer(
-            sid="fluid_flux_TPM",
-            title="fluid flux [m/s]",
-            colormap="magma",
-            viz_type=AttributeType.VECTOR,
-        ),
-        DataLayer(
-            sid="pressure",
-            title="Pressure",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-        DataLayer(
-            sid="effective_fluid_pressure_TPM",
-            title="Effective fluid pressure [Pa]",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-        DataLayer(
-            sid="rr_(S)",
-            title="Substrate S [mM]",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-    ]
-    data_layers_dict = {dl.sid: dl for dl in data_layers}
-
-    for grid_size in grid_sizes:
-        xdmf_lobulus_path = (
-            DATA_DIR
-            / "spt"
-            / date
-            / "convergence"
-            / "xdmf"
-            / f"lobule_{grid_size}.xdmf"
-        )
-        # mesh = xdmf_to_mesh(xdmf_path, k=20)
-        mesh = xdmf_to_mesh(xdmf_lobulus_path, k=20)
-        console.print(mesh)
-        import pyvista as pv
-
-        plotter = pv.Plotter()
-        plotter.add_mesh(mesh, show_edges=True)
-        plotter.show()
-
-    # mesh = xdmf_to_mesh(xdmf_lobulus_path, k=1)
-
-    # visualize_interactive(
-    #     mesh,
-    #     data_layer=data_layers_dict["rr_(S)"],
-    #     visualization_settings=VisualizationSettings(),
-    # )
+    # serial
+    # for xdmf_in, xdmf_out in files:
+    #     reconstruct_lobulus_from_hexagon(xdmf_in=xdmf_in, xdmf_out=xdmf_out)

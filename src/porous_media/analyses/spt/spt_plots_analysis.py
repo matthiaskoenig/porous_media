@@ -44,7 +44,6 @@ def plot_positions(
         layout="constrained",
     )
     # [1] necrosis fraction ~ time
-
     for k_col in range(n_cols):
         axes[-1, k_col].set_xlabel("Position [-]", **label_kwargs)
 
@@ -139,6 +138,12 @@ def plot_positions(
             xr_cells["pressure"],
             **kwargs_scatter,
         )
+        # TPM pressure, but variable not accessible
+        # axes[k_row, 5].plot(
+        #     xr_cells["rr_position"],
+        #     xr_cells["effective_fluid_pressure_TPM"],
+        #     **kwargs_scatter,
+        # )
 
     for k_row in range(len(pattern_order)):
         # axes[k_row, 0].set_title(pattern_name, fontsize=15, fontweight="bold")
@@ -361,17 +366,13 @@ def plot_spt_over_position(
 
 if __name__ == "__main__":
     """Analysis plots of the SPT simulations."""
-
-    from porous_media import RESULTS_DIR
-
-    results_date = "2026-04-21"
-
-    console.rule(title=f"SPT analysis: {results_date}", style="white")
+    from porous_media.analyses.spt import data_spt_dir, results_spt_dir
 
     # XDMF
-    xdmf_dir = Path(
-        f"/home/mkoenig/git/porous_media/data/spt/{results_date}/simulations/xdmf"
-    )
+    xdmf_dir = Path(data_spt_dir / "simulations_sixth" / "xdmf")
+    results_dir = results_spt_dir / "simulations_sixth"
+    results_dir.mkdir(exist_ok=True, parents=True)
+
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
     # Load xarray datasets
@@ -392,9 +393,6 @@ if __name__ == "__main__":
 
     # figure out end time
     time_vec: np.ndarray = np.linspace(start=0, stop=tend, num=51)
-
-    results_dir = RESULTS_DIR / "spt" / results_date
-    results_dir.mkdir(exist_ok=True, parents=True)
 
     plot_positions(
         results_dir=results_dir,

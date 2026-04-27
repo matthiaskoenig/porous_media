@@ -33,6 +33,8 @@ boundary_flows = [
     -7.12447e-05,
 ]
 
+convergence_resolutions = ["00005", "000025", "000015", "0000125", "00001", "00000625"]
+
 # zonation patterns
 pattern_idx2name: dict[int, str] = {
     0: "constant",
@@ -162,12 +164,11 @@ def plot_colors(df: pd.DataFrame) -> None:
 
 
 if __name__ == "__main__":
-    from porous_media import DATA_DIR, RESULTS_DIR
-    from porous_media.analyses.spt import results_date
+    from porous_media.analyses.spt import results_spt_dir
 
     df = simulation_conditions_df()
-    xdmf_dir = DATA_DIR / "spt" / results_date
-    results_dir = RESULTS_DIR / "spt" / results_date
+
+    results_dir = results_spt_dir
     results_dir.mkdir(parents=True, exist_ok=True)
 
     df.reset_index(level=0, inplace=True)
@@ -175,7 +176,6 @@ if __name__ == "__main__":
     console.print(df)
     df.to_excel(results_dir / "simulations.xlsx", index=False)
     df.to_csv(results_dir / "simulations.tsv", index=False, sep="\t")
-    # df.to_latex(results_dir / "simulations.tex", index=False, float_format="%.7g")
 
     plot_boundary_flux(df)
     plot_colors(df)
