@@ -45,10 +45,10 @@ if __name__ == "__main__":
 
     # [3] Create mesh datasets
     for dir_name in [
-        # "convergence_sixth",
+        "convergence_sixth",
         # "simulations_sixth",
         # "convergence_lobulus",
-        "simulations_lobulus",
+        # "simulations_lobulus",
     ]:
         # process_spt_simulations(input_dir=input_dir, output_dir=output_dir)
 

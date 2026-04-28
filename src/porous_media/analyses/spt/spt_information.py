@@ -33,8 +33,6 @@ boundary_flows = [
     -7.12447e-05,
 ]
 
-convergence_resolutions = ["00005", "000025", "000015", "0000125", "00001", "00000625"]
-
 # zonation patterns
 pattern_idx2name: dict[int, str] = {
     0: "constant",

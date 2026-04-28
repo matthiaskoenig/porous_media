@@ -47,7 +47,10 @@ def visualize_spt_2d(
     data_layers_selected = [data_layers_dict[sid] for sid in selection]
 
     if create_panels:
-        for num in [10, 200]:
+        for num in [
+            10,
+            # 200
+        ]:
             output_dir = results_dir / f"{num}_{tend}"
             output_dir.mkdir(exist_ok=True, parents=True)
 
@@ -80,7 +83,10 @@ def visualize_spt_2d(
                 )
 
     # Create combined images for all simulations
-    for num in [10, 200]:
+    for num in [
+        10,
+        # 200
+    ]:
         for xdmf_path in xdmf_paths:
             output_dir = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}"
             rows: list[Path] = create_combined_images(

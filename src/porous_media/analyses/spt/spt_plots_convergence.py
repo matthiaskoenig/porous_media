@@ -2,14 +2,12 @@
 
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import xarray as xr
 from matplotlib import pyplot as plt
 
 from porous_media.analyses.liver_variables import calculate_necrosis_fraction
-from porous_media.analyses.spt.spt_information import (
-    convergence_resolutions,
-)
 from porous_media.console import console
 from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
 
@@ -18,6 +16,15 @@ label_kwargs = {
     "fontsize": 12,
     "fontweight": "bold",
 }
+
+convergence_resolutions = [
+    # "00005",
+    "000025",
+    "000015",
+    "0000125",
+    "00001",
+    "00000625",
+]
 
 
 def plot_spt_over_time(
@@ -47,23 +54,30 @@ def plot_spt_over_time(
     axes[2].set_ylabel("Protein [-]", **label_kwargs)
     axes[3].set_ylabel("Toxic compound [mM]", **label_kwargs)
     axes[4].set_ylabel("Necrosis [%]", **label_kwargs)
-    axes[4].set_ylim([0, 100 * 1.05])
+    # axes[4].set_ylim([0, 100 * 1.05])
 
     ylim_maxs = {}
-    for resolution in convergence_resolutions:
+    n_resolutions = len(convergence_resolutions)
+    for kres, resolution in enumerate(convergence_resolutions):
         sim_id = f"lobule_sixth_{resolution}"
-        # color = df_sim.color.values[0]
-        xr_cells_raw = xr_cells_dict[sim_id]
+        label = f"{resolution[4:]}"
+
+        # calculate colors
+        cmap = matplotlib.colormaps.get_cmap("viridis")
+        color_rgba = cmap(kres / (n_resolutions - 1))
+        color = matplotlib.colors.to_hex(color_rgba, keep_alpha=True)
 
         # interpolate time
+        xr_cells_raw = xr_cells_dict[sim_id]
         xr_cells = xr_cells_raw.interp(time=times)
 
         kwargs = {
             "linestyle": "-",
             "marker": "None",
-            # "color": color,
-            # "markeredgecolor": "black",
-            # "markeredgewidth": 0.5,
+            "color": color,
+            "markeredgecolor": "black",
+            "markeredgewidth": 0.5,
+            "markersize": 5,
         }
 
         for k_col, sid in enumerate(
@@ -84,7 +98,7 @@ def plot_spt_over_time(
                 x=x,
                 y=y,
                 # yerr=yerr,  FIXME
-                label=resolution,
+                # label=label,
                 **kwargs,
             )
             # ax.legend()
@@ -94,7 +108,7 @@ def plot_spt_over_time(
             # convert to hr and percent
             necrosis_fraction.time / 60 / 60,  # [s] -> [hr]
             necrosis_fraction * 100,
-            label=resolution,
+            label=label,
             **kwargs,
         )
 
@@ -107,7 +121,14 @@ def plot_spt_over_time(
     # for ax in axes:
     #     ax.xaxis.set_ticks([0, 10, 20], labels=["0", "10", "20"])
 
-    axes[4].legend()
+    for ax in axes:
+        ax.set_ylim(bottom=0)
+    # axes[4].legend()
+
+    fig.legend(
+        loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=n_resolutions, frameon=True
+    )
+    plt.tight_layout()
 
     plt.show()
     fig.savefig(results_dir / "convergence.png", bbox_inches="tight")
@@ -141,7 +162,7 @@ if __name__ == "__main__":
             tend = tend_sim
 
     # figure out end time
-    time_vec: np.ndarray = np.linspace(start=0, stop=tend, num=51)
+    time_vec: np.ndarray = np.linspace(start=0, stop=tend, num=101)
 
     plot_spt_over_time(
         results_dir=results_dir,
