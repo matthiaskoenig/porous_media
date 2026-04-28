@@ -6,8 +6,7 @@ import numpy as np
 import xarray as xr
 from matplotlib import pyplot as plt
 
-from porous_media.analyses.liver_variables import calculate_necrosis_fraction
-from porous_media.analyses.spt.spt_information import (
+from porous_media.analyses.spt.information import (
     boundary_flows,
     pattern_name2idx,
     pattern_order,
@@ -16,11 +15,18 @@ from porous_media.analyses.spt.spt_information import (
 from porous_media.console import console
 from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
 
-
 label_kwargs = {
     "fontsize": 12,
     "fontweight": "bold",
 }
+snames = {
+    "rr_(S_ext)": "Substrate [mM]",
+    "rr_(P_ext)": "Product [mM]",
+    "rr_protein": "Protein [-]",
+    "rr_(T)": "Toxic compound [mM]",
+    "rr_necrosis": "Necrosis [%]",
+}
+sids = list(snames.keys())
 
 
 def plot_positions(
@@ -191,11 +197,9 @@ def plot_spt_over_time(
         ax.set_xlabel("Time [hr]", **label_kwargs)
 
     for k_row in range(n_patterns):
-        axes[k_row, 0].set_ylabel("Substrate [mM]", **label_kwargs)
-        axes[k_row, 1].set_ylabel("Product [mM]", **label_kwargs)
-        axes[k_row, 2].set_ylabel("Protein [-]", **label_kwargs)
-        axes[k_row, 3].set_ylabel("Toxic compound [mM]", **label_kwargs)
-        axes[k_row, 4].set_ylabel("Necrosis [%]", **label_kwargs)
+        for k_sid, sid in enumerate(sids):
+            axes[k_row, k_sid].set_ylabel(snames[sid], **label_kwargs)
+
         axes[k_row, 4].set_ylim([0, 100 * 1.05])
 
     ylim_maxs = {}
@@ -221,12 +225,20 @@ def plot_spt_over_time(
                 # "markeredgewidth": 0.5,
             }
 
-            for k_col, sid in enumerate(
-                ["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)"]
-            ):
+            for k_col, sid in enumerate(sids):
                 x = xr_cells.time / 60 / 60  # [s] -> [hr]
-                y = xr_cells[sid].mean(dim="cell")
-                yerr = xr_cells[sid].std(dim="cell")
+
+                # weighting mean by volume
+                cell_volumes = xr_cells.element_volume_point_TPM
+                y = xr_cells[sid].weighted(cell_volumes).mean(dim="cell")
+                yerr = xr_cells[sid].weighted(cell_volumes).std(dim="cell")
+                # y = xr_cells[sid].mean(dim="cell")
+                # yerr = xr_cells[sid].std(dim="cell")
+
+                if sid == "rr_necrosis":
+                    # [%]
+                    y = y * 100
+                    yerr = yerr * 100
 
                 # update max
                 if sid not in ylim_maxs:
@@ -242,16 +254,6 @@ def plot_spt_over_time(
                     label=sim_id,
                     **kwargs,
                 )
-                # ax.legend()
-
-            necrosis_fraction = calculate_necrosis_fraction(xr_cells=xr_cells)
-            axes[k_row, 4].plot(
-                # convert to hr and percent
-                necrosis_fraction.time / 60 / 60,  # [s] -> [hr]
-                necrosis_fraction * 100,
-                label=sim_id,
-                **kwargs,
-            )
 
     for k_row, _ in enumerate(pattern_order):
         # axes[k_row, 2].set_title(pattern_name, fontsize=20, fontweight="bold")
@@ -290,11 +292,8 @@ def plot_spt_over_position(
         ax.set_xlabel("Position [-]", **label_kwargs)
 
     for k_row in range(n_patterns):
-        axes[k_row, 0].set_ylabel("Substrate [mM]", **label_kwargs)
-        axes[k_row, 1].set_ylabel("Product [mM]", **label_kwargs)
-        axes[k_row, 2].set_ylabel("Protein [-]", **label_kwargs)
-        axes[k_row, 3].set_ylabel("Toxic compound [mM]", **label_kwargs)
-        axes[k_row, 4].set_ylabel("Necrosis [-]", **label_kwargs)
+        for k_sid, sid in enumerate(sids):
+            axes[k_row, k_sid].set_ylabel(snames[sid], **label_kwargs)
 
     ylim_maxs = {}
     for k_row, pattern_name in enumerate(pattern_order):
@@ -321,9 +320,7 @@ def plot_spt_over_position(
                 "markeredgecolor": "black",
             }
 
-            for k_col, sid in enumerate(
-                ["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)", "rr_necrosis"]
-            ):
+            for k_col, sid in enumerate(sids):
                 x = xr_cells.rr_position
                 y = xr_cells[sid]
 
@@ -331,6 +328,9 @@ def plot_spt_over_position(
                 if sid == "rr_necrosis":
                     x = x.where((y == 0.0) | (y == 1.0))
                     y = y.where((y == 0.0) | (y == 1.0))
+
+                    # [%]
+                    y = y * 100
 
                 # update max
                 if sid not in ylim_maxs:
@@ -349,9 +349,7 @@ def plot_spt_over_position(
 
     for k_row, _ in enumerate(pattern_order):
         # axes[k_row, 2].set_title(pattern_name, fontsize=20, fontweight="bold")
-        for k_col, sid in enumerate(
-            ["rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)", "rr_necrosis"]
-        ):
+        for k_col, sid in enumerate(sids):
             axes[k_row, k_col].set_ylim([-0.05 * ylim_maxs[sid], 1.05 * ylim_maxs[sid]])
 
     for ax in axes[:-1, :].flatten():
@@ -364,14 +362,10 @@ def plot_spt_over_position(
     fig.savefig(results_dir / "position_dependency.png", bbox_inches="tight")
 
 
-if __name__ == "__main__":
-    """Analysis plots of the SPT simulations."""
-    from porous_media.analyses.spt import data_spt_dir, results_spt_dir
-
+def simulations_analysis(data_dir: Path) -> None:
     # XDMF
-    xdmf_dir = Path(data_spt_dir / "simulations_sixth" / "xdmf")
-    results_dir = results_spt_dir / "simulations_sixth"
-    results_dir.mkdir(exist_ok=True, parents=True)
+    xdmf_dir = data_dir / "xdmf"
+    results_dir = data_dir
 
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
@@ -410,3 +404,13 @@ if __name__ == "__main__":
         results_dir=results_dir,
         xr_cells_dict=xr_cells_dict,
     )
+
+
+if __name__ == "__main__":
+    """Analysis plots of the SPT simulations."""
+
+    from porous_media.analyses.spt import data_spt_dir
+
+    # data_dir = data_spt_dir / "simulations_lobulus"
+    data_dir = data_spt_dir / "simulations_sixth"
+    simulations_analysis(data_dir=data_dir)

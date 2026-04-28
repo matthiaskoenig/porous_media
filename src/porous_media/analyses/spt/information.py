@@ -1,5 +1,7 @@
 """Information on the boundary scans."""
 
+from pathlib import Path
+
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -21,7 +23,7 @@ from porous_media.console import console
 #     -2.0938397e-05,
 # ]
 
-# substrate boundary flows (2026-04-21)
+# substrate boundary flows (2026-04-27)
 boundary_flows = [
     -1.60747e-09,
     -7.58061e-06,
@@ -111,7 +113,7 @@ plot_kwargs: dict[str, Any] = {
 }
 
 
-def plot_boundary_flux(df: pd.DataFrame) -> None:
+def plot_boundary_flux(df: pd.DataFrame, results_dir: Path) -> None:
     """Analysis of boundary scan."""
     y = np.abs(df.boundary_flow.values[0 : len(boundary_flows)])
 
@@ -138,9 +140,10 @@ def plot_boundary_flux(df: pd.DataFrame) -> None:
     ax.set_ylabel("absolute boundary flow", fontsize=15, fontweight="bold")
     ax.legend()
     plt.show()
+    f.savefig(results_dir / "boundary_flux.png", bbox_inches="tight")
 
 
-def plot_colors(df: pd.DataFrame) -> None:
+def plot_colors(df: pd.DataFrame, results_dir: Path) -> None:
     """Plot colors."""
     f, ax = plt.subplots(
         nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained"
@@ -159,21 +162,19 @@ def plot_colors(df: pd.DataFrame) -> None:
     ax.set_xlabel("zonation pattern", fontsize=15, fontweight="bold")
     ax.set_ylabel("boundary flow", fontsize=15, fontweight="bold")
     plt.show()
+    f.savefig(results_dir / "boundary_color.png", bbox_inches="tight")
 
 
 if __name__ == "__main__":
-    from porous_media.analyses.spt import results_spt_dir
+    from porous_media.analyses.spt import data_spt_dir
 
     df = simulation_conditions_df()
-
-    results_dir = results_spt_dir
-    results_dir.mkdir(parents=True, exist_ok=True)
 
     df.reset_index(level=0, inplace=True)
     df.rename(columns={"index": "sim_key"}, inplace=True)
     console.print(df)
-    df.to_excel(results_dir / "simulations.xlsx", index=False)
-    df.to_csv(results_dir / "simulations.tsv", index=False, sep="\t")
+    df.to_excel(data_spt_dir / "simulations.xlsx", index=False)
+    df.to_csv(data_spt_dir / "simulations.tsv", index=False, sep="\t")
 
-    plot_boundary_flux(df)
-    plot_colors(df)
+    plot_boundary_flux(df, results_dir=data_spt_dir)
+    plot_colors(df, results_dir=data_spt_dir)

@@ -47,8 +47,8 @@ if __name__ == "__main__":
     for dir_name in [
         # "convergence_sixth",
         # "simulations_sixth",
-        "convergence_lobulus",
-        # "simulations_lobulus",
+        # "convergence_lobulus",
+        "simulations_lobulus",
     ]:
         # process_spt_simulations(input_dir=input_dir, output_dir=output_dir)
 

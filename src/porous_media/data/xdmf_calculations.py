@@ -38,7 +38,8 @@ def mesh_datasets_from_xdmf_dir(xdmf_dir: Path, overwrite: bool = True) -> None:
     # inject arguments with partial
     mesh_datasets_from_xdmf_args = partial(mesh_datasets_from_xdmf, overwrite=overwrite)
 
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+    max_workers = max(1, os.cpu_count() - 1)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # _ = list(executor.map(lambda args: mesh_datasets_from_xdmf(*args), arguments))
         _ = list(executor.map(mesh_datasets_from_xdmf_args, xdmf_paths))
 
