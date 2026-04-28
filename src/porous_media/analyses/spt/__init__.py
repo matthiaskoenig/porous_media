@@ -5,9 +5,7 @@ from pathlib import Path
 from porous_media.data.xdmf_tools import AttributeType
 from porous_media.visualization.pyvista_visualization import DataLayer
 
-
-results_date: str = "2026-04-27"
-data_spt_dir: Path = Path("/media/mkoenig/Extreme Pro/spt/data") / results_date
+data_spt_dir: Path = Path("/media/mkoenig/expro/spt/data/2026-04-27")
 
 # information for visualization
 data_layers_spt: list[DataLayer] = [

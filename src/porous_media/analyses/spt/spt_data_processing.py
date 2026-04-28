@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # [2] Hexagon reconstruction (parallel)
     # for in_dir, out_dir in [
     #     ("convergence_sixth", "convergence_lobulus"),
-    #     ("simulations_sixth", "simulations_lobulus"),
+    #     # ("simulations_sixth", "simulations_lobulus"),
     # ]:
     #     # reconstruct lobulus from sixth
     #     xdmf_in_dir: Path = data_spt_dir / in_dir / "xdmf"
@@ -45,9 +45,9 @@ if __name__ == "__main__":
 
     # [3] Create mesh datasets
     for dir_name in [
-        "convergence_sixth",
+        # "convergence_sixth",
         # "simulations_sixth",
-        # "convergence_lobulus",
+        "convergence_lobulus",
         # "simulations_lobulus",
     ]:
         # process_spt_simulations(input_dir=input_dir, output_dir=output_dir)

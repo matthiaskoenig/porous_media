@@ -83,10 +83,7 @@ def visualize_spt_2d(
                 )
 
     # Create combined images for all simulations
-    for num in [
-        10,
-        # 200
-    ]:
+    for num in [10, 40]:
         for xdmf_path in xdmf_paths:
             output_dir = results_dir / f"{num}_{tend}" / f"{xdmf_path.stem}"
             rows: list[Path] = create_combined_images(
@@ -105,7 +102,7 @@ def visualize_spt_2d(
                 )
 
             # Create video
-            if num == 200:
+            if num == 40:
                 video_path = results_dir / f"{xdmf_path.stem}_{num}_{tend}.mp4"
                 gif_path = results_dir / f"{xdmf_path.stem}_{num}_{tend}.gif"
                 create_video(
@@ -116,12 +113,15 @@ def visualize_spt_2d(
 
 
 if __name__ == "__main__":
-    from porous_media.analyses.spt import results_spt_dir, data_spt_dir
+    from porous_media.analyses.spt import data_spt_dir
 
-    xdmf_dir = data_spt_dir / "convergence_sixth" / "xdmf"
+    analysis_folder = "convergence_sixth"
+    # analysis_folder = "convergence_lobulus"
+
+    xdmf_dir = data_spt_dir / analysis_folder / "xdmf"
     xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
 
-    results_dir: Path = results_spt_dir / "convergence_sixth" / "2D"
+    results_dir: Path = data_spt_dir / analysis_folder / "2D"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # create visualizations
@@ -132,5 +132,5 @@ if __name__ == "__main__":
         data_layers=data_layers_spt,
         selection=selection_spt,
         results_dir=results_dir,
-        create_panels=False,
+        create_panels=True,
     )
