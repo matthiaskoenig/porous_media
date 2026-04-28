@@ -8,7 +8,6 @@ from porous_media.visualization.pyvista_visualization import DataLayer
 
 results_date: str = "2026-04-27"
 data_spt_dir: Path = Path("/media/mkoenig/Extreme Pro/spt/data") / results_date
-results_spt_dir: Path = Path("/media/mkoenig/Extreme Pro/spt/data") / results_date
 
 # information for visualization
 data_layers_spt: list[DataLayer] = [
