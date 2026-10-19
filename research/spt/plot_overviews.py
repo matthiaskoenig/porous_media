@@ -26,6 +26,8 @@ from research.spt.plot_render import (
     save_figure,
 )
 
+OVERVIEW_VERSION = 1
+
 
 def _label(source: PlotSource) -> str:
     if source.family == "convergence":
@@ -208,6 +210,7 @@ def overview_figures(
     )
     configuration: dict[str, object] = {
         "version": RENDER_VERSION,
+        "overview_version": OVERVIEW_VERSION,
         "sources": [item.title for item in sources],
         "labels": list(source.sector_labels),
         "options": json.loads(json.dumps(asdict(options))),

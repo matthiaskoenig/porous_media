@@ -164,7 +164,7 @@ def panel(
     collection = PolyCollection(
         cast(Sequence[ArrayLike], samples.faces),
         cmap=layer.colormap,
-        linewidths=0.13 if mesh else 0,
+        linewidths=min(0.13, 5.0 / np.sqrt(len(samples.faces))) if mesh else 0,
         edgecolors="black" if mesh else "none",
         antialiaseds=False,
     )
