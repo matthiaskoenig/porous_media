@@ -23,6 +23,8 @@ type Study = Literal[
     "convergence_sixth",
     "simulations_lobulus",
     "convergence_lobulus",
+    "simulations_combinations",
+    "convergence_combinations",
 ]
 type CatalogValue = str | int | float | bool | None
 STUDIES: tuple[Study, ...] = ("simulations_sixth", "convergence_sixth")
