@@ -606,7 +606,7 @@ The pipeline runs these stages in order:
 5. Create or resume sixth, lobulus, and combined geometry figures.
 
 It checks every selected result, stops dependent work after a failure, and writes
-`pipeline-report.json` plus `index.html` at the output root. The report names
+`pipeline-report.json` plus the final HTML report at the output root. The JSON names
 each stage and records its outcome and elapsed time. Repeating the command is a
 supported resume operation. Existing numerical and geometry outputs are reused
 only when their provenance and output fingerprints match; they are not rebuilt
@@ -625,3 +625,38 @@ Portable regressions run every stage from fresh synthetic raw files, including
 mixed convergence meshes, installed-library imports, serialized results and
 figures. Run them with `uv run --no-sync pytest -q research/tests`. Validation of
 the private current dataset uses the same pipeline against the read-only share.
+
+### Final inspection report
+
+Open `results/spt/report.html` or `results/spt/index.html` in a browser after the
+pipeline finishes. Both open the same offline report. It gathers all current
+published figures: numerical analysis, geometry overviews, individual sixths and
+lobules, mixed sectors, supplemental views, and simulation conditions. Exports of
+the same figure share one card. Previously generated supplements remain included
+when the latest pipeline invocation selects a subset of the data.
+
+Search by run, pattern, dose, or title, and combine section, study family,
+geometry, pattern, dose, and scale filters. Click a preview for the zoom viewer.
+Left and right arrow keys move through the filtered selection; Escape closes the
+viewer. SVG and PDF links open the original exports. Data and provenance links
+provide the numerical tables, NetCDF results, generation metadata, and execution
+records. Aggregate figures match every pattern and dose they contain.
+
+Refresh only the report after generating additional figures:
+
+```bash
+uv run --no-sync python -m research.spt.report --output-root results/spt
+```
+
+This reads local manifests and output metadata without accessing the raw share,
+opening numerical arrays, or rerendering figures. It lists missing, modified, or
+invalid generations as omissions instead of linking incomplete outputs. The
+pipeline status refers to the latest pipeline invocation; the report does not
+independently validate raw-source freshness. Condition PNGs are included when
+present. Images load lazily; large vector exports load only when opened.
+
+The HTML embeds its styling and interaction code and needs no web server or
+internet connection. Images and data retain relative links. Move or share the
+whole results directory, including its generation folders, to keep those links
+working. The report generator also recognizes relocated generation files from
+their manifests. Generated reports and private results stay outside Git.

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import sys
 import time
 from collections.abc import Callable
@@ -20,6 +19,7 @@ from research.spt.geometry import process_geometries
 from research.spt.information import main as information_main
 from research.spt.plot_geometry import process_plots
 from research.spt.plot_render import RenderOptions
+from research.spt.report import build_report
 
 
 class PipelineReport(TypedDict):
@@ -228,30 +228,7 @@ def run_pipeline(
     }
     if not dry_run:
         atomic_json(output_root / "pipeline-report.json", report)
-        links = [
-            ("Run catalogue", "catalog.tsv"),
-            ("Quantitative analysis", "analysis/index.html"),
-            ("Analysis report", f"analysis-report-{study}.json"),
-            ("Pipeline report", "pipeline-report.json"),
-        ]
-        if geometry_figures:
-            links.append(("Geometry figures", f"figures/index-{study}.html"))
-        items = "".join(
-            f'<li><a href="{html.escape(path, quote=True)}">{html.escape(title)}</a></li>'
-            for title, path in links
-            if (output_root / path).is_file()
-        )
-        index = output_root / "index.html"
-        if index.is_symlink():
-            raise ValueError("Pipeline index must not follow symbolic links")
-        temporary = output_root / ".index.partial"
-        if temporary.is_symlink():
-            raise ValueError("Pipeline index must not follow symbolic links")
-        temporary.write_text(
-            f'<!doctype html><html lang="en"><meta charset="utf-8"><title>SPT project results</title><h1>SPT project results</h1><p>Latest pipeline: {report["status"]}. Existing FEBio results; no new solver run.</p><ul>{items}</ul>',
-            encoding="utf-8",
-        )
-        temporary.replace(index)
+        build_report(output_root)
     return report
 
 

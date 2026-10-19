@@ -317,6 +317,8 @@ def test_full_pipeline_from_fresh_inputs(tmp_path: Path) -> None:
         "geometry-figures",
     ]
     assert (output / "index.html").is_file()
+    assert (output / "report.html").read_bytes() == (output / "index.html").read_bytes()
+    assert 'class="figure-card"' in (output / "report.html").read_text()
     assert (output / "analysis/index.html").is_file()
     assert (
         len(

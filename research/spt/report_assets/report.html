@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPT | Simulation and convergence report</title>
+  <style>{% include "report.css" %}</style>
+</head>
+<body>
+  <a class="skip" href="#browse">Skip to figures</a>
+  <aside class="sidebar">
+    <a class="brand" href="#top"><span class="brand-icon">SPT</span><span>Research atlas<small>Simulation &amp; convergence</small></span></a>
+    <p class="nav-label">Explore figures</p>
+    <nav aria-label="Figure sections">
+      <a href="#browse" data-section="" aria-current="page">All figures <span>{{ figures|length }}</span></a>
+      {% for section in sections %}
+      <a href="#figures-{{ section.key }}" data-section="{{ section.key }}">{{ section.title }} <span>{{ section.count }}</span></a>
+      {% endfor %}
+    </nav>
+    <p class="nav-label">Review results</p>
+    <nav aria-label="Report information">
+      <a href="#quality">Data quality &amp; scope</a>
+      <a href="#methods">Reading the figures</a>
+      <a href="#downloads">Data &amp; provenance</a>
+    </nav>
+    <div class="sidebar-note">Local report<br><strong>No internet required</strong><p>Keep the results folder together when moving or sharing this report.</p></div>
+  </aside>
+  <main id="top">
+    <header>
+      <div class="eyebrow">SPT project / final inspection</div>
+      <h1>Simulation &amp;<br>convergence report</h1>
+      <p class="lede">Inspect quantitative results, reconstructed lobules, original sixths, and comparisons of six sectors in one place.</p>
+      <div class="header-meta"><span class="status status-{{ pipeline.get('status', 'unknown') }}">Latest pipeline: {{ pipeline.get('status', 'not recorded') }}</span><span>Built {{ generated }}</span></div>
+    </header>
+    <div class="metrics" aria-label="Report coverage">
+      <div><strong>{{ figures|length }}</strong><span>figures</span></div>
+      <div><strong>{{ exports }}</strong><span>original exports</span></div>
+      <div><strong>{{ analysed }}</strong><span>analysed lobule runs</span></div>
+      <div><strong>{{ truncated|length }}</strong><span>short source histories</span></div>
+    </div>
+
+    <section id="quality" class="quality">
+      <h2>Data quality &amp; scope</h2>
+      <p>Analysis uses existing solver results and homogeneous lobules. Mixed sectors compare geometries or zonation patterns for visualization only.</p>
+      {% if truncated %}<p class="notice"><strong>Short histories:</strong> {% for row in truncated %}{{ row.run_id }} ends at {{ row.tend_s }} s{% if not loop.last %}; {% endif %}{% endfor %}. Matched comparisons use the common interval; native time courses keep every available time.</p>{% endif %}
+      <p>Convergence includes linear and symlog views. Inspect both when large values on coarse meshes compress smaller values. Values are preserved in the exports.</p>
+      <p class="muted">This atlas includes all available published figure generations, including earlier study selections and supplements. Pipeline status describes its latest invocation; report generation checks local output metadata, not raw-source freshness.</p>
+      {% if pipeline.get('stages') %}<details><summary>Latest pipeline stages ({{ pipeline.get('study', '') }})</summary><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Status</th><th>Elapsed [s]</th><th>Details</th></tr></thead><tbody>{% for stage in pipeline.stages %}<tr><td>{{ stage.name }}</td><td>{{ stage.status }}</td><td>{{ stage.get('elapsed_s', '') }}</td><td>{{ stage.get('error', stage.get('reason', '')) }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+      {% if warnings %}<details class="notice" open><summary>{{ warnings|length }} omitted generation{% if warnings|length != 1 %}s{% endif %} require{% if warnings|length == 1 %}s{% endif %} attention</summary><ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul></details>{% endif %}
+      {% if not figures %}<p class="notice">No published figures are available. Run the SPT pipeline, then refresh this report.</p>{% endif %}
+      {% if rows %}<details><summary>Inspect source run catalogue ({{ rows|length }} runs)</summary><div class="table-scroll"><table><thead><tr><th>Run</th><th>Pattern</th><th>Flow index (0-based)</th><th>Sixth cells</th><th>Native end [s]</th><th>Complete</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.get('run_id', '') }}</td><td>{{ row.get('pattern_name', '') }}</td><td>{{ row.get('boundary_flow_key', '') }}</td><td>{{ row.get('num_cells', '') }}</td><td>{{ row.get('tend_s', '') }}</td><td>{{ row.get('complete', 'Unknown') }}</td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
+    </section>
+
+    <details id="methods" class="methods">
+      <summary>Reading the figures</summary>
+      <div class="method-grid">
+        <div><h3>Numerical analysis</h3><p>Whole-lobule means and population standard deviations use cell-volume weights. Spatial profiles use normalized position: periportal 0 to perivenous 1. Empty bins remain missing.</p></div>
+        <div><h3>Time and units</h3><p>Matched statistics interpolate cell values and volumes before reduction, without extrapolation. Native histories retain their own endpoints. Quantitative necrosis plots show percent; geometry legends may show fractions. Source pressure, volume, and flow units remain unspecified where metadata do not define them.</p></div>
+        <div><h3>Comparisons</h3><p>Convergence differences use the finest available mesh as reference. They do not estimate a continuum solution. Dose numbers follow the generator's flow ordering. Consult each figure's provenance for fields, sampling times, ranges, and transforms.</p></div>
+      </div>
+    </details>
+
+    <section id="browse" class="browse" aria-label="Figure browser">
+      <div class="browse-heading"><div><div class="eyebrow">Figure browser</div><h2>Explore the results</h2></div><button type="button" id="reset">Reset filters</button></div>
+      <div class="controls">
+        <label class="search">Search figures<input type="search" id="search" placeholder="Run, pattern, dose, field or figure title…" autocomplete="off"></label>
+        <div class="filter-grid">
+          <label>Section<select id="section"><option value="">All sections</option>{% for section in sections %}<option value="{{ section.key }}">{{ section.title }}</option>{% endfor %}</select></label>
+          {% for key, values in filters.items() %}
+          <label>{{ key|capitalize }}<select id="{{ key }}"><option value="">All {{ {'family': 'studies', 'geometry': 'geometries', 'scale': 'scales', 'pattern': 'patterns', 'dose': 'doses'}[key] }}</option>{% for value in values %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="result-bar"><p id="result-count" role="status" aria-live="polite">{{ figures|length }} of {{ figures|length }} figures</p><span>Click a preview to inspect · ← → browse · Esc close · / search</span></div>
+      <p id="empty" hidden>No figures match. Try fewer filters or reset the selection.</p>
+      <noscript><p>All figures and downloads are available below. Enable JavaScript for filters and the zoom viewer.</p></noscript>
+      {% for section in sections %}
+      <section class="figure-section" id="figures-{{ section.key }}" data-group="{{ section.key }}">
+        <div class="section-heading"><h2>{{ section.title }}</h2><span class="section-count">{{ section.count }} figures</span></div>
+        {% if section.key == 'combinations' %}<p class="section-note">Each dose combines six zonation patterns. The mixed convergence layout combines meshes 06250, 09375, 12500, 18750, 25000, and 37250.</p>{% endif %}
+        <div class="figure-grid">
+          {% for figure in figures if figure.section == section.key %}
+          <article class="figure-card" id="{{ figure.identifier }}" data-family="{{ figure.family }}" data-geometry="{{ figure.geometry }}" data-scale="{{ figure.scale }}" data-pattern="{{ figure.patterns|tojson|forceescape }}" data-dose="{{ figure.doses|tojson|forceescape }}" data-section="{{ figure.section }}" data-title="{{ figure.title }}" data-search="{{ (figure.title ~ ' ' ~ figure.caption ~ ' ' ~ figure.scale ~ ' ' ~ figure.keywords)|lower }}">
+            {% set image = figure.preview or figure.links.get('SVG', '') %}
+            {% if image %}<a class="preview" href="{{ image }}" data-inspect="{{ image }}" aria-label="Inspect {{ figure.title }}: {{ figure.caption }}">{% if figure.preview %}<img src="{{ figure.preview }}" alt="{{ figure.title }}: {{ figure.caption }}" loading="lazy" decoding="async">{% else %}<span class="preview-placeholder">Open vector figure</span>{% endif %}<span class="expand">Inspect ↗</span></a>{% else %}<a class="preview" href="{{ figure.links.get('PDF', figure.links.get('MP4', '#')) }}"><span class="preview-placeholder">Open export</span></a>{% endif %}
+            <div class="card-body"><div class="tags"><span>{{ figure.family }}</span><span>{{ figure.geometry }}</span>{% if figure.scale == 'Symlog' %}<span class="symlog">Symlog</span>{% endif %}</div><h3>{{ figure.title }}</h3><p>{{ figure.caption }}</p><div class="export-links">{% for format, path in figure.links|dictsort %}<a href="{{ path }}" target="_blank" rel="noopener">{{ format }}</a>{% endfor %}{% if figure.provenance %}<a href="{{ figure.provenance }}" target="_blank" rel="noopener">Provenance</a>{% elif figure.manifest %}<a href="{{ figure.manifest }}" target="_blank" rel="noopener">Manifest</a>{% endif %}<a href="#{{ figure.identifier }}" class="permalink" aria-label="Link to {{ figure.title }}">#</a></div></div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </section>
+
+    <section id="downloads" class="downloads"><div class="eyebrow">Underlying results</div><h2>Data &amp; provenance</h2><p>Download study tables, NetCDF results, and execution records. TSV files preserve native histories and matched comparisons separately.</p><div class="download-grid">{% for group in downloads %}<div><h3>{{ group.title }}</h3><ul>{% for name, path in group.links.items() %}<li><a href="{{ path }}">{{ name }}</a></li>{% endfor %}</ul></div>{% endfor %}</div></section>
+    <footer>SPT project · Generated {{ generated }} · Figures remain in their original files; previews load as you browse.</footer>
+  </main>
+
+  <dialog id="viewer" aria-labelledby="viewer-title">
+    <div class="viewer-header"><div><p id="viewer-position"></p><h2 id="viewer-title"></h2><p id="viewer-caption"></p></div><button type="button" id="close" aria-label="Close figure viewer">Close ×</button></div>
+    <div class="viewer-tools"><div><button type="button" id="previous" aria-label="Previous figure">← Previous</button><button type="button" id="next" aria-label="Next figure">Next →</button></div><div><button type="button" id="fit">Fit</button><button type="button" id="actual">100%</button><label>Zoom <input id="zoom" type="range" min="25" max="300" step="25" value="100"></label></div><div id="viewer-exports" class="export-links"></div></div>
+    <div id="canvas"><img id="viewer-image" class="fit" alt=""></div>
+    <p class="viewer-help">Scroll to pan when zoomed. SVG opens the full vector export. Arrow keys browse the filtered selection.</p>
+  </dialog>
+  <script>{% include "report.js" %}</script>
+</body>
+</html>
