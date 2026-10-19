@@ -64,7 +64,7 @@ Neither these tests nor the library tests need private study datasets or FEBio.
 
 ## Study documentation
 
-The [SPT analysis](research/spt.md) describes a historical convergence study and
-simulation visualization workflow that requires private datasets and local
-configuration. Its paths and version requirements may reflect the original
-environment.
+The [SPT guide](research/spt.md) describes the run catalogue, resumable local
+processing, and study-specific analysis of simulation and convergence datasets.
+It requires access to the study inputs. Historical plotting scripts retain
+selections and paths that need review before use with new runs.
