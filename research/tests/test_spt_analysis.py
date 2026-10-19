@@ -2,6 +2,7 @@
 
 import json
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from pathlib import Path
 
 import h5py
@@ -16,6 +17,7 @@ from research.spt.analysis_data import (
     CellSampler,
     load_analysis,
     spatial_profile,
+    timelines,
     weighted_statistics,
 )
 from research.spt.analysis_plots import PlotOptions
@@ -501,3 +503,18 @@ def test_status_lists_pending_stages_after_geometry(
         "geometry-figures",
     ]
     assert set(output.rglob("*")) == before
+
+
+def test_study_reference_times_are_preserved(study: tuple[Path, Path]) -> None:
+    """Retain 10 h simulation and 1.5 h convergence comparisons within valid bounds."""
+    root, output = study
+    source = plot_sources(
+        root, output, study="simulations", geometry="lobulus", run_ids=("sim001",)
+    )[0]
+    simulation = replace(source, end=86400)
+    convergence = replace(
+        source, run=replace(source.run, study="convergence_lobulus"), end=36590
+    )
+    windows = timelines([simulation, convergence], AnalysisOptions(time_points=3))
+    assert windows["simulations"][1] == (0, 36000, 86400)
+    assert windows["convergence"][1] == (0, 5400, 36590)

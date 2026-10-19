@@ -59,7 +59,7 @@ class AnalysisOptions:
 def timelines(
     sources: list[PlotSource], options: AnalysisOptions
 ) -> dict[str, tuple[tuple[float, ...], tuple[float, ...]]]:
-    """Keep study windows separate and include 10 h when every selected run supports it."""
+    """Keep study windows separate and retain each study's historical reference time."""
     options.validate()
     chosen = sample_times(sources, options.time_points)
     result = {}
@@ -67,7 +67,8 @@ def timelines(
         start, end = times[0], times[-1]
         if start == end:
             raise ValueError("Analysis requires a nonzero common time interval")
-        middle = 36000.0 if start < 36000 < end else (start + end) / 2
+        reference = 5400.0 if family == "convergence" else 36000.0
+        middle = reference if start < reference < end else (start + end) / 2
         spatial = options.spatial_times or (start, middle, end)
         if spatial[0] < start or spatial[-1] > end:
             raise ValueError(f"Spatial times outside common {family} interval")

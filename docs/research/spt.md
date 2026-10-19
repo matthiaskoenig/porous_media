@@ -511,9 +511,10 @@ figures display their volume-weighted percentage while serialized values remain
 fractions. The cell data are read selectively from local NetCDF caches, without
 loading complete histories, point arrays, or network HDF data.
 
-Spatial plots default to the first common time, 10 h when supported, and the
-last common time. If 10 h lies outside the common interval, its midpoint is used
-instead. Twenty equal bins cover the source's normalized `rr_position`, from
+Spatial plots default to the first common time, the historical reference time
+(10 h for simulations and 1.5 h for convergence), and the last common time.
+If the reference lies outside the common interval, its midpoint is used instead.
+Twenty equal bins cover the source's normalized `rr_position`, from
 periportal 0 to perivenous 1. Each bin stores volume-weighted mean, population
 SD, minimum, maximum, cell count, and total volume. Position 1 belongs to the
 last bin. Empty or zero-volume bins retain missing statistics and zero volume;
