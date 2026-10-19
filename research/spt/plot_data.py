@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import tempfile
-import uuid
-from contextlib import ExitStack, suppress
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
@@ -16,11 +14,10 @@ import h5py
 import meshio
 import numpy as np
 
+from research.spt.artifacts import current_manifest, publish
 from research.spt.cache import (
-    _generation,
     _read_frame,
     _run_lock,
-    _unchanged,
     cached_catalog,
     fingerprint,
     validate_roots,
@@ -35,7 +32,8 @@ from research.spt.catalog import (
 )
 from research.spt.cli import atomic_json, selected_studies
 from research.spt.conditions import pattern_idx2name
-from research.spt.geometry import DISCRETE_FIELDS, geometry_jobs, geometry_path
+from research.spt.geometry import geometry_jobs, geometry_path
+from research.spt.sampling import blend, bracket
 
 SAMPLE_VERSION = 1
 type Geometry = Literal["sixth", "lobulus", "combined"]
@@ -288,11 +286,7 @@ class ScalarSampler:
 
     def sample(self, time: float) -> np.ndarray:
         """Interpolate continuous fields and hold discrete values without extrapolation."""
-        times = self.parsed.times
-        if not np.isfinite(time) or time < times[0] or time > times[-1]:
-            raise ValueError("Requested plot time outside source history")
-        upper = int(np.searchsorted(times, time))
-        lower = upper if times[upper] == time else upper - 1
+        lower, upper, weight = bracket(self.parsed.times, time)
         self.frames = {
             index: data
             for index, data in self.frames.items()
@@ -304,19 +298,10 @@ class ScalarSampler:
                     self.parsed, index, "Cell", self.fields, self.handles
                 )
                 self.field_reads += len(self.fields)
-        weight = (
-            float((time - times[lower]) / (times[upper] - times[lower]))
-            if lower != upper
-            else 0.0
-        )
         arrays = []
         for field in self.fields:
             low = self.frames[lower][field]
-            values = (
-                low
-                if weight == 0 or field in DISCRETE_FIELDS or low.dtype.kind in "biu"
-                else (1 - weight) * low + weight * self.frames[upper][field]
-            )
+            values = blend(field, low, self.frames[upper][field], weight)
             if (
                 values.shape != (self.parsed.count("Cell"),)
                 or not np.isfinite(values).all()
@@ -361,67 +346,6 @@ def projected_faces(
     if not faces:
         raise ValueError("No plot faces found")
     return np.concatenate(faces), np.concatenate(ids)
-
-
-def current_manifest(
-    directory: Path, configuration: dict[str, object], root: Path
-) -> dict[str, object] | None:
-    """Check a completed generation without opening geometry or scalar arrays."""
-    try:
-        manifest = json.loads((directory / "manifest.json").read_text())
-        if (
-            not isinstance(manifest, dict)
-            or manifest.get("configuration") != configuration
-        ):
-            return None
-        generation = _generation(directory, manifest)
-        if not _unchanged(manifest.get("sources"), root) or not _unchanged(
-            manifest.get("outputs"), generation
-        ):
-            return None
-        return manifest
-    except (OSError, ValueError):
-        return None
-
-
-def publish(
-    directory: Path,
-    staging: Path,
-    configuration: dict[str, object],
-    paths: tuple[Path, ...],
-    records: list[dict[str, int | str | None]],
-    metadata: dict[str, object],
-) -> Path:
-    """Publish a complete generation atomically and retain the last good result on failure."""
-    generation = directory / f"generation-{uuid.uuid4()}"
-    old = None
-    with suppress(OSError, ValueError):
-        old = json.loads((directory / "manifest.json").read_text())
-    staging.rename(generation)
-    try:
-        manifest = {
-            "configuration": configuration,
-            "generation": generation.name,
-            "sources": records,
-            "outputs": [
-                fingerprint(path)
-                for path in sorted(generation.rglob("*"))
-                if path.is_file()
-            ],
-            "metadata": metadata,
-        }
-        if records != [fingerprint(path) for path in paths]:
-            raise RuntimeError("Inputs changed before plot publication")
-        atomic_json(directory / "manifest.json", manifest)
-    except BaseException:
-        shutil.rmtree(generation)
-        raise
-    if isinstance(old, dict):
-        with suppress(OSError, ValueError):
-            previous = _generation(directory, old)
-            if previous != generation:
-                shutil.rmtree(previous)
-    return generation
 
 
 def prepare_samples(

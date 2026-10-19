@@ -64,7 +64,9 @@ Neither these tests nor the library tests need private study datasets or FEBio.
 
 ## Study documentation
 
-The [SPT guide](research/spt.md) describes the run catalogue, resumable local
-processing, and study-specific analysis of simulation and convergence datasets.
-It requires access to the study inputs. Historical plotting scripts retain
-selections and paths that need review before use with new runs.
+The [SPT guide](research/spt.md) describes the complete resumable workflow for
+cataloguing, reconstructing, analyzing, and visualizing simulation and convergence
+datasets. Run `uv run --no-sync python -m research.spt.pipeline` after supplying
+the existing solver results. Numerical analysis defaults to homogeneous lobules;
+mixed sectors are reserved for visualization. SPT entry points share explicit
+configuration and serialized results rather than historical dataset selections.

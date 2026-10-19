@@ -11,9 +11,10 @@ from pathlib import Path
 import matplotlib as mpl
 import numpy as np
 
+from research.spt.artifacts import current_manifest, publish
 from research.spt.cache import _generation, _run_lock, _unchanged, fingerprint
 from research.spt.conditions import pattern_idx2name
-from research.spt.plot_data import PlotSource, current_manifest, publish
+from research.spt.plot_data import PlotSource
 from research.spt.plot_render import (
     RENDER_VERSION,
     Layer,

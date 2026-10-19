@@ -534,3 +534,18 @@ def load_summary(source: RunSource, output_root: Path) -> xr.Dataset:
     with _run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
         return xr.load_dataset(generation / "summary.nc", engine="scipy")
+
+
+@contextmanager
+def open_processed_cells(source: RunSource, output_root: Path) -> Generator[xr.Dataset]:
+    """Open local cell data lazily under its generation lock.
+
+    Load or copy selected values before leaving the context. Unlike
+    ``load_processed_run``, this does not load unused frames or point arrays.
+    """
+    if _manifest(source, output_root) is None:
+        raise FileNotFoundError(f"No completed cache for {source.run_id}")
+    with _run_lock(run_directory(source, output_root)):
+        generation = _current_generation(source, output_root)
+        with xr.open_dataset(generation / "cells.nc", engine="scipy") as cells:
+            yield cells

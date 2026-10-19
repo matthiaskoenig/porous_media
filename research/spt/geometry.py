@@ -42,12 +42,11 @@ from research.spt.catalog import (
 )
 from research.spt.cli import atomic_json, selected_studies, write_catalog
 from research.spt.conditions import conditions_from_source
+from research.spt.sampling import DISCRETE_FIELDS as DISCRETE_FIELDS
+from research.spt.sampling import blend, bracket
 
 GEOMETRY_VERSION = 1
 CONVERGENCE_MESHES = ("06250", "09375", "12500", "18750", "25000", "37250")
-DISCRETE_FIELDS = frozenset(
-    {"cell_type", "rr_zonation_pattern", "rr_necrosis", "gauss_points_TPM"}
-)
 
 
 @dataclass(frozen=True)
@@ -278,10 +277,7 @@ class _Sampler:
         self, time_value: float
     ) -> tuple[dict[str, np.ndarray], dict[str, list[np.ndarray]]]:
         """Interpolate continuous fields and hold discrete fields without extrapolation."""
-        if time_value < self.times[0] or time_value > self.times[-1]:
-            raise ValueError("Requested time outside source history")
-        upper = int(np.searchsorted(self.times, time_value))
-        lower = upper if self.times[upper] == time_value else upper - 1
+        lower, upper, weight = bracket(self.times, time_value)
         self.frames = {
             key: value for key, value in self.frames.items() if key in {lower, upper}
         }
@@ -295,25 +291,14 @@ class _Sampler:
         points_up, cells_up = self.frames[upper]
         if points_low.keys() != points_up.keys() or cells_low.keys() != cells_up.keys():
             raise ValueError("Field schema changes between time steps")
-        weight = float(
-            (time_value - self.times[lower]) / (self.times[upper] - self.times[lower])
-        )
-
-        def blend(name: str, low: np.ndarray, up: np.ndarray) -> np.ndarray:
-            if low.shape != up.shape:
-                raise ValueError(f"Field shape changes: {name}")
-            if name in DISCRETE_FIELDS or low.dtype.kind in "biu":
-                return low
-            return low * (1.0 - weight) + up * weight
-
         return (
             {
-                name: blend(name, values, points_up[name])
+                name: blend(name, values, points_up[name], weight)
                 for name, values in points_low.items()
             },
             {
                 name: [
-                    blend(name, low, up)
+                    blend(name, low, up, weight)
                     for low, up in zip(blocks, cells_up[name], strict=True)
                 ]
                 for name, blocks in cells_low.items()

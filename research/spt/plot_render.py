@@ -22,6 +22,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator
 from numpy.typing import ArrayLike
 
+from research.spt.artifacts import current_manifest, publish
 from research.spt.cache import (
     ProcessingResult,
     _generation,
@@ -31,7 +32,7 @@ from research.spt.cache import (
 )
 from research.spt.catalog import CatalogValue
 from research.spt.cli import atomic_json
-from research.spt.plot_data import PlotSource, current_manifest, publish
+from research.spt.plot_data import PlotSource
 
 RENDER_VERSION = 3
 

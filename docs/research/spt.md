@@ -1,9 +1,11 @@
 # SPT simulations and convergence
 
-The repository-only SPT commands catalogue simulation conditions and prepare local
-analysis caches from the supplied XDMF/HDF results. They require access to study
-data, but do not need FEBio, VTK rendering, or a graphics session. The reusable
-library remains independent of these study workflows.
+The repository-only SPT workflow catalogues supplied XDMF/HDF results,
+reconstructs lobules, serializes quantitative analysis, and generates numerical
+and geometry figures. It requires access to study data, but does not need FEBio,
+VTK rendering, or a graphics session. The reusable library remains independent
+of these study workflows. This analyzes existing solver results; it does not run
+new simulations.
 
 ## Input and output directories
 
@@ -42,11 +44,21 @@ uv run --no-sync python -m research.spt.information --output-root results/spt
 uv run --no-sync python -m research.spt.data_processing --step all --output-root results/spt
 ```
 
+To run the complete project from catalogue through analysis and figures, use:
+
+```bash
+uv run --no-sync python -m research.spt.pipeline --output-root results/spt
+```
+
+The [complete workflow](#run-and-verify-the-complete-project) below describes
+resuming, inspecting stages, and the resulting project index.
+
 On PowerShell, set `$env:POROUS_MEDIA_SPT_DATA` and `$env:MPLBACKEND` instead.
 Both commands also accept `--input-root /data/koeniglab/spt` explicitly. The input
 default is `POROUS_MEDIA_SPT_DATA`, falling back to the checkout's `data/spt`.
 The output default is `RESULTS_DIR / "spt"`, normally `results/spt`, on local
-storage. Overlapping input/output trees and output symlinks are rejected.
+storage. Overlapping input/output trees and symlinked output subdirectories are
+rejected.
 Neither command creates or changes files on the source share.
 
 ## Inspect conditions and available runs
@@ -182,12 +194,11 @@ to interpolating cell values and changing volumes before reduction.
 
 ## Further analysis and visualization
 
-The historical numerical plotting scripts `plots_simulations.py` and
-`plots_convergence.py` still need their dataset selections, convergence labels,
-and output paths reviewed before use with new runs. Use the catalogue's actual
-IDs and local cache APIs when updating them. Geometry plotting uses the shared
-workflow described below. Numerical cache generation does not invoke plotting
-scripts or import PyVista.
+`plots_simulations.py` and `plots_convergence.py` are entry points to the shared
+[quantitative analysis](#time-courses-spatial-profiles-and-convergence) below.
+They use actual run IDs and local homogeneous-lobule caches. Geometry plotting
+uses its own shared renderer. Numerical cache generation does not invoke either
+plotting workflow or import PyVista.
 
 Lobule reconstruction is an explicit processing step described below. VTK
 conversion remains a separate helper for studies without XDMF results.
@@ -330,9 +341,8 @@ comparison_xdmf = geometry_path(
 
 Numerical lobulus caches use the same `runs/<run_id>/manifest.json` layout as
 source-sector caches, under their respective `*_lobulus` study directories.
-The historical numerical plotting scripts still need their study-specific
-analysis logic ported to these cache APIs. Use published lobules and sector
-comparisons as inputs for further visualization.
+Use published lobules for quantitative analysis and sector comparisons for
+visualization. Mixed-sector histories never enter whole-lobule statistics.
 
 ## Plot sixths, lobules and combined geometries
 
@@ -460,3 +470,157 @@ The current `convergence_50000` has sampled substrate values above 2,000 mM,
 whereas the six finer histories stay near 1 mM or below. Its product values
 likewise stretch the shared linear range. Keep those source values visible;
 use a separate symlog output root when inspecting finer spatial differences.
+
+## Time courses, spatial profiles and convergence
+
+After numerical cache generation, run both study analyses or select one:
+
+```bash
+uv run --no-sync python -m research.spt.analysis
+uv run --no-sync python -m research.spt.plots_simulations
+uv run --no-sync python -m research.spt.plots_convergence
+
+# Change spatial resolution or explicit comparison times, in seconds.
+uv run --no-sync python -m research.spt.analysis \
+  --bins 30 --spatial-times 0 21600 36000 --time-points 101
+
+# Analyze an explicit subset, retaining its source-derived condition labels.
+uv run --no-sync python -m research.spt.analysis \
+  --study simulations --runs sim001 sim009 --workers 1
+```
+
+The default `--geometry lobulus` analyzes all 48 simulation lobules and seven
+convergence lobules. `--geometry sixth` explicitly analyzes source-sector
+numerical caches instead. Mixed geometries are excluded. `--data-root` selects
+the numerical-cache root; `--output-root` selects local analysis storage.
+Neither the raw share nor reconstructed simulation histories are modified.
+
+Native time-course plots use the cached volume-weighted population means and
+standard deviations at **every original time**. Short convergence histories end
+at their actual last output; longer histories remain available in full. Plots
+show means without hundreds of error bars. `--spread` adds population SD shading
+to time courses and spatial profiles. This describes variation across cells,
+not uncertainty in a mean or a confidence interval.
+
+For comparisons, 51 equally spaced times cover the common interval separately
+within each selected study family. Continuous **cell values and cell volumes
+are interpolated before weighted reduction**. This differs from interpolating
+summary means when volumes change. Discrete fields retain their previous native
+value, and no time is extrapolated. Source necrosis fractions are preserved;
+figures display their volume-weighted percentage while serialized values remain
+fractions. The cell data are read selectively from local NetCDF caches, without
+loading complete histories, point arrays, or network HDF data.
+
+Spatial plots default to the first common time, 10 h when supported, and the
+last common time. If 10 h lies outside the common interval, its midpoint is used
+instead. Twenty equal bins cover the source's normalized `rr_position`, from
+periportal 0 to perivenous 1. Each bin stores volume-weighted mean, population
+SD, minimum, maximum, cell count, and total volume. Position 1 belongs to the
+last bin. Empty or zero-volume bins retain missing statistics and zero volume;
+they are never filled by spatial interpolation. Raw cell snapshots are also
+serialized so later analysis can choose a different reduction.
+
+The initial-properties figure always uses each run's **first native frame**,
+even when explicit spatial comparison times start later. Simulation diagnostics
+show the highest selected dose per pattern; convergence diagnostics show every
+mesh. Volume and pressure diagnostics retain source units, which are not supplied
+as authoritative variable metadata in the caches.
+
+Simulation figures compare doses by pattern and include matched-time dose
+responses. Convergence figures use the actual mesh IDs and lobulus cell counts.
+The mesh with the largest cell count supplies the reference. Exported tables
+report absolute and relative differences of whole-lobule means at matched times.
+A zero reference makes relative differences undefined, stored as missing values.
+Spatial comparisons report RMS differences of bin means, weighted by reference
+bin volume, with the fraction of reference volume covered by mutually populated
+bins. These are differences from the finest **available** mesh, not estimates
+of error against a continuum solution or an inferred convergence order.
+
+Convergence includes supplemental symlog figures to expose smaller values beside
+the current coarsest mesh's large substrate/product outliers. `--linear-only`
+omits those supplements. All values remain in the serialized results. Default
+exports are SVG/PDF/PNG; `--formats`, `--dpi`, and `--fields` limit figure output.
+
+### Reusable analysis results
+
+Each run publishes a compact numerical generation under
+`analysis-data/<study>/<run_id>/`:
+
+| File | Contents |
+| --- | --- |
+| `native.nc` | Native-time mean and population SD for selected scalars |
+| `aligned.nc` | Matched-time statistics, reduced after cell interpolation |
+| `profiles.nc` | Spatial statistics, counts, bin boundaries, and volumes |
+| `cells.nc` | Selected cell fields at requested spatial times |
+| `initial.nc` | Binned diagnostics from the first native frame |
+
+Each study publishes an independent generation under `analysis/<study>/`,
+containing `analysis.nc`, native/matched time-course TSV tables, spatial-profile
+TSV tables, figures, a local HTML gallery, and provenance. Convergence also
+includes `convergence-means.tsv` and `convergence-profiles.tsv`. The study NetCDF
+combines matched statistics and profiles with run, dose, pattern, cell-count,
+and native-end-time coordinates; native histories with differing time axes are
+preserved in the native TSV table and per-run files. No pickle files are used.
+The study tables and NetCDF files can be moved and read without the raw share.
+
+`analysis/index.html` links the selected study galleries.
+`analysis-catalog-<study>.tsv` supplies current result paths, and
+`analysis-report-<study>.json` records errors, common windows, elapsed time, and
+the number of native frames read. These describe the latest selection. Unchanged
+invocations inspect fingerprints without opening numerical arrays or starting
+workers. Plot styling or format changes reuse numerical reductions. Missing
+exports rebuild, failed publication retains previous figures, and `--force`
+explicitly regenerates the selected analysis. `--status` writes nothing.
+
+Load a validated per-run result from a checkout:
+
+```python
+from pathlib import Path
+
+from research.spt.analysis_data import load_analysis
+from research.spt.plot_data import plot_sources
+
+raw = Path("/data/koeniglab/spt")
+output = Path("results/spt")
+source = plot_sources(
+    raw, output, study="simulations", geometry="lobulus", run_ids=("sim001",)
+)[0]
+with load_analysis(source, output, "profiles") as profiles:
+    print(profiles.sel(field="rr_necrosis"))
+```
+
+### Run and verify the complete project
+
+```bash
+uv run --no-sync python -m research.spt.pipeline --status
+uv run --no-sync python -m research.spt.pipeline --workers 2
+```
+
+The pipeline runs these stages in order:
+
+1. Catalogue actual inputs and plot simulation conditions.
+2. Reconstruct homogeneous lobules and mixed visualization geometries.
+3. Build or resume the homogeneous-lobule numerical caches.
+4. Serialize quantitative analysis and create its figures.
+5. Create or resume sixth, lobulus, and combined geometry figures.
+
+It checks every selected result, stops dependent work after a failure, and writes
+`pipeline-report.json` plus `index.html` at the output root. The report names
+each stage and records its outcome and elapsed time. Repeating the command is a
+supported resume operation. Existing numerical and geometry outputs are reused
+only when their provenance and output fingerprints match; they are not rebuilt
+merely to verify the pipeline.
+Short source histories are listed separately in `truncated_runs`; a successful
+pipeline does not imply that every source solver run reached its model duration.
+
+`--study` selects a study, and `--runs` selects an explicit subset. A subset
+omits mixed comparisons, which require a complete study. `--no-geometry-figures`
+skips the last stage when only numerical results are needed. `--formats pdf png`
+reduces export size, while `--geometry-snapshots` changes the geometry figure
+panel count. Inspecting a fresh output root reports downstream stages as pending
+without creating directories or loading HDF arrays.
+
+Portable regressions run every stage from fresh synthetic raw files, including
+mixed convergence meshes, installed-library imports, serialized results and
+figures. Run them with `uv run --no-sync pytest -q research/tests`. Validation of
+the private current dataset uses the same pipeline against the read-only share.
