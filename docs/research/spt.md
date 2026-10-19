@@ -182,11 +182,12 @@ to interpolating cell values and changing volumes before reduction.
 
 ## Further analysis and visualization
 
-The existing `plots_simulations.py`, `plots_convergence.py`, and geometry plotting
-scripts remain study-specific plotting code. Their historical dataset selections,
-convergence labels, and output paths need review before using them with new runs.
-Use the catalogue's actual IDs and the local cache APIs when updating them.
-Numerical cache generation does not invoke these scripts or import PyVista.
+The historical numerical plotting scripts `plots_simulations.py` and
+`plots_convergence.py` still need their dataset selections, convergence labels,
+and output paths reviewed before use with new runs. Use the catalogue's actual
+IDs and local cache APIs when updating them. Geometry plotting uses the shared
+workflow described below. Numerical cache generation does not invoke plotting
+scripts or import PyVista.
 
 Lobule reconstruction is an explicit processing step described below. VTK
 conversion remains a separate helper for studies without XDMF results.
@@ -329,6 +330,133 @@ comparison_xdmf = geometry_path(
 
 Numerical lobulus caches use the same `runs/<run_id>/manifest.json` layout as
 source-sector caches, under their respective `*_lobulus` study directories.
-The historical plotting scripts still need their study-specific analysis logic
-ported to these cache APIs. Use published lobules and sector comparisons as the
-inputs for further visualization, rather than reconstructing them again.
+The historical numerical plotting scripts still need their study-specific
+analysis logic ported to these cache APIs. Use published lobules and sector
+comparisons as inputs for further visualization.
+
+## Plot sixths, lobules and combined geometries
+
+After reconstruction, create all geometry figures with:
+
+```bash
+uv run --no-sync python -m research.spt.plot_geometry --workers 2
+```
+
+The input, data and output roots default to the same locations used above.
+`--data-root results/spt` selects the published reconstructed histories;
+`--output-root results/spt` selects local plot storage. The raw share is read
+only. Plotting does not change reconstructed histories or numerical caches.
+These repository commands also work independently:
+
+```bash
+uv run --no-sync python -m research.spt.plots_simulations_geometry
+uv run --no-sync python -m research.spt.plots_convergence_geometry
+
+# Render a selected source sixth, its lobule and the same-dose comparison.
+uv run --no-sync python -m research.spt.plot_geometry \
+  --study simulations --runs sim048 dose_08 --geometry all
+
+# Inspect pending work without writing files or reading numerical arrays.
+uv run --no-sync python -m research.spt.plot_geometry --status
+```
+
+`--geometry` accepts `all`, `sixth`, `lobulus`, or `combined`. The complete current
+dataset produces 119 time-course figures: 55 source sixths, 55 homogeneous
+lobules, eight dose comparisons and one mixed convergence history. Each of the
+six study/geometry groups also gets a final-state overview and an overview of
+distinct meshes. Identical simulation meshes appear once in the mesh overview.
+Simulation overviews follow the generator's pattern and dose ordering.
+
+Default figures contain five equally spaced snapshots and only the five
+analysis scalars: extracellular substrate and product, protein, toxicant and
+necrosis. Times share a common interval within each selected study family.
+Simulation plots therefore retain 24 h even when the selected convergence
+comparison ends at 36,590 s. Color scales are shared across selected histories
+and geometries within each study family, using the **sampled frames**, rather
+than an expensive scan of every native frame. Necrosis uses the fixed range
+0 to 1. Titles show the actual time, and combined views identify each sector.
+
+Continuous scalars are linearly interpolated between neighboring native frames.
+Necrosis, zonation, cell type and other discrete fields retain their previous
+native value. No extrapolation or averaging between cells is performed.
+Only requested scalar arrays and neighboring frames are read from HDF; point,
+vector, tensor and unused scalar arrays are omitted. A compact local sample cache
+is shared by time courses, overviews and optional videos. Plotting never creates
+interpolated XDMF/HDF histories.
+
+Choose fields, times and outputs explicitly:
+
+```bash
+# Final-state figures for only necrosis and toxicant.
+uv run --no-sync python -m research.spt.plot_geometry \
+  --fields rr_necrosis 'rr_(T)' --snapshots 1 --formats svg pdf
+
+# Explicit times in seconds must lie within every selected history's interval.
+uv run --no-sync python -m research.spt.plot_geometry \
+  --study simulations --times 0 21600 43200 86400
+
+# Preserve outliers while showing smaller concentrations on a symlog color scale.
+uv run --no-sync python -m research.spt.plot_geometry \
+  --study convergence --scale symlog --output-root results/spt/convergence-symlog
+
+# Generate only the two study overviews per geometry.
+uv run --no-sync python -m research.spt.plot_geometry --only-overviews
+
+# Separate field/time panels are optional, as are videos and GIFs.
+uv run --no-sync python -m research.spt.plot_geometry \
+  --study simulations --runs dose_08 --geometry combined \
+  --panels --video-frames 200 --fps 12 --gif
+```
+
+SVG and PDF preserve vector cell geometry and text. PNG previews default to
+110 DPI; `--dpi` also controls optional video resolution. FFmpeg is required only
+when videos are requested. Video artists are reused and frames stream directly
+to FFmpeg, without writing intermediate PNG panels. GIF conversion is opt-in.
+`--no-overviews` omits study overviews. Bounded spawned workers own their files
+and rendering state; `--workers 1` runs serially.
+
+Dense SVG time courses can be much larger than compressed vector PDFs. Use
+`--formats pdf png` for smaller batch outputs and reserve SVG for figures that
+need cell-level vector editing. Selecting fewer fields or snapshots also reduces
+rendering time and storage without changing the underlying histories.
+
+The shared Matplotlib renderer runs headlessly without importing PyVista or
+needing a graphics session. It supports planar XY triangles/quads and vertical
+wedge/hexahedron extrusions. Other geometries fail clearly instead of producing
+an incorrect projection; use the library's 3D visualization helpers for those.
+Historical `visualize_spt_2d` calls remain available, including generator inputs,
+custom layer labels, unit conversions and fixed color limits. Separate panels
+and videos now require explicit selection in that helper too.
+
+Outputs live under three separate trees:
+
+```text
+results/spt/
+├── plot-data/<study>/<run_id>/manifest.json
+├── figures/<study>/<run_id>/manifest.json
+├── overviews/<study>/manifest.json
+├── figures/index-both.html
+├── plot-catalog-both.tsv
+└── plot-report-both.json
+```
+
+Each manifest points to a complete generation. A failed replacement preserves
+the previous published figures. Source and output fingerprints enable unchanged
+runs to skip XML parsing, numerical reads, rendering and worker startup. Changing
+only a rendering option reuses the existing sampled arrays. Missing artifacts
+are regenerated; `--force` explicitly resamples and rerenders. Fingerprints use
+size and modification time, so changes preserving both require `--force`.
+The HTML gallery links previews, vector figures and any requested videos; the
+catalogue gives their current paths. The report records errors, sampled color
+ranges, elapsed time and the number of selected HDF field arrays read. Files
+are named by the selected study (`both`, `simulations`, or `convergence`) and
+describe the latest invocation, including an intentionally partial selection.
+
+`--scale symlog` is an explicit alternative for concentration ranges containing
+large outliers. It preserves every value, with a linear region within one
+millionth of the maximum absolute display limit and logarithmic spacing outside
+that region. Figures label the transformed scale; necrosis stays linear.
+The current `convergence_50000` has sampled substrate values above 2,000 mM,
+whereas the six finer histories stay near 1 mM or below. Its product values
+likewise stretch the shared linear range. Keep those source values visible;
+use a separate symlog output root when inspecting finer spatial differences.
