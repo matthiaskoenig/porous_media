@@ -26,7 +26,7 @@ from research.spt.plot_render import (
     save_figure,
 )
 
-OVERVIEW_VERSION = 1
+OVERVIEW_VERSION = 2
 
 
 def _label(source: PlotSource) -> str:

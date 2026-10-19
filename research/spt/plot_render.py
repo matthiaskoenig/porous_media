@@ -166,7 +166,7 @@ def panel(
         cmap=layer.colormap,
         linewidths=min(0.13, 5.0 / np.sqrt(len(samples.faces))) if mesh else 0,
         edgecolors="black" if mesh else "none",
-        antialiaseds=False,
+        antialiaseds=mesh,
     )
     collection.set_array(values[samples.cell_ids] * layer.factor)
     if layer.scale == "symlog":
