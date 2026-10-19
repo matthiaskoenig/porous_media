@@ -34,8 +34,32 @@ the reviewed version commit on `main`. Existing tags are immutable.
    requirements. Update `uv.lock` if the project metadata change requires it and
    verify that the locked environment remains current. Do not edit generated
    changelog files manually.
+   Validate the version and nonempty release notes locally:
+
+   ```bash
+   uv run --no-sync python scripts/validate_release.py <version>
+   ```
+
 6. Commit the version files and release notes, open a pull request against
    `main`, and wait for all required checks. Merge through the protected branch.
+
+## Preview the release workflow
+
+Run the `CI-CD` workflow manually with `release_tag` set to the prospective
+version. Select the release branch to validate it before merging, or `main`
+after merging. The run validates the version and release notes, runs the
+checks, and uploads distributions. Manual runs never publish to PyPI, create a
+GitHub release, or deploy documentation, including runs selected on a tag.
+
+For example, after pushing the release branch:
+
+```bash
+gh workflow run ci-cd.yml --ref <release-branch> -f release_tag=<version>
+```
+
+An empty `release_tag` runs the ordinary validation checks. The experimental
+Python 3.15 job can fail while VTK distributions remain unavailable; supported
+Python versions must pass.
 
 ## Tag the reviewed commit
 
@@ -61,6 +85,16 @@ must configure the PyPI trusted publisher and any environment approval policy
 before the first automated publication.
 Use `.github/workflows/ci-cd.yml` as the trusted publisher workflow filename.
 Update an existing publisher registration if the workflow filename changes.
+The publisher must match repository owner `matthiaskoenig`, repository
+`porous_media`, workflow `ci-cd.yml`, and environment `pypi`. In particular,
+replace an older registration for `main.yml`; GitHub settings alone cannot
+update the PyPI registration.
+
+If PyPI publication succeeds but the GitHub release step fails, rerun the failed
+release job using its original build artifact. Publication skips files already
+present on PyPI so the job can finish creating the GitHub release. Do not move
+the tag, rebuild different files under the same version, or delete published
+files to retry. A manual workflow run is a preview and does not publish.
 
 Check the GitHub Actions release run, the GitHub release notes, and PyPI.
 Test the published package in a fresh environment outside the checkout:

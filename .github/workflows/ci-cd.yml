@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Version to validate without publishing (optional)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -20,9 +25,10 @@ env:
 
 jobs:
   test:
-    name: Python ${{ matrix.python-version }} / ${{ matrix.os }}
+    name: Python ${{ matrix.python-version }} / ${{ matrix.os }}${{ matrix.experimental && ' (experimental)' || '' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +37,7 @@ jobs:
           - {os: ubuntu-latest, python-version: '3.14'}
           - {os: windows-latest, python-version: '3.14'}
           - {os: macos-latest, python-version: '3.14'}
+          - {os: ubuntu-latest, python-version: '3.15', experimental: true}
     env:
       MPLBACKEND: Agg
       PYVISTA_OFF_SCREEN: 'true'
@@ -61,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every test job to succeed
+      - name: Require supported test jobs to succeed
         env:
           RESULT: ${{ needs.test.result }}
         run: test "$RESULT" = success
@@ -140,11 +147,13 @@ jobs:
           cache-suffix: ${{ github.job }}
       - run: uv sync --locked --group dev
       - name: Validate the release tag and notes
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.release_tag }}
+        run: uv run --no-sync python scripts/validate_release.py "$RELEASE_TAG"
+      - name: Require a tagged release commit on main
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          uv run --no-sync python -c 'import os; from pathlib import Path; from porous_media import __version__; tag = os.environ["RELEASE_TAG"]; assert tag == __version__, f"Tag {tag!r} differs from package version {__version__!r}"; assert Path(f"docs/release-notes/{tag}.md").is_file(), "Missing release notes"'
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
       - run: uv build
       - run: uv run --no-sync twine check --strict dist/*
@@ -173,7 +182,7 @@ jobs:
 
   release:
     needs: [tests, ruff, ty, docs, build]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -192,6 +201,8 @@ jobs:
           path: dist
       - name: Publish verified distributions to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          skip-existing: true
       - name: Create GitHub release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
