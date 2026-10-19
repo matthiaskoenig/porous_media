@@ -57,9 +57,8 @@ For example, after pushing the release branch:
 gh workflow run ci-cd.yml --ref <release-branch> -f release_tag=<version>
 ```
 
-An empty `release_tag` runs the ordinary validation checks. The experimental
-Python 3.15 job can fail while VTK distributions remain unavailable; supported
-Python versions must pass.
+An empty `release_tag` runs the ordinary validation checks for supported Python
+versions. Python 3.15 CI coverage is temporarily disabled.
 
 ## Tag the reviewed commit
 
