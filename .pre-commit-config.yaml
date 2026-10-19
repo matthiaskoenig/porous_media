@@ -16,10 +16,10 @@ repos:
       - id: debug-statements
       - id: trailing-whitespace
         types_or: [python, pyi, toml, yaml, json, markdown, shell]
-        exclude: '^(data/|src/porous_media/resources/|release-notes/|docs/images/)'
+        exclude: '^(data/|src/porous_media/resources/|docs/release-notes/|docs/images/)'
       - id: end-of-file-fixer
         types_or: [python, pyi, toml, yaml, json, markdown, shell]
-        exclude: '^(data/|src/porous_media/resources/|release-notes/|docs/images/)'
+        exclude: '^(data/|src/porous_media/resources/|docs/release-notes/|docs/images/)'
   - repo: local
     hooks:
       - id: ruff-check

@@ -33,16 +33,17 @@ visualization, and FEBio modules. Scripts in `porous_media.analyses` are researc
 workflows with project-specific paths and data requirements.
 They are not a supported command-line interface or portable tutorials.
 
-The [research archive](research.md) preserves historical setup notes, meeting
-notes, and PDF specifications separately from the current user guides.
+The [research archive](research.md) preserves historical setup and study notes separately from the current
+user guides.
 
 Development uses [uv](https://docs.astral.sh/uv/), Ruff, ty, pytest, and Zensical.
-See [development](development.md) for the locked environment and required checks.
+See [contributing](contributing.md) for bug reports and pull requests, and
+[development](development.md) for the locked environment and required checks.
 
 ## Project
 
 - [Source and issues](https://github.com/matthiaskoenig/porous_media)
 - [Package on PyPI](https://pypi.org/project/porous_media/)
 - [Citation: doi:10.5281/zenodo.8335487](https://doi.org/10.5281/zenodo.8335487)
-- [MIT source license](https://github.com/matthiaskoenig/porous_media/blob/main/mit.txt)
-- [CC BY-SA 4.0 documentation license](https://github.com/matthiaskoenig/porous_media/blob/main/cc-by-sa-4.0.txt)
+- [MIT source license](https://github.com/matthiaskoenig/porous_media/blob/main/LICENSE)
+- [CC BY-SA 4.0 documentation license](cc-by-sa-4.0.txt)

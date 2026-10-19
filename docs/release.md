@@ -30,7 +30,7 @@ the reviewed version commit on `main`. Existing tags are immutable.
    uv run --no-sync bump-my-version bump patch --no-tag --no-commit
    ```
 
-5. Add `release-notes/<version>.md` describing user-visible changes and migration
+5. Add `docs/release-notes/<version>.md` describing user-visible changes and migration
    requirements. Update `uv.lock` if the project metadata change requires it and
    verify that the locked environment remains current. Do not edit generated
    changelog files manually.
@@ -59,6 +59,8 @@ The tag workflow runs validation, builds distributions, and publishes to PyPI
 through the `pypi` environment using trusted publishing. The repository owner
 must configure the PyPI trusted publisher and any environment approval policy
 before the first automated publication.
+Use `.github/workflows/ci-cd.yml` as the trusted publisher workflow filename.
+Update an existing publisher registration if the workflow filename changes.
 
 Check the GitHub Actions release run, the GitHub release notes, and PyPI.
 Test the published package in a fresh environment outside the checkout:
@@ -71,3 +73,11 @@ uv pip install --python /tmp/porous-media-release-check/bin/python porous_media=
 
 Replace the example version and temporary path as needed. Run the documented
 quickstart with that interpreter to confirm the wheel includes its resources.
+
+## Citation metadata
+
+After Zenodo archives a release, update `CITATION.cff` and the README citation
+from its published record. Use the released version, publication date, and
+version-specific DOI. Keep the concept DOI `10.5281/zenodo.8335487` in badges
+and concept identifiers. Do not invent a DOI or update a citation before the
+corresponding archive exists.

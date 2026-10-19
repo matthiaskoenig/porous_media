@@ -1,14 +1,15 @@
 ![porous_media logo](https://raw.githubusercontent.com/matthiaskoenig/porous_media/main/docs/images/favicon/porous_media-100x100-300dpi.png)
 
-# porous_media
+# porous_media: Python tools for porous media
 
-[![CI](https://github.com/matthiaskoenig/porous_media/actions/workflows/main.yml/badge.svg)](https://github.com/matthiaskoenig/porous_media/actions/workflows/main.yml)
+[![CI-CD](https://github.com/matthiaskoenig/porous_media/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/matthiaskoenig/porous_media/actions/workflows/ci-cd.yml)
+[![Documentation](https://img.shields.io/badge/docs-porous_media-3f51b5.svg)](https://matthiaskoenig.github.io/porous_media/)
 [![Version](https://img.shields.io/pypi/v/porous_media.svg)](https://pypi.org/project/porous_media/)
 [![Python versions](https://img.shields.io/pypi/pyversions/porous_media.svg)](https://pypi.org/project/porous_media/)
-[![MIT license](https://img.shields.io/pypi/l/porous_media.svg)](mit.txt)
+[![MIT License](https://img.shields.io/pypi/l/porous_media.svg)](https://opensource.org/licenses/MIT)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8335487.svg)](https://doi.org/10.5281/zenodo.8335487)
 
-Python utilities for porous media simulation results and meshes:
+`porous_media` provides Python utilities for porous media simulation results and meshes:
 
 - Convert FEBio-exported VTK time series to XDMF/HDF5.
 - Inspect and interpolate simulation data.
@@ -16,76 +17,42 @@ Python utilities for porous media simulation results and meshes:
 - Render mesh data with PyVista and combine images and videos.
 - Render FEBio input templates for parameter studies.
 
-Python 3.13 or later is required. CI tests Python 3.13 and 3.14 on Linux and Python 3.14 on Windows and macOS.
+The documentation is available at **[matthiaskoenig.github.io/porous_media](https://matthiaskoenig.github.io/porous_media/)**:
 
-## Installation
+- [Installation](https://matthiaskoenig.github.io/porous_media/installation/) and [quickstart](https://matthiaskoenig.github.io/porous_media/quickstart/)
+- [User guides](https://matthiaskoenig.github.io/porous_media/xdmf/) and [API reference](https://matthiaskoenig.github.io/porous_media/api/)
+- [Contributing](https://matthiaskoenig.github.io/porous_media/contributing/) and [development](https://matthiaskoenig.github.io/porous_media/development/)
+- [Release guide](https://matthiaskoenig.github.io/porous_media/release/) and [release notes](https://matthiaskoenig.github.io/porous_media/release-notes/)
 
-```bash
-python -m pip install porous_media
+Report bugs or request features through the [issue tracker](https://github.com/matthiaskoenig/porous_media/issues).
+
+## How to cite
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8335487.svg)](https://doi.org/10.5281/zenodo.8335487)
+
+If you use `porous_media` please cite the archived software on [Zenodo](https://doi.org/10.5281/zenodo.8335487):
+
+> König, M. (2026). *porous_media: python utilities for porous media analysis and visualization* (Version 0.3.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19488789
+
+```bibtex
+@software{konig_porous_media,
+  author    = {König, Matthias},
+  title     = {porous_media: python utilities for porous media analysis and visualization},
+  year      = {2026},
+  month     = apr,
+  version   = {0.3.0},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.19488789},
+  url       = {https://doi.org/10.5281/zenodo.19488789},
+}
 ```
 
-Install the current source from `main`:
+Citation metadata is available in [CITATION.cff](CITATION.cff).
 
-```bash
-python -m pip install git+https://github.com/matthiaskoenig/porous_media.git@main
-```
+## License
 
-Video creation additionally needs [FFmpeg](https://ffmpeg.org/) on `PATH`.
-Mesh conversion and numerical processing do not need FFmpeg or a display.
-See the [installation guide](docs/installation.md) for rendering requirements.
-
-## Quickstart
-
-Save this script as `quickstart.py` and run `python quickstart.py`:
-
-```python
-from pathlib import Path
-
-from porous_media import RESOURCES_DIR
-from porous_media.data.xdmf_tools import XDMFInfo, vtks_to_xdmf
-
-output = Path("results") / "example.xdmf"
-vtks_to_xdmf(
-    vtk_dir=RESOURCES_DIR / "vtk" / "vtk_timecourse",
-    xdmf_path=output,
-)
-info = XDMFInfo.from_path(output)
-print(f"{info.num_steps} steps: {info.tstart:g} to {info.tend:g}")
-assert info.num_steps == 3
-```
-
-This uses bundled data and writes `example.xdmf`, `example.h5`, and
-`example_limits.json` into `results/`. The summary prints `3 steps: 0 to 220`.
-
-## Documentation and development
-
-Start with the [documentation overview](docs/index.md), [user guides](docs/quickstart.md),
-and [API reference](docs/api/index.md).
-Documentation uses Zensical and API documentation is rendered from source docstrings.
-
-```bash
-git clone https://github.com/matthiaskoenig/porous_media.git
-cd porous_media
-uv sync --locked --group dev --group docs
-uv run --no-sync pre-commit install
-uv run --no-sync ruff check .
-uv run --no-sync ruff format --check .
-uv run --no-sync ty check
-uv run --no-sync pytest
-uv run --no-sync zensical build --clean --strict
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and pull requests,
-[development](docs/development.md) for quality checks and repository policies,
-and [RELEASE.md](RELEASE.md) for releases.
-Project-specific scripts under `porous_media.analyses` may require unpublished data
-and are not general-purpose examples.
-
-## Citation and license
-
-Cite the project using [doi:10.5281/zenodo.8335487](https://doi.org/10.5281/zenodo.8335487).
-Source code is licensed under [MIT](mit.txt).
-Documentation is licensed under [CC BY-SA 4.0](cc-by-sa-4.0.txt).
+- Source Code: [MIT](https://opensource.org/license/MIT)
+- Documentation: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 
 ## Funding
 
@@ -94,4 +61,4 @@ Matthias König is supported by the German Research Foundation (DFG) within the 
 A Systems Medicine Approach)" by grant number 436883643 and by grant number
 465194077 (Priority Programme SPP 2311, Subproject SimLivA).
 
-© 2023-2026 Matthias König
+© 2023-2026 Matthias König, [https://livermetabolism.com](https://livermetabolism.com)

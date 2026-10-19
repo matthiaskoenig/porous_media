@@ -1,7 +1,7 @@
 # Development
 
-Development happens through pull requests against `main`. Use short-lived
-feature branches based on the current `main` branch.
+See [contributing](contributing.md) for bug reports, contribution guidelines,
+and the pull request process.
 
 ## Environment
 
@@ -28,6 +28,23 @@ in pull requests that update dependencies.
 The `dev` dependency group contains Ruff, ty, pytest, tox, pre-commit, build
 validation, and release tooling. The `docs` group contains Zensical and
 mkdocstrings. `uv run --no-sync` uses the environment prepared by the sync step.
+
+## Update dependencies
+
+Resolve current stable releases and sync the development environment:
+
+```bash
+uv lock --upgrade
+uv sync --locked --group dev --group docs
+```
+
+Update minimum versions in `pyproject.toml` when raising dependency requirements,
+and commit the regenerated `uv.lock` with the change. Keep the CI uv version and
+tox requirements consistent with the development environment. Verify the full
+test matrix before merging a dependency update. Transitive dependencies can
+remain below their newest release when an upstream package requires an older
+version; resolve compatibility through the upstream package rather than
+overriding its requirements.
 
 ## Required checks
 
@@ -80,12 +97,7 @@ Pages. The configured URL is
 Publication requires GitHub Pages to use the Actions deployment source and a
 successful deployment run.
 
-## Pull requests and repository policies
-
-Before requesting review, describe the behavior change, update affected guides
-and docstrings, and include validation results. For bug fixes, reproduce the
-user-visible failure and add a regression test when it verifies meaningful
-behavior. Keep research data and generated simulation outputs out of commits.
+## Repository policies
 
 The repository ruleset for `main` requires:
 
@@ -125,6 +137,6 @@ requirements to portable tests or presenting those scripts as general APIs.
 
 ## Releases
 
-Follow [RELEASE.md](https://github.com/matthiaskoenig/porous_media/blob/main/RELEASE.md)
+Follow [release guide](release.md)
 for version changes, release notes, and immutable release tags. Do not edit
 generated files or historical changelog files manually.
