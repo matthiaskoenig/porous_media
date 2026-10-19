@@ -19,6 +19,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import SymLogNorm
 from matplotlib.figure import Figure
+from matplotlib.ticker import FixedLocator
 from numpy.typing import ArrayLike
 
 from research.spt.cache import (
@@ -32,7 +33,7 @@ from research.spt.catalog import CatalogValue
 from research.spt.cli import atomic_json
 from research.spt.plot_data import PlotSource, current_manifest, publish
 
-RENDER_VERSION = 2
+RENDER_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -215,6 +216,21 @@ def save_figure(art: Figure, destination: Path, options: RenderOptions) -> None:
     for axis in art.axes:
         for collection in axis.collections:
             collection.set_rasterized(False)
+            norm = collection.norm
+            if isinstance(norm, SymLogNorm):
+                for dimension in (axis.xaxis, axis.yaxis):
+                    if dimension.get_scale() == "symlog":
+                        low, high = dimension.get_view_interval()
+                        dimension.set_major_locator(
+                            FixedLocator(
+                                [
+                                    value
+                                    for value in dimension.get_majorticklocs()
+                                    if low <= value <= high
+                                    and (value == 0 or abs(value) >= norm.linthresh)
+                                ]
+                            )
+                        )
     destination.parent.mkdir(parents=True, exist_ok=True)
     for extension in options.formats:
         art.savefig(destination.with_suffix(f".{extension}"), dpi=options.dpi)
