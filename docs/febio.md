@@ -72,4 +72,4 @@ to install or use the Python package and are not current general installation
 instructions.
 
 See the [FEBio API reference](api/febio.md) and
-[archived specifications](research.md#specifications) for related material.
+[research archive](research.md) for related material.

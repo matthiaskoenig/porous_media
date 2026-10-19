@@ -24,13 +24,17 @@ nav = [
     { "Visualization" = "api/visualization.md" },
     { "FEBio" = "api/febio.md" },
   ] },
+  { "Contributing" = "contributing.md" },
+  { "Releases" = [
+    { "Release process" = "release.md" },
+    { "Release notes" = "release-notes/index.md" },
+  ] },
   { "Development" = "development.md" },
   { "Research archive" = [
-    { "Overview and specifications" = "research.md" },
-    { "Tools and formats" = "INFORMATION.md" },
+    { "Overview" = "research.md" },
+    { "SPT analysis" = "research/spt.md" },
     { "Historical FEBio setup" = "run_febio_simulations.md" },
     { "Historical FEBio and RoadRunner build" = "build_roadrunner_febio.md" },
-    { "ICCB 2023 notes" = "ICCB2023_meeting_notes.md" },
   ] },
 ]
 
