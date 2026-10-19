@@ -415,6 +415,11 @@ to FFmpeg, without writing intermediate PNG panels. GIF conversion is opt-in.
 `--no-overviews` omits study overviews. Bounded spawned workers own their files
 and rendering state; `--workers 1` runs serially.
 
+Dense SVG time courses can be much larger than compressed vector PDFs. Use
+`--formats pdf png` for smaller batch outputs and reserve SVG for figures that
+need cell-level vector editing. Selecting fewer fields or snapshots also reduces
+rendering time and storage without changing the underlying histories.
+
 The shared Matplotlib renderer runs headlessly without importing PyVista or
 needing a graphics session. It supports planar XY triangles/quads and vertical
 wedge/hexahedron extrusions. Other geometries fail clearly instead of producing
