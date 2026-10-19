@@ -167,9 +167,6 @@ they never execute private datasets or solvers. Ruff and ty cover both subspaces
 Pytest adds the repository root for research imports, while leaving `src` off its
 import path so installed-wheel tests exercise the installed library.
 
-The [issue #3 review](reviews/issue-3.md) records findings, fixes, compatibility
-changes, performance measurements, and remaining follow-up work.
-
 ## Releases
 
 Follow [release guide](release.md)
