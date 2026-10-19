@@ -75,7 +75,23 @@ uv run --no-sync tox run -e ty,ruff,docs,py313,py314,build
 
 Install the corresponding Python interpreters or let uv provision them.
 CI tests Python 3.13 and 3.14 on Linux and Python 3.14 on Windows and macOS.
-The `tests` job aggregates the matrix into a stable required check.
+The `tests` job aggregates the supported matrix into a stable required check.
+
+An experimental Linux job also attempts the installed-wheel tests on Python
+3.15. This job can fail without blocking the required checks while upstream
+dependencies gain compatible distributions. The current blocker is VTK, which
+has neither a Python 3.15 wheel nor a source distribution on PyPI. The package
+does not yet advertise Python 3.15 support in its metadata or change the default
+development interpreter. Reproduce the experimental check separately:
+
+```bash
+uv python install 3.15
+uv run --no-sync tox run -e py315
+```
+
+Keep `py315` out of the default tox environments until installation and the
+complete test suite pass. At that point, make the CI job required, add the
+Python 3.15 classifier, and update the supported-version documentation.
 
 ## Documentation
 

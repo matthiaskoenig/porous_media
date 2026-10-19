@@ -2,9 +2,16 @@
 
 ## Requirements
 
-Use Python 3.13 or later. CI tests Python 3.13 and 3.14 on Linux and Python 3.14
+Use Python 3.13 or 3.14. CI tests Python 3.13 and 3.14 on Linux and Python 3.14
 on Windows and macOS. Runtime dependencies, including meshio, HDF5, NumPy, SciPy,
 PyVista, and Pillow, are installed with the package.
+
+Python 3.15 is experimental. The CI matrix attempts installation and tests on
+Linux, but this job does not block releases. VTK 9.7.1 has no Python 3.15 wheels
+or source distribution on PyPI, so the complete package cannot currently be
+installed on Python 3.15. Use Python 3.13 or 3.14 until compatible dependencies
+are available. See [VTK distributions](https://pypi.org/project/vtk/9.7.1/#files)
+and [issue #2](https://github.com/matthiaskoenig/porous_media/issues/2).
 
 ## Install a release
 

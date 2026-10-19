@@ -5,7 +5,8 @@
 - Follow the contribution guide in `docs/contributing.md` and release procedure
   in `docs/release.md`. Keep instructions consistent with the actual configuration.
 - Python 3.13 is the minimum supported version. Development defaults to the
-  interpreter in `.python-version`; tests also cover Python 3.14.
+  interpreter in `.python-version`; tests also cover Python 3.14. Python 3.15
+  coverage is experimental until upstream dependencies provide distributions.
 - Reusable package code lives in `src/porous_media/data`, `mesh`,
   `visualization`, and `febio`. Tests live under `tests/`.
 - `src/porous_media/analyses` contains research workflows and historical
@@ -72,6 +73,8 @@ uv run --no-sync pre-commit run --all-files
   `uv run --no-sync tox run -e ruff,ty,py313,py314,docs,build`.
 - CI tests installed wheels on Linux with Python 3.13 and 3.14, and on Windows
   and macOS with Python 3.14. Preserve package metadata and resource coverage.
+  Python 3.15 has a nonblocking Linux job and an opt-in `py315` tox environment;
+  do not claim full support until its installation and tests pass.
 - Reproduce a bug through the user-visible workflow before changing code. Add
   regression coverage that checks behavior rather than implementation details.
 - Prefer synthetic fixtures or bundled resources and pytest's `tmp_path` for
