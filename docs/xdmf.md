@@ -34,7 +34,13 @@ The output parent directory is created when needed. Conversion writes:
 For multiple simulation directories, `xdmfs_from_directory(input_dir, xdmf_dir)`
 finds directories containing `*.vtk` files. Output names flatten nested
 directory names using `__`; its return value maps output paths to input directories.
-Choose distinct directory names to avoid flattened-name collisions.
+Files directly inside the input directory use that directory's name. Name
+collisions are rejected before conversion, including on Windows. An empty or
+missing source directory raises an error.
+
+With `overwrite=False`, conversion and interpolation preserve an existing XDMF
+output and refuse to replace an orphaned HDF sidecar. New outputs cannot be
+symbolic links. Regenerating a time series also regenerates its limits cache.
 
 ## Inspect metadata and limits
 
@@ -55,6 +61,7 @@ print(limits.limits["effective_fluid_pressure_TPM"])
 `XDMFInfo` inspects the mesh and field metadata from the first time step and
 reads the final time. `DataLimits` scans all time steps on its first call,
 then reuses the adjacent JSON cache.
+Attribute shapes describe the original arrays, without added stacking dimensions.
 Use `DataLimits.from_xdmf(output, overwrite=True)` after modifying source data.
 Field names must be distinct between point and cell data when sharing one
 limits dictionary. For vector and tensor fields, limits are component extrema,
@@ -76,8 +83,9 @@ interpolate_xdmf(
 ```
 
 Interpolation is linear for numerical point and cell arrays and preserves
-the mesh. Supply a nonempty, increasing array of requested times within the
-source time range. The source time steps must also be ordered.
+the mesh. Supply a nonempty array of requested times within the source time
+range. Requested order and repeated values are preserved; source time steps
+must be strictly increasing.
 The function does not extrapolate, remesh, or infer physically meaningful
 interpolation for categorical fields. Source endpoints are valid requested times.
 
@@ -87,7 +95,21 @@ interpolation for categorical fields. Source endpoints are valid requested times
 `(cell_dataset, point_dataset)` pair of xarray datasets and caches them as
 `<stem>_cells.nc` and `<stem>_points.nc`. This helper selects scalar fields;
 vectors and tensors are skipped. Cached datasets do not retain mesh geometry.
-Use meshio directly when processing geometry, vector fields, tensor fields,
-or individual cell blocks.
+Scalars from all cell blocks are concatenated in mesh order, including blocks
+with different sizes. Dimensions are `(time, cell)` and `(time, point)`, with
+explicit coordinates. A single cell retains its dimension. Scalar names and
+sizes must remain consistent across time steps; changing numeric types are
+promoted without truncating fractional values.
+
+Returned datasets are fully loaded and do not keep cache files open. Set
+`overwrite=True` after changing the source. Directory conversion accepts a
+`max_workers` limit, bounds the default by available CPUs and file count, and
+does not return large datasets through its process pool. Use `max_workers=1`
+for serial execution. Parallel workers use spawn to avoid forking threaded native
+libraries. Put script calls that start workers under `if __name__ == "__main__":`;
+use serial execution in interactive sessions. For lazy access to large existing
+caches, use `xarray.open_dataset` inside an explicit context manager instead of
+this fully loaded helper. Use meshio directly for geometry, vectors, tensors, or
+individual cell blocks.
 
 See the [data API reference](api/data.md) for signatures.

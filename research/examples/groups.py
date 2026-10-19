@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 
-from porous_media import BASE_DIR, DATA_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import interpolate_xdmf, vtks_to_xdmf
 from porous_media.visualization.image_manipulation import merge_images
@@ -14,6 +13,7 @@ from porous_media.visualization.pyvista_visualization import (
     visualize_datalayers_timecourse,
 )
 from porous_media.visualization.video import create_video
+from research import BASE_DIR, DATA_DIR
 
 
 def visualize_group(scalars: list[DataLayer], create_panels: bool = True) -> None:

@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from porous_media import BASE_DIR
-from porous_media.analyses.spt.plots_simulations_geometry import visualize_spt_2d
 from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType, XDMFInfo, xdmfs_from_directory
 from porous_media.log import get_logger
 from porous_media.visualization.pyvista_visualization import DataLayer
+from research import BASE_DIR
+from research.spt.plots_simulations_geometry import visualize_spt_2d
 
 logger = get_logger(__name__)
 

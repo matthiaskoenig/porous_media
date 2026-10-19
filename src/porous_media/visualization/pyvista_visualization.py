@@ -5,9 +5,11 @@ E.g. streamlines in addition to other data.
 
 """
 
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+from math import isfinite
 from pathlib import Path
 
 import meshio
@@ -15,13 +17,11 @@ import pyvista as pv
 from pyvista.plotting._typing import ColormapOptions
 from rich.progress import track
 
-from porous_media import RESOURCES_DIR, RESULTS_DIR
+from porous_media._paths import filename_component
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     AttributeType,
     DataLimits,
-    XDMFInfo,
-    vtks_to_xdmf,
 )
 from porous_media.visualization.image_manipulation import merge_images
 
@@ -36,17 +36,19 @@ class VizType(str, Enum):  # noqa: UP042 - Preserve the public Enum string repre
     OTHER = "Other"
 
 
-# global configuration
-pv.global_theme.window_size = [1000, 1000]
-pv.global_theme.background = "white"
-pv.global_theme.transparent_background = True
-pv.global_theme.colorbar_orientation = "vertical"
-
-pv.global_theme.font.family = "arial"
-pv.global_theme.font.size = 20
-pv.global_theme.font.title_size = 40
-pv.global_theme.font.label_size = 30
-pv.global_theme.font.color = "black"
+def _plot_theme() -> pv.themes.Theme:
+    """Create a local theme without changing the application's PyVista settings."""
+    theme = pv.themes.Theme()
+    theme.window_size = [1000, 1000]
+    theme.background = "white"
+    theme.transparent_background = True
+    theme.colorbar_orientation = "vertical"
+    theme.font.family = "arial"
+    theme.font.size = 20
+    theme.font.title_size = 40
+    theme.font.label_size = 30
+    theme.font.color = "black"
+    return theme
 
 
 class DataRangeType(str, Enum):  # noqa: UP042 - Preserve the public Enum string representation.
@@ -95,7 +97,24 @@ class DataLayer:
             only_empty: Update only layers without existing limits when true.
         """
         if not only_empty or (only_empty and not self.color_limits):
-            self.color_limits = data_limits.limits[self.sid]
+            limits = data_limits.limits[self.sid]
+            if self.conversion_factor is not None:
+                if not isfinite(self.conversion_factor):
+                    raise ValueError("conversion_factor must be finite")
+                values = tuple(value * self.conversion_factor for value in limits)
+                limits = (min(values), max(values))
+            self.color_limits = limits
+
+
+def _mesh_for_layer(mesh: pv.UnstructuredGrid, layer: DataLayer) -> pv.UnstructuredGrid:
+    """Convert one layer without mutating the caller's mesh or other layers."""
+    if layer.conversion_factor is None:
+        return mesh
+    if not isfinite(layer.conversion_factor):
+        raise ValueError("conversion_factor must be finite")
+    converted = mesh.copy(deep=True)
+    converted[layer.sid] = converted[layer.sid] * layer.conversion_factor
+    return converted
 
 
 def visualize_datalayers_timecourse(
@@ -112,6 +131,11 @@ def visualize_datalayers_timecourse(
         data_layers: Layers to render separately for each time point.
         window_size: Width and height of each panel in pixels.
     """
+    data_layers = tuple(data_layers)
+    if not data_layers:
+        raise ValueError("data_layers must contain at least one layer")
+    settings = VisualizationSettings(window_size=list(window_size))
+
     # FIXME: Create more flexible visualization combining multiple datalayers into a single plot;
     # e.g., scalar value, vector field, streamlines, cloud visualization of steatosis.
 
@@ -138,7 +162,7 @@ def visualize_datalayers_timecourse(
                 data_layers=data_layers,
                 image_name=f"sim_{k:05d}",
                 output_dir=output_dir / "panels",
-                visualization_settings=None,
+                visualization_settings=settings,
             )
 
 
@@ -160,6 +184,22 @@ class VisualizationSettings:
     zoom: float = 1.1
 
 
+@contextmanager
+def _plotter(
+    settings: VisualizationSettings, *, interactive: bool = False
+) -> Generator[pv.Plotter]:
+    """Close each plotter even when mesh setup or screenshot creation fails."""
+    plotter = pv.Plotter(
+        window_size=settings.window_size,
+        off_screen=False if interactive else settings.off_screen,
+        theme=_plot_theme(),
+    )
+    try:
+        yield plotter
+    finally:
+        plotter.close()
+
+
 def visualize_data_layers(
     mesh: meshio.Mesh,
     data_layers: Iterable[DataLayer],
@@ -176,6 +216,16 @@ def visualize_data_layers(
         image_name: Output image name without its extension.
         visualization_settings: Camera and rendering settings, or defaults.
     """
+    filename_component(image_name)
+    data_layers = tuple(data_layers)
+    if not data_layers:
+        raise ValueError("data_layers must contain at least one layer")
+    for layer in data_layers:
+        filename_component(layer.sid)
+        directory = output_dir / layer.sid
+        if directory.is_symlink() or (directory / f"{image_name}.png").is_symlink():
+            raise ValueError("Image output must not follow symbolic links")
+
     if not visualization_settings:
         # create default settings
         visualization_settings = VisualizationSettings()
@@ -190,66 +240,63 @@ def visualize_data_layers(
     # visualize data_layers
     data_layers_dict: dict[str, DataLayer] = {dl.sid: dl for dl in data_layers}
     for name, data_layer in data_layers_dict.items():
-        p = pv.Plotter(
-            window_size=visualization_settings.window_size,
-            # title="TPM",
-            off_screen=visualization_settings.off_screen,
-        )
-        if data_layer.viz_type == "Scalar":
-            pvmesh.set_active_scalars(name=name)
-        elif data_layer.viz_type == "Vector":
-            pvmesh.set_active_vectors(name=name)
-        elif data_layer.viz_type == "Tensor":
-            pvmesh.set_active_tensors(name=name)
+        layer_mesh = _mesh_for_layer(pvmesh, data_layer)
+        with _plotter(visualization_settings) as p:
+            if data_layer.viz_type == "Scalar":
+                layer_mesh.set_active_scalars(name=name)
+            elif data_layer.viz_type == "Vector":
+                layer_mesh.set_active_vectors(name=name)
+            elif data_layer.viz_type == "Tensor":
+                layer_mesh.set_active_tensors(name=name)
 
-        # FIXME: add multiple layers on top of each other
-        actor = p.add_mesh(
-            pvmesh,
-            show_edges=True,
-            render_points_as_spheres=True,
-            point_size=3,
-            show_vertices=True,
-            line_width=1.0,
-            cmap=data_layer.colormap,
-            show_scalar_bar=False,
-            edge_color="darkgray",
-            # specular=0.5, specular_power=15,
-            clim=data_layer.color_limits,
-        )
-        if data_layer.scalar_bar:
-            # PyVista's functools.wraps exposes an unbound method signature to ty.
-            p.add_scalar_bar(  # ty: ignore[missing-argument]
-                title=data_layer.title,
-                n_labels=5,
-                bold=True,
-                # height=0.6,
-                width=0.6,
-                vertical=False,
-                position_y=0.0,
-                position_x=0.2,
-                mapper=actor.mapper,
-                fmt="%.1f",
+            # FIXME: add multiple layers on top of each other
+            actor = p.add_mesh(
+                layer_mesh,
+                show_edges=True,
+                render_points_as_spheres=True,
+                point_size=3,
+                show_vertices=True,
+                line_width=1.0,
+                cmap=data_layer.colormap,
+                show_scalar_bar=False,
+                edge_color="darkgray",
+                # specular=0.5, specular_power=15,
+                clim=data_layer.color_limits,
             )
-
-            # set the color limits
-            if data_layer.color_limits is not None:
-                p.update_scalar_bar_range(
-                    clim=data_layer.color_limits,
-                    name=data_layer.title,
+            if data_layer.scalar_bar:
+                # PyVista's functools.wraps exposes an unbound method signature to ty.
+                p.add_scalar_bar(  # ty: ignore[missing-argument]
+                    title=data_layer.title,
+                    n_labels=5,
+                    bold=True,
+                    # height=0.6,
+                    width=0.6,
+                    vertical=False,
+                    position_y=0.0,
+                    position_x=0.2,
+                    mapper=actor.mapper,
+                    fmt="%.1f",
                 )
 
-        # Camera position to zoom to face
-        p.camera_position = visualization_settings.camera_position
-        p.camera.zoom(visualization_settings.zoom)
+                # set the color limits
+                if data_layer.color_limits is not None:
+                    p.update_scalar_bar_range(
+                        clim=data_layer.color_limits,
+                        name=data_layer.title,
+                    )
 
-        output_subdir = Path(output_dir) / f"{name}"
-        output_subdir.mkdir(exist_ok=True, parents=True)
+            # Camera position to zoom to face
+            p.camera_position = visualization_settings.camera_position
+            p.camera.zoom(visualization_settings.zoom)
 
-        # FIXME: have a look at the other serialization formats such as interactive HTML
-        p.show(
-            # cpos=top_view,
-            screenshot=Path(output_subdir / f"{image_name}.png")
-        )
+            output_subdir = Path(output_dir) / f"{name}"
+            output_subdir.mkdir(exist_ok=True, parents=True)
+
+            # FIXME: have a look at the other serialization formats such as interactive HTML
+            p.show(
+                # cpos=top_view,
+                screenshot=Path(output_subdir / f"{image_name}.png")
+            )
 
 
 def create_combined_images(
@@ -261,6 +308,14 @@ def create_combined_images(
     nrows: int | None = None,
 ) -> list[Path]:
     """Create combined images for all timepoints."""
+    filename_component(direction)
+    selection = tuple(filename_component(name) for name in selection)
+    if not selection:
+        raise ValueError("selection must contain at least one layer")
+    if direction not in {"vertical", "horizontal", "square", "custom"}:
+        raise ValueError(f"Unsupported image direction: {direction!r}")
+    if num_steps < 0:
+        raise ValueError("num_steps must be nonnegative")
     image_dir: Path = output_dir / direction
     image_dir.mkdir(parents=True, exist_ok=True)
     all_images: list[Path] = []
@@ -291,6 +346,7 @@ def visualize_interactive(
 ) -> None:
     """Visualize geometry with pyvista."""
     pvmesh = pv.utilities.from_meshio(mesh)
+    pvmesh = _mesh_for_layer(pvmesh, data_layer)
 
     # name of variable
     name = data_layer.sid
@@ -301,87 +357,85 @@ def visualize_interactive(
     pvmesh.set_active_vectors(None)
 
     # visualize data_layer
-    p = pv.Plotter(
-        window_size=visualization_settings.window_size,
-    )
-    if data_layer.viz_type == "Scalar":
-        pvmesh.set_active_scalars(name=name)
-    elif data_layer.viz_type == "Vector":
-        pvmesh.set_active_vectors(name=name)
-    elif data_layer.viz_type == "Tensor":
-        pvmesh.set_active_tensors(name=name)
+    with _plotter(visualization_settings, interactive=True) as p:
+        if data_layer.viz_type == "Scalar":
+            pvmesh.set_active_scalars(name=name)
+        elif data_layer.viz_type == "Vector":
+            pvmesh.set_active_vectors(name=name)
+        elif data_layer.viz_type == "Tensor":
+            pvmesh.set_active_tensors(name=name)
 
-    # PyVista's functools.wraps exposes an unbound method signature to ty.
-    p.show_grid()  # ty: ignore[missing-argument]
+        # PyVista's functools.wraps exposes an unbound method signature to ty.
+        p.show_grid()  # ty: ignore[missing-argument]
 
-    # FIXME: add multiple layers on top of each other, combination of data layers
-    actor = p.add_mesh(
-        pvmesh,
-        show_vertices=True,
-        show_edges=True,
-        render_points_as_spheres=True,
-        point_size=3,
-        line_width=1.0,
-        cmap=data_layer.colormap,
-        show_scalar_bar=False,
-        edge_color="darkgray",
-        # specular=0.5, specular_power=15,
-        clim=data_layer.color_limits,
-        # pbr=True,
-        # metallic=0.8,
-        # roughness=0.0,
-        # diffuse=1
-    )
-    # set up lighting
-    # light = pv.Light((-2, 2, 0), (0, 0, 0), 'white')
-    # p.add_light(light)
-    #
-    light = pv.Light((-2, 0, 0), (0, 0, 0), (0.7, 0.0862, 0.0549))
-    p.add_light(light)
-    #
-    # light = pv.Light((0, 0, 10), (0, 0, 0), 'white')
-    # p.add_light(light)
-
-    # p.add_floor('-z', lighting=True, color='white', pad=1.0)
-    p.add_floor(  # ty: ignore[missing-argument]
-        face="-z", lighting=True, color="white", pad=0.5
-    )
-    p.enable_shadows()  # ty: ignore[missing-argument]
-
-    # TODO:
-    # # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
-    # p.add_mesh(
-    #     # vector on point data
-    #     pvmesh.arrows,
-    #     lighting=False,
-    # )
-
-    if data_layer.scalar_bar:
-        p.add_scalar_bar(  # ty: ignore[missing-argument]
-            title=data_layer.title,
-            n_labels=5,
-            bold=True,
-            # height=0.6,
-            width=0.6,
-            vertical=False,
-            position_y=0.0,
-            position_x=0.2,
-            mapper=actor.mapper,
-            fmt="%.1f",
+        # FIXME: add multiple layers on top of each other, combination of data layers
+        actor = p.add_mesh(
+            pvmesh,
+            show_vertices=True,
+            show_edges=True,
+            render_points_as_spheres=True,
+            point_size=3,
+            line_width=1.0,
+            cmap=data_layer.colormap,
+            show_scalar_bar=False,
+            edge_color="darkgray",
+            # specular=0.5, specular_power=15,
+            clim=data_layer.color_limits,
+            # pbr=True,
+            # metallic=0.8,
+            # roughness=0.0,
+            # diffuse=1
         )
+        # set up lighting
+        # light = pv.Light((-2, 2, 0), (0, 0, 0), 'white')
+        # p.add_light(light)
+        #
+        light = pv.Light((-2, 0, 0), (0, 0, 0), (0.7, 0.0862, 0.0549))
+        p.add_light(light)
+        #
+        # light = pv.Light((0, 0, 10), (0, 0, 0), 'white')
+        # p.add_light(light)
 
-        # set the color limits
-        if data_layer.color_limits is not None:
-            p.update_scalar_bar_range(
-                clim=data_layer.color_limits,
-                name=data_layer.title,
+        # p.add_floor('-z', lighting=True, color='white', pad=1.0)
+        p.add_floor(  # ty: ignore[missing-argument]
+            face="-z", lighting=True, color="white", pad=0.5
+        )
+        p.enable_shadows()  # ty: ignore[missing-argument]
+
+        # TODO:
+        # # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
+        # p.add_mesh(
+        #     # vector on point data
+        #     pvmesh.arrows,
+        #     lighting=False,
+        # )
+
+        if data_layer.scalar_bar:
+            p.add_scalar_bar(  # ty: ignore[missing-argument]
+                title=data_layer.title,
+                n_labels=5,
+                bold=True,
+                # height=0.6,
+                width=0.6,
+                vertical=False,
+                position_y=0.0,
+                position_x=0.2,
+                mapper=actor.mapper,
+                fmt="%.1f",
             )
 
-    # Camera position to zoom to face
-    p.camera_position = visualization_settings.camera_position
-    p.camera.zoom(visualization_settings.zoom)
+            # set the color limits
+            if data_layer.color_limits is not None:
+                p.update_scalar_bar_range(
+                    clim=data_layer.color_limits,
+                    name=data_layer.title,
+                )
 
-    p.show()
+        # Camera position to zoom to face
+        p.camera_position = visualization_settings.camera_position
+        p.camera.zoom(visualization_settings.zoom)
+
+        p.show()
 
 
 def xdmf_to_mesh(xdmf_path: Path, k: int = 0) -> meshio.Mesh:
@@ -393,61 +447,3 @@ def xdmf_to_mesh(xdmf_path: Path, k: int = 0) -> meshio.Mesh:
         return meshio.Mesh(
             points=points, cells=cells, cell_data=cell_data, point_data=point_data
         )
-
-
-if __name__ == "__main__":
-    # FIXME: make this in an example and add path to resources
-
-    # Simple test that all variables are read
-
-    # vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
-    vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
-    xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
-
-    vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
-    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
-    console.print(xdmf_info)
-
-    data_layers: list[DataLayer] = [
-        DataLayer(
-            sid="displacement",
-            title="displacement",
-            colormap="magma",
-            viz_type=AttributeType.VECTOR,
-        ),
-        DataLayer(
-            sid="fluid_flux_TPM",
-            title="fluid flux [m/s]",
-            colormap="magma",
-            viz_type=AttributeType.VECTOR,
-        ),
-        DataLayer(
-            sid="pressure",
-            title="Pressure",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-        DataLayer(
-            sid="effective_fluid_pressure_TPM",
-            title="Effective fluid pressure [Pa]",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-        DataLayer(
-            sid="rr_(S)",
-            title="Substrate S [mM]",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-    ]
-    # visualize_datalayers_timecourse(
-    #     xdmf_path=xdmf_path,
-    #     data_layers=data_layers,
-    #     output_dir=RESULTS_DIR / "vtk_test_images"
-    # )
-
-    mesh = xdmf_to_mesh(xdmf_path, k=1)
-    visualize_interactive(
-        mesh, data_layer=data_layers[2], visualization_settings=VisualizationSettings()
-    )
-    # FIXME: support calculation of new variables for visualization

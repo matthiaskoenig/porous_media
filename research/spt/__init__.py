@@ -1,11 +1,15 @@
 """Definition of SPT information."""
 
+import os
 from pathlib import Path
 
 from porous_media.data.xdmf_tools import AttributeType
 from porous_media.visualization.pyvista_visualization import DataLayer
+from research import DATA_DIR
 
-data_spt_dir: Path = Path("/media/mkoenig/expro/spt/data/2026-04-27")
+data_spt_dir = Path(
+    os.environ.get("POROUS_MEDIA_SPT_DATA", DATA_DIR / "spt")
+).expanduser()
 
 # information for visualization
 data_layers_spt: list[DataLayer] = [

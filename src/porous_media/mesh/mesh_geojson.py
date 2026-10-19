@@ -31,30 +31,34 @@ def plot_geojson(geojson_path: Path) -> Figure:
         raise ValueError("Expected a GeoJSON FeatureCollection")
 
     figure, axes = plt.subplots(figsize=(10, 10))
-    for feature in data["features"]:
-        geometry = feature.get("geometry")
-        if geometry is None:
-            continue
-        geometry_type = geometry["type"]
-        if geometry_type == "Polygon":
-            polygons = [geometry["coordinates"]]
-        elif geometry_type == "MultiPolygon":
-            polygons = geometry["coordinates"]
-        else:
-            continue
-        for polygon in polygons:
-            rings = [PlotPath([point[:2] for point in ring]) for ring in polygon]
-            if rings:
-                axes.add_patch(
-                    PathPatch(
-                        PlotPath.make_compound_path(*rings),
-                        facecolor="#6699cc",
-                        edgecolor="black",
-                        alpha=0.5,
+    try:
+        for feature in data["features"]:
+            geometry = feature.get("geometry")
+            if geometry is None:
+                continue
+            geometry_type = geometry["type"]
+            if geometry_type == "Polygon":
+                polygons = [geometry["coordinates"]]
+            elif geometry_type == "MultiPolygon":
+                polygons = geometry["coordinates"]
+            else:
+                continue
+            for polygon in polygons:
+                rings = [PlotPath([point[:2] for point in ring]) for ring in polygon]
+                if rings:
+                    axes.add_patch(
+                        PathPatch(
+                            PlotPath.make_compound_path(*rings),
+                            facecolor="#6699cc",
+                            edgecolor="black",
+                            alpha=0.5,
+                        )
                     )
-                )
-    axes.autoscale_view()
-    axes.set_aspect("equal")
+        axes.autoscale_view()
+        axes.set_aspect("equal")
+    except BaseException:
+        plt.close(figure)
+        raise
     return figure
 
 

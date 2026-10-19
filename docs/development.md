@@ -26,7 +26,10 @@ uv sync --locked --group dev --group docs --python 3.13
 in pull requests that update dependencies.
 
 The `dev` dependency group contains Ruff, ty, pytest, tox, pre-commit, build
-validation, and release tooling. The `docs` group contains Zensical and
+validation, and release tooling. It includes the `research` group so that the
+whole checkout can be checked. The `research` group declares pandas, PyArrow,
+and openpyxl for study workflows; these are not direct library requirements.
+The `docs` group contains Zensical and
 mkdocstrings. `uv run --no-sync` uses the environment prepared by the sync step.
 
 ## Update dependencies
@@ -145,11 +148,27 @@ pull request before applying them.
 
 ## Project-specific research code
 
-Reusable modules live under `porous_media.data`, `porous_media.mesh`,
-`porous_media.visualization`, and `porous_media.febio`. The `porous_media.analyses`
-tree contains research workflows and historical scripts. Some require
-unpublished datasets, local paths, or external solvers. Avoid adding those
-requirements to portable tests or presenting those scripts as general APIs.
+Reusable modules live under `src/porous_media/`, including its data, mesh,
+visualization, and FEBio subpackages. Project workflows live in the separate
+top-level `research/` namespace. Neither wheels nor source distributions include
+research code or its study fixtures. Imports flow from research into the library;
+the library must not import research or infer repository data/output paths.
+
+Run studies from the checkout using `uv run --no-sync python -m research.spt.information`
+after configuring the required private inputs. See [research setup](research.md)
+for paths and migration from `porous_media.analyses`. Importing the library must
+not seed NumPy, change PyVista's global theme, print study configuration, or load
+rendering libraries for numerical zonation.
+
+Library tests run with `uv run --no-sync pytest -q`. Test portable research helpers
+separately with `uv run --no-sync pytest -q research/tests` or
+`uv run --no-sync tox run -e research`. These synthetic tests also run in Linux CI;
+they never execute private datasets or solvers. Ruff and ty cover both subspaces.
+Pytest adds the repository root for research imports, while leaving `src` off its
+import path so installed-wheel tests exercise the installed library.
+
+The [issue #3 review](reviews/issue-3.md) records findings, fixes, compatibility
+changes, performance measurements, and remaining follow-up work.
 
 ## Releases
 

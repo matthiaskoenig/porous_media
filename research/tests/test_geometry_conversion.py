@@ -6,7 +6,7 @@ import meshio
 import numpy as np
 import pytest
 
-from porous_media.analyses.geometry_conversion import (
+from research.geometry_conversion import (
     reconstruct_lobulus_from_hexagon,
     remove_duplicate_points,
     unique_with_tolerance,

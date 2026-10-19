@@ -40,9 +40,22 @@ conditions, units, and plugins required for your study.
 Template variables use Jinja2 syntax, for example `{{ boundary_pressure }}`.
 The mapping keys identify simulations and become part of output filenames.
 The filename prefix is the template name before its first dot.
-Provide all template variables: the helper uses Jinja2's default handling of
-undefined values and does not validate the resulting FEBio model.
-Existing files with the same generated names are overwritten.
+Simulation identifiers must be single portable filename components, without
+directory separators, traversal, or Windows device names. This prevents a context
+key from writing outside the selected output directory. Generated output files
+cannot be symbolic links. Existing files are preserved by default; pass
+`overwrite=True` to replace regular output files explicitly.
+
+Missing template variables now raise an error. Context values are XML-escaped,
+and an immutable Jinja2 sandbox blocks private Python attributes. Templates and
+context objects must still be trusted and reviewed: sandboxing does not impose
+CPU or memory limits or prevent side effects in supplied Python objects. Avoid
+passing callables or objects with privileged methods. The helper does not validate
+the resulting FEBio model; validate it with the solver before use.
+
+When migrating existing templates, supply every required variable and remove
+assumptions that unescaped strings can insert XML. Use Jinja2's `safe` filter only
+for reviewed XML fragments. Parameter contexts are no longer printed to output.
 
 ## Run the solver and export results
 

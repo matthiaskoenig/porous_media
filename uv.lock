@@ -1548,10 +1548,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "meshio" },
     { name = "numpy" },
-    { name = "openpyxl" },
-    { name = "pandas" },
     { name = "pillow" },
-    { name = "pyarrow" },
     { name = "pyvista" },
     { name = "rich" },
     { name = "scipy" },
@@ -1562,8 +1559,11 @@ dependencies = [
 dev = [
     { name = "build" },
     { name = "bump-my-version" },
+    { name = "openpyxl" },
+    { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
+    { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -1576,6 +1576,11 @@ docs = [
     { name = "mkdocstrings-python" },
     { name = "zensical" },
 ]
+research = [
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1585,10 +1590,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "numpy", specifier = ">=2.5.4" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=3.0.6" },
     { name = "pillow", specifier = ">=13.0.0" },
-    { name = "pyarrow", specifier = ">=26.0.0" },
     { name = "pyvista", specifier = ">=0.49.1" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "scipy", specifier = ">=1.18.1" },
@@ -1599,8 +1601,11 @@ requires-dist = [
 dev = [
     { name = "build", specifier = ">=1.6.1" },
     { name = "bump-my-version", specifier = ">=1.6.3" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.6" },
     { name = "pandas-stubs", specifier = ">=3.0.5.260914" },
     { name = "pre-commit", specifier = ">=4.7.0" },
+    { name = "pyarrow", specifier = ">=26.0.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.17.1" },
@@ -1612,6 +1617,11 @@ dev = [
 docs = [
     { name = "mkdocstrings-python", specifier = ">=2.0.9" },
     { name = "zensical", specifier = ">=0.0.71" },
+]
+research = [
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=3.0.6" },
+    { name = "pyarrow", specifier = ">=26.0.0" },
 ]
 
 [[package]]

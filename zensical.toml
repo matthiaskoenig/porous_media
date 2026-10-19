@@ -29,7 +29,10 @@ nav = [
     { "Release process" = "release.md" },
     { "Release notes" = "release-notes/index.md" },
   ] },
-  { "Development" = "development.md" },
+  { "Development" = [
+    { "Overview" = "development.md" },
+    { "Issue #3 code review" = "reviews/issue-3.md" },
+  ] },
   { "Research archive" = [
     { "Overview" = "research.md" },
     { "SPT analysis" = "research/spt.md" },

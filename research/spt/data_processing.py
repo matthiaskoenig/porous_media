@@ -22,7 +22,7 @@ def process_febio_simulations(input_dir: Path, xdmf_dir: Path) -> dict[Path, Pat
 
 
 if __name__ == "__main__":
-    from porous_media.analyses.spt import (
+    from research.spt import (
         data_spt_dir,
     )
 

@@ -7,11 +7,9 @@ https://www.xdmf.org/index.php/XDMF_Model_and_Format
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
 
 import h5py
 import meshio
@@ -43,6 +41,14 @@ class XDMFTimeSeriesWriter(meshio.xdmf.TimeSeriesWriter):
             self.h5_file = h5py.File(self.h5_filename, "w")
         return self
 
+    def __exit__(self, *args: object) -> None:
+        """Close the HDF sidecar even if serializing XDMF metadata fails."""
+        try:
+            super().__exit__(*args)
+        finally:
+            if self.data_format == "HDF":
+                self.h5_file.close()
+
 
 class AttributeType(StrEnum):
     """Definition of variable type."""
@@ -50,6 +56,7 @@ class AttributeType(StrEnum):
     SCALAR = "Scalar"
     VECTOR = "Vector"
     TENSOR = "Tensor"
+    TENSOR6 = "Tensor6"
     MATRIX = "Matrix"
     OTHER = "Other"
 
@@ -60,7 +67,7 @@ class AttributeInfo:
 
     name: str
     attribute_type: AttributeType
-    shape: tuple
+    shape: tuple[int, ...]
 
 
 @dataclass
@@ -83,19 +90,21 @@ class XDMFInfo:
     num_steps: int
     num_points: int
     num_cells: int
-    points: list[Any]
-    cells: list[Any]
+    points: np.ndarray
+    cells: list[meshio.CellBlock]
     point_data: dict[str, AttributeInfo]
     cell_data: dict[str, AttributeInfo]
 
     @staticmethod
     def from_path(xdmf_path: Path) -> XDMFInfo:
         """Create XDMFInformation from xdmf path."""
-        if not xdmf_path:
-            raise OSError(f"xdmf_path does not exist: {xdmf_path}")
+        if not xdmf_path.is_file():
+            raise FileNotFoundError(f"XDMF path does not exist: {xdmf_path}")
 
         with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
             points, cells = reader.read_points_cells()
+            if reader.num_steps == 0:
+                raise ValueError("XDMF time series must contain at least one time step")
 
             # process most information based on initial data and points and cells
             tstart, point_data, cell_data = reader.read_data(0)
@@ -104,8 +113,8 @@ class XDMFInfo:
             for name, data in point_data.items():
                 point_data_info[name] = AttributeInfo(
                     name=name,
-                    attribute_type=attribute_type(data),
-                    shape=np.dstack(data).shape,
+                    attribute_type=AttributeType(attribute_type(data)),
+                    shape=data.shape,
                 )
 
             cell_data_info = {}
@@ -114,7 +123,7 @@ class XDMFInfo:
                 cell_data_info[name] = AttributeInfo(
                     name=name,
                     attribute_type=AttributeType(attribute_type(data)),
-                    shape=np.dstack(data).shape,
+                    shape=data.shape,
                 )
 
             # get end time
@@ -158,9 +167,11 @@ class DataLimits:
         json_path = cls.json_path_from_xdmf(xdmf_path)
         if not overwrite and json_path.exists():
             console.print(f"json file exists: {json_path}")
-            with open(json_path) as f_json:
+            with json_path.open(encoding="utf-8") as f_json:
                 d = json.load(f_json)
-                return DataLimits(**d)
+                return DataLimits(
+                    limits={name: tuple(values) for name, values in d["limits"].items()}
+                )
 
         # read information
         xdmf_info = XDMFInfo.from_path(xdmf_path)
@@ -179,7 +190,7 @@ class DataLimits:
                 for name in xdmf_info.point_data:
                     # min and max from data
                     data = point_data[name]
-                    data = np.dstack(data)
+                    data = np.asarray(data)
                     data = data.squeeze()
                     dmin = float(data.min())  # casting for JSON serialization
                     dmax = float(data.max())
@@ -218,9 +229,8 @@ class DataLimits:
                 **cell_limits,
             }
         )
-        with open(json_path, "w") as f_json:
-            djson: dict = data_limits.to_dict()  # type: ignore
-            json.dump(djson, fp=f_json, indent=2)
+        with json_path.open("w", encoding="utf-8") as f_json:
+            json.dump({"limits": data_limits.limits}, fp=f_json, indent=2)
 
         console.print(f"json file created: {json_path}")
         return data_limits
@@ -228,13 +238,12 @@ class DataLimits:
     @staticmethod
     def merge_limits(data_limits: list[DataLimits]) -> DataLimits:
         """Merge the limits from multiple data limits."""
-        # copy limits from simulation 0
-        limits = deepcopy(data_limits[0].limits)
-        for k, dlim in enumerate(data_limits):
-            if k == 0:
-                continue
+        if not data_limits:
+            raise ValueError("data_limits must contain at least one set of limits")
+        limits: dict[str, tuple[float, float]] = {}
+        for dlim in data_limits:
             for name, lims_k in dlim.limits.items():
-                lims = limits[name]
+                lims = limits.get(name, lims_k)
                 limits[name] = (
                     lims_k[0] if lims_k[0] < lims[0] else lims[0],
                     lims_k[1] if lims_k[1] > lims[1] else lims[1],
@@ -263,36 +272,24 @@ def xdmfs_from_directory(
     Returns:
         A mapping from each XDMF output path to its VTK source directory.
     """
-    console.rule(title="XDMF from directory", align="left", style="white")
-    # processes all folders with vtk
-
-    # iterate over all directories and subdirectories to collect vtk directories
-    vtk_dirs: list[Path] = []
-    all_dirs = sorted([input_dir, *list(input_dir.rglob("*"))])
-
-    for d in all_dirs:
-        vtk_paths = sorted(d.glob("*.vtk"))
-        n_vtks = len(vtk_paths)
-        if n_vtks > 0:
-            console.print(f"{n_vtks} VTKs: {d}")
-            vtk_dirs.append(d)
-
+    if not input_dir.is_dir():
+        raise NotADirectoryError(f"VTK input directory does not exist: {input_dir}")
+    vtk_dirs = sorted(
+        {path.parent for path in input_dir.rglob("*.vtk") if path.is_file()}
+    )
     if not vtk_dirs:
-        logger.error(
-            "No directory with VTKs in '%s'. Check if the 'febio_dir' is correct.",
-            input_dir,
-        )
-
-    # process the VTKs in the directory
-    xdmf_dict: dict[Path, Path] = {}
+        raise ValueError(f"No VTK files found in {input_dir!s}")
+    outputs: dict[Path, Path] = {}
     for vtk_dir in vtk_dirs:
-        d_name = str(vtk_dir.relative_to(input_dir))
-        d_name = d_name.replace("/", "__")
-        xdmf_path = xdmf_dir / f"{d_name}.xdmf"
-        xdmf_dict[xdmf_path] = vtk_dir
-        vtks_to_xdmf(vtk_dir=vtk_dir, xdmf_path=xdmf_path, overwrite=overwrite)
-
-    return xdmf_dict
+        relative = vtk_dir.relative_to(input_dir)
+        name = "__".join(relative.parts) if relative.parts else input_dir.resolve().name
+        output = xdmf_dir / f"{name}.xdmf"
+        if output in outputs:
+            raise ValueError(f"VTK directories map to the same output: {output}")
+        outputs[output] = vtk_dir
+    for output, vtk_dir in outputs.items():
+        vtks_to_xdmf(vtk_dir, output, overwrite=overwrite)
+    return outputs
 
 
 def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> None:
@@ -314,6 +311,12 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
     vtk_paths = sorted(vtk_dir.glob("*.vtk"))
     if not vtk_paths:
         raise ValueError(f"No VTK files found in '{vtk_dir}'")
+    if xdmf_path.is_symlink() or xdmf_path.with_suffix(".h5").is_symlink():
+        raise ValueError("XDMF outputs must not follow symbolic links")
+    if not overwrite and xdmf_path.with_suffix(".h5").exists():
+        raise FileExistsError(
+            f"HDF sidecar already exists: {xdmf_path.with_suffix('.h5')}"
+        )
     mesh: meshio.Mesh = meshio.read(vtk_paths[0])
     xdmf_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -325,17 +328,17 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
         for k in track(range(len(vtk_paths)), description="Processing VTKs ..."):
             vtk_path = vtk_paths[k]
             # read timepoint
-            with open(vtk_path) as f_vtk:
+            with vtk_path.open(encoding="utf-8") as f_vtk:
                 f_vtk.readline()  # skip first line
                 line = f_vtk.readline()
-                t = float(line.strip().split(" ")[-1])
+                t = float(line.split()[-1])
 
             # read mesh
             mesh = meshio.read(vtk_path)
             writer.write_data(t, point_data=mesh.point_data, cell_data=mesh.cell_data)
 
     # Calculate limits
-    DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=overwrite)
+    DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=True)
 
 
 def interpolate_xdmf(
@@ -364,6 +367,14 @@ def interpolate_xdmf(
         raise ValueError("Interpolation times must be finite")
     if xdmf_in.resolve() == xdmf_out.resolve():
         raise ValueError("Input and output XDMF paths must differ")
+    if xdmf_in.with_suffix(".h5").resolve() == xdmf_out.with_suffix(".h5").resolve():
+        raise ValueError("Input and output HDF sidecar paths must differ")
+    if xdmf_out.is_symlink() or xdmf_out.with_suffix(".h5").is_symlink():
+        raise ValueError("XDMF outputs must not follow symbolic links")
+    if not overwrite and xdmf_out.with_suffix(".h5").exists():
+        raise FileExistsError(
+            f"HDF sidecar already exists: {xdmf_out.with_suffix('.h5')}"
+        )
 
     with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
         points, cells = reader.read_points_cells()
@@ -437,39 +448,6 @@ def interpolate_xdmf(
                 )
 
         # Calculate limits
-        DataLimits.from_xdmf(xdmf_path=xdmf_out, overwrite=overwrite)
+        DataLimits.from_xdmf(xdmf_path=xdmf_out, overwrite=True)
 
         console.print(f"Interpolated data: {xdmf_out}")
-
-
-if __name__ == "__main__":
-    from porous_media import RESOURCES_DIR, RESULTS_DIR
-
-    # Simple test that all variables are read
-    # vtk_dir = RESOURCES_DIR / "vtk" / "vtk_single"
-    vtk_dir = RESOURCES_DIR / "vtk" / "vtk_timecourse"
-    xdmf_path = RESULTS_DIR / "vtk_test.xdmf"
-    vtks_to_xdmf(vtk_dir, xdmf_path=xdmf_path, overwrite=True)
-    xdmf_info: XDMFInfo = XDMFInfo.from_path(xdmf_path)
-    console.print(xdmf_info)
-
-    xdmf_paths: list[Path] = [
-        Path(f"/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_{k}.xdmf")
-        for k in range(21, 26)
-    ]
-
-    xdmf_path = Path(
-        "/home/mkoenig/git/porous_media/data/spt_substrate_scan/sim_25.xdmf"
-    )
-    xdmf_info = XDMFInfo.from_path(xdmf_path)
-    console.print(xdmf_info)
-
-    # limits of individual simulations
-    all_limits: list[DataLimits] = []
-    for xdmf_path in xdmf_paths:
-        limits = DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=False)
-        all_limits.append(limits)
-
-    # merge data limits
-    data_limits = DataLimits.merge_limits(all_limits)
-    console.print(data_limits)

@@ -76,18 +76,3 @@ def create_gif_from_video(
     console.print(f"Create gif: {gif_path}")
     console.print(command)
     subprocess.run(command, check=True)
-
-
-if __name__ == "__main__":
-    from porous_media import RESULTS_DIR
-
-    video_path = (
-        RESULTS_DIR / "spt_zonation_patterns" / "simulation_pattern0_100_28800.mp4"
-    )
-    gif_path = (
-        RESULTS_DIR / "spt_zonation_patterns" / "simulation_pattern0_100_28800.gif"
-    )
-    create_gif_from_video(
-        video_path=video_path,
-        gif_path=gif_path,
-    )

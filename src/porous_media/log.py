@@ -11,7 +11,11 @@ from porous_media.console import console
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
-    """Get new custom logger for name."""
+    """Get a custom logger without adding duplicate console handlers."""
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    if any(isinstance(handler, RichHandler) for handler in logger.handlers):
+        return logger
     formatter = logging.Formatter(
         fmt="%(message)s",
         datefmt="[%X]",
@@ -23,7 +27,5 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     )
     handler.setFormatter(formatter)
 
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
     logger.addHandler(handler)
     return logger
