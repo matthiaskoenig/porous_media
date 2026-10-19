@@ -32,18 +32,18 @@ Report bugs or request features through the [issue tracker](https://github.com/m
 
 If you use `porous_media` please cite the archived software on [Zenodo](https://doi.org/10.5281/zenodo.8335487):
 
-> König, M. (2026). *porous_media: python utilities for porous media analysis and visualization* (Version 0.3.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19488789
+> König, M. (2026). *porous_media: python utilities for porous media analysis and visualization* (Version 0.4.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23471452
 
 ```bibtex
 @software{konig_porous_media,
   author    = {König, Matthias},
   title     = {porous_media: python utilities for porous media analysis and visualization},
   year      = {2026},
-  month     = apr,
-  version   = {0.3.0},
+  month     = oct,
+  version   = {0.4.0},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.19488789},
-  url       = {https://doi.org/10.5281/zenodo.19488789},
+  doi       = {10.5281/zenodo.23471452},
+  url       = {https://doi.org/10.5281/zenodo.23471452},
 }
 ```
 
