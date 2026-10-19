@@ -12,8 +12,9 @@ from typing import TypedDict
 from research.spt.analysis import process_analysis
 from research.spt.analysis_data import AnalysisOptions
 from research.spt.analysis_plots import PlotOptions
+from research.spt.artifacts import atomic_json
 from research.spt.cache import ProcessingResult, validate_roots
-from research.spt.cli import atomic_json, selection_parser
+from research.spt.cli import selection_parser
 from research.spt.data_processing import process_studies
 from research.spt.geometry import process_geometries
 from research.spt.information import main as information_main

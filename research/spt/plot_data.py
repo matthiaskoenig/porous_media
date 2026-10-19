@@ -14,14 +14,14 @@ import h5py
 import meshio
 import numpy as np
 
-from research.spt.artifacts import current_manifest, publish
-from research.spt.cache import (
-    _read_frame,
-    _run_lock,
-    cached_catalog,
+from research.spt.artifacts import (
+    atomic_json,
+    current_manifest,
     fingerprint,
-    validate_roots,
+    publish,
+    run_lock,
 )
+from research.spt.cache import _read_frame, cached_catalog, validate_roots
 from research.spt.catalog import (
     CatalogValue,
     ParsedRun,
@@ -30,7 +30,7 @@ from research.spt.catalog import (
     discover_runs,
     inspect_run,
 )
-from research.spt.cli import atomic_json, selected_studies
+from research.spt.cli import selected_studies
 from research.spt.conditions import pattern_idx2name
 from research.spt.geometry import geometry_jobs, geometry_path
 from research.spt.sampling import blend, bracket
@@ -370,7 +370,7 @@ def prepare_samples(
     cached = current_manifest(directory, configuration, source.run.root)
     if dry_run or (cached and not force):
         return cached
-    with _run_lock(directory):
+    with run_lock(directory):
         cached = current_manifest(directory, configuration, source.run.root)
         if cached and not force:
             return cached

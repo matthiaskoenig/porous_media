@@ -179,7 +179,7 @@ def test_unchanged_analysis_is_metadata_only(
 
     for name in (
         "xarray.open_dataset",
-        "research.spt.analysis.ProcessPoolExecutor",
+        "research.spt.execution.ProcessPoolExecutor",
         "research.spt.analysis_plots.load_analysis",
     ):
         monkeypatch.setattr(name, unexpected)

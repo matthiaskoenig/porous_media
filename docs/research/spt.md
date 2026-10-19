@@ -626,6 +626,20 @@ mixed convergence meshes, installed-library imports, serialized results and
 figures. Run them with `uv run --no-sync pytest -q research/tests`. Validation of
 the private current dataset uses the same pipeline against the read-only share.
 
+### Shared workflow code
+
+SPT modules share field definitions in `fields.py`, filesystem publication and
+locking in `artifacts.py`, and bounded job execution in `execution.py`. Numerical
+caches, reconstructed geometries, analysis, and plotting use those same helpers.
+Serial and parallel batches isolate job failures consistently, and empty batches
+or a single pending history do not start worker processes. Field ordering,
+manifest schemas, existing cache generations, and command names remain compatible.
+
+The four `plots_*` command modules delegate to the shared analysis or geometry
+workflow. Historical plotting adapters still serve other research projects and
+delegate to the current renderer. These helpers remain repository-only research
+code, outside the public library and release artifacts.
+
 ### Final inspection report
 
 Open `results/spt/report.html` or `results/spt/index.html` in a browser after the

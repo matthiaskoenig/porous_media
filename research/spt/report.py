@@ -6,7 +6,6 @@ import argparse
 import csv
 import json
 import sys
-import tempfile
 import uuid
 from collections import Counter
 from dataclasses import dataclass, field
@@ -18,6 +17,7 @@ from urllib.parse import quote
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from research import RESULTS_DIR
+from research.spt.artifacts import atomic_text, generation_path, validate_output
 
 SECTIONS = {
     "analysis": "Quantitative analysis",
@@ -86,12 +86,9 @@ def _outputs(manifest: Path, root: Path) -> tuple[dict[str, object], list[Path]]
     if not _local(manifest, root):
         raise ValueError("Manifest is a symbolic link")
     value = _read_json(manifest)
-    name = str(value.get("generation", ""))
-    if not name.startswith("generation-"):
-        raise ValueError("Invalid generation")
-    uuid.UUID(name.removeprefix("generation-"))
-    directory = manifest.parent / name
-    if not _local(directory, root) or not directory.is_dir():
+    directory = generation_path(manifest.parent, value)
+    name = directory.name
+    if not _local(directory, root):
         raise ValueError("Missing or symbolic-link generation")
     records = value.get("outputs")
     if not isinstance(records, list) or not records:
@@ -452,24 +449,9 @@ def build_report(output_root: Path) -> Path:
     # Render everything before replacing either entry point. Never follow links
     # supplied as destinations, including links to other research output files.
     for name in ("report.html", "index.html"):
-        if (root / name).is_symlink():
-            raise ValueError(f"Report destination is a symbolic link: {name}")
+        validate_output(root / name)
     for name in ("report.html", "index.html"):
-        temporary = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=root,
-                prefix=".html-report-",
-                delete=False,
-            ) as handle:
-                temporary = Path(handle.name)
-                handle.write(document)
-            temporary.replace(root / name)
-        finally:
-            if temporary:
-                temporary.unlink(missing_ok=True)
+        atomic_text(root / name, document)
     return root / "report.html"
 
 

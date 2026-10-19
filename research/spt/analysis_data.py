@@ -10,24 +10,24 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
-from research.spt.artifacts import current_manifest, publish
-from research.spt.cache import (
-    SUMMARY_FIELDS,
-    _current_generation,
-    _generation,
-    _run_lock,
+from research.spt.artifacts import (
+    current_manifest,
     fingerprint,
+    generation_path,
+    publish,
+    run_lock,
+)
+from research.spt.cache import (
+    _current_generation,
     load_summary,
     open_processed_cells,
     run_directory,
 )
+from research.spt.fields import DIAGNOSTICS, POSITION, SUMMARY_FIELDS, VOLUME
 from research.spt.plot_data import PlotSource, sample_times
 from research.spt.sampling import blend, bracket
 
 ANALYSIS_VERSION = 2
-VOLUME = "element_volume_point_TPM"
-POSITION = "rr_position"
-DIAGNOSTICS = (VOLUME, "rr_Vext", "rr_Vli", "pressure")
 
 
 @dataclass(frozen=True)
@@ -242,7 +242,7 @@ def prepare_analysis(
     cached = current_manifest(directory, configuration, data_root)
     if dry_run or (cached and not force):
         return cached
-    with _run_lock(directory):
+    with run_lock(directory):
         cached = current_manifest(directory, configuration, data_root)
         if cached and not force:
             return cached
@@ -345,7 +345,7 @@ def load_analysis(source: PlotSource, output_root: Path, name: str) -> xr.Datase
     directory = source.directory(output_root, "analysis-data")
     if not (directory / "manifest.json").is_file():
         raise FileNotFoundError(f"No completed analysis for {source.run.run_id}")
-    with _run_lock(directory):
+    with run_lock(directory):
         manifest = json.loads((directory / "manifest.json").read_text())
         configuration = manifest["configuration"]
         _current_generation(source.run, Path(manifest["metadata"]["data_root"]))
@@ -357,5 +357,5 @@ def load_analysis(source: PlotSource, output_root: Path, name: str) -> xr.Datase
             is None
         ):
             raise ValueError("Analysis is stale; rerun analysis")
-        generation = _generation(directory, manifest)
+        generation = generation_path(directory, manifest)
         return xr.load_dataset(generation / f"{name}.nc", engine="scipy")

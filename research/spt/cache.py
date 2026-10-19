@@ -1,21 +1,26 @@
 """Build local SPT caches with provenance, bounded reads, and atomic publication."""
 
 import json
-import os
-import shutil
 import tempfile
 import time
-import uuid
 from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Self, cast
 
 import h5py
 import numpy as np
 import xarray as xr
 
+from research.spt.artifacts import (
+    atomic_json,
+    fingerprint,
+    generation_path,
+    publish,
+    records_current,
+    run_lock,
+)
 from research.spt.catalog import (
     CatalogValue,
     ParsedRun,
@@ -23,25 +28,11 @@ from research.spt.catalog import (
     hdf_reference,
     inspect_run,
 )
+from research.spt.fields import ANALYSIS_FIELDS, SUMMARY_FIELDS, VOLUME
 
 type Profile = Literal["analysis", "full"]
 type LegacyPolicy = Literal["sample", "full", "ignore"]
 CACHE_VERSION = 1
-ANALYSIS_FIELDS = (
-    "rr_(S_ext)",
-    "rr_(P_ext)",
-    "rr_protein",
-    "rr_(T)",
-    "rr_necrosis",
-    "element_volume_point_TPM",
-    "rr_position",
-    "rr_Vext",
-    "rr_Vli",
-    "pressure",
-    "rr_zonation_pattern",
-    "cell_type",
-)
-SUMMARY_FIELDS = ANALYSIS_FIELDS[:5]
 
 
 @dataclass
@@ -54,6 +45,11 @@ class ProcessingResult:
     message: str
     elapsed_s: float
     row: dict[str, CatalogValue]
+
+    @classmethod
+    def failed(cls, study: str, run_id: str, error: Exception) -> Self:
+        """Describe an unexpected job failure without dropping other results."""
+        return cls(study, run_id, "failed", f"Worker failed: {error}", 0.0, {})
 
 
 def validate_roots(input_root: Path, output_root: Path) -> tuple[Path, Path]:
@@ -73,15 +69,6 @@ def run_directory(source: RunSource, output_root: Path) -> Path:
     if path.resolve() != path.absolute():
         raise ValueError("Cache directories must not traverse symbolic links")
     return path
-
-
-def fingerprint(path: Path) -> dict[str, int | str | None]:
-    """Record cheap change detection without hashing whole network files."""
-    try:
-        stat = path.stat()
-    except FileNotFoundError:
-        return {"path": str(path), "size": None, "mtime_ns": None}
-    return {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
 
 
 def _configuration(
@@ -105,29 +92,6 @@ def _manifest(source: RunSource, output_root: Path) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
-def _generation(directory: Path, manifest: dict[str, object]) -> Path:
-    name = manifest.get("generation")
-    if not isinstance(name, str) or not name.startswith("generation-"):
-        raise ValueError("Invalid cache generation")
-    uuid.UUID(name.removeprefix("generation-"))
-    path = directory / name
-    if path.is_symlink() or not path.is_dir():
-        raise ValueError("Cache generation missing or a symbolic link")
-    return path
-
-
-def _unchanged(records: object, root: Path) -> bool:
-    if not isinstance(records, list) or not records:
-        return False
-    for record in records:
-        if not isinstance(record, dict) or not isinstance(record.get("path"), str):
-            return False
-        path = Path(record["path"])
-        if not path.resolve().is_relative_to(root) or fingerprint(path) != record:
-            return False
-    return True
-
-
 def cache_status(
     source: RunSource, output_root: Path, profile: Profile, legacy: LegacyPolicy
 ) -> tuple[str, dict[str, object] | None]:
@@ -137,12 +101,12 @@ def cache_status(
         return "missing", None
     try:
         directory = run_directory(source, output_root)
-        generation = _generation(directory, manifest)
+        generation = generation_path(directory, manifest)
         if manifest.get("configuration") != _configuration(source, profile, legacy):
             return "configuration changed", manifest
-        if not _unchanged(manifest.get("sources"), source.root):
+        if not records_current(manifest.get("sources"), source.root):
             return "source changed", manifest
-        if not _unchanged(manifest.get("outputs"), generation):
+        if not records_current(manifest.get("outputs"), generation):
             return "output changed", manifest
         if not isinstance(manifest.get("catalog"), dict):
             return "invalid catalog", manifest
@@ -156,7 +120,7 @@ def cached_catalog(
 ) -> dict[str, CatalogValue] | None:
     """Reuse catalogue metadata independently of the numerical cache profile."""
     manifest = _manifest(source, output_root)
-    if manifest is None or not _unchanged(manifest.get("sources"), source.root):
+    if manifest is None or not records_current(manifest.get("sources"), source.root):
         return None
     configuration = manifest.get("configuration")
     condition = asdict(source.condition) if source.condition is not None else None
@@ -168,34 +132,6 @@ def cached_catalog(
         return None
     row = manifest.get("catalog")
     return cast(dict[str, CatalogValue], row) if isinstance(row, dict) else None
-
-
-@contextmanager
-def _run_lock(directory: Path) -> Generator[None]:
-    """Use an OS lock that is released automatically when a worker exits."""
-    directory.mkdir(parents=True, exist_ok=True)
-    if directory.is_symlink() or (directory / ".lock").is_symlink():
-        raise ValueError("Cache directories and locks must not be symbolic links")
-    with (directory / ".lock").open("a+b") as handle:
-        if os.name == "nt":
-            import msvcrt
-
-            handle.write(b"\0")
-            handle.flush()
-            handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        try:
-            yield
-        finally:
-            if os.name == "nt":
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _fields(parsed: ParsedRun, profile: Profile) -> dict[str, tuple[str, ...]]:
@@ -316,9 +252,9 @@ def summarize(cells: xr.Dataset) -> xr.Dataset:
     cell values and volumes first. Retain per-cell data for that workflow.
     """
     fields = [name for name in SUMMARY_FIELDS if name in cells]
-    if "element_volume_point_TPM" not in cells or not fields:
+    if VOLUME not in cells or not fields:
         return xr.Dataset(coords={"time": cells.time})
-    weights = cells["element_volume_point_TPM"].astype("float64")
+    weights = cells[VOLUME].astype("float64")
     if (
         not np.isfinite(weights.values).all()
         or bool((weights < 0).any())
@@ -350,7 +286,7 @@ def _build(
     force: bool,
 ) -> tuple[str, dict[str, CatalogValue]]:
     directory = run_directory(source, output_root)
-    with _run_lock(directory):
+    with run_lock(directory):
         status, previous = cache_status(source, output_root, profile, legacy)
         if status == "current" and not force and previous is not None:
             return "cached", cast(dict[str, CatalogValue], previous["catalog"])
@@ -407,45 +343,16 @@ def _build(
                         "max": float(finite.max()) if finite.size else None,
                         "nonfinite": int(values.size - finite.size),
                     }
-            (staging / "limits.json").write_text(
-                json.dumps(limits, indent=2, allow_nan=False) + "\n", encoding="utf-8"
+            atomic_json(staging / "limits.json", limits)
+            row = {**parsed.row, "cache_method": method}
+            publish(
+                directory,
+                staging,
+                _configuration(source, profile, legacy),
+                tuple(paths),
+                before,
+                catalog=lambda _: row,
             )
-            generation = directory / f"generation-{uuid.uuid4()}"
-            staging.rename(generation)
-            try:
-                if before != [fingerprint(path) for path in paths]:
-                    raise RuntimeError(
-                        "Inputs changed before publication; retry after upload completes"
-                    )
-                row = {**parsed.row, "cache_method": method}
-                manifest = {
-                    "configuration": _configuration(source, profile, legacy),
-                    "generation": generation.name,
-                    "sources": before,
-                    "outputs": [
-                        fingerprint(path) for path in sorted(generation.iterdir())
-                    ],
-                    "catalog": row,
-                }
-                pointer = directory / f".manifest-{uuid.uuid4()}.json"
-                try:
-                    pointer.write_text(
-                        json.dumps(manifest, indent=2, allow_nan=False) + "\n",
-                        encoding="utf-8",
-                    )
-                    pointer.replace(directory / "manifest.json")
-                finally:
-                    pointer.unlink(missing_ok=True)
-            except BaseException:
-                shutil.rmtree(generation)
-                raise
-        if previous is not None:
-            try:
-                old = _generation(directory, previous)
-                if old != generation:
-                    shutil.rmtree(old)
-            except (OSError, ValueError):
-                pass  # Publication succeeded; an older generation can be cleaned later.
         return method + fallback, row
 
 
@@ -496,8 +403,8 @@ def _current_generation(source: RunSource, output_root: Path) -> Path:
     manifest = _manifest(source, output_root)
     if manifest is None:
         raise FileNotFoundError(f"No completed cache for {source.run_id}")
-    generation = _generation(run_directory(source, output_root), manifest)
-    if not _unchanged(manifest.get("sources"), source.root) or not _unchanged(
+    generation = generation_path(run_directory(source, output_root), manifest)
+    if not records_current(manifest.get("sources"), source.root) or not records_current(
         manifest.get("outputs"), generation
     ):
         raise ValueError("Cache is stale; rerun processing")
@@ -518,7 +425,7 @@ def load_processed_run(
     """Load completed cell, point, and summary data while holding the run lock."""
     if _manifest(source, output_root) is None:
         raise FileNotFoundError(f"No completed cache for {source.run_id}")
-    with _run_lock(run_directory(source, output_root)):
+    with run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
         return (
             xr.load_dataset(generation / "cells.nc", engine="scipy"),
@@ -531,7 +438,7 @@ def load_summary(source: RunSource, output_root: Path) -> xr.Dataset:
     """Load only compact native-time statistics without opening per-cell arrays."""
     if _manifest(source, output_root) is None:
         raise FileNotFoundError(f"No completed cache for {source.run_id}")
-    with _run_lock(run_directory(source, output_root)):
+    with run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
         return xr.load_dataset(generation / "summary.nc", engine="scipy")
 
@@ -545,7 +452,7 @@ def open_processed_cells(source: RunSource, output_root: Path) -> Generator[xr.D
     """
     if _manifest(source, output_root) is None:
         raise FileNotFoundError(f"No completed cache for {source.run_id}")
-    with _run_lock(run_directory(source, output_root)):
+    with run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
         with xr.open_dataset(generation / "cells.nc", engine="scipy") as cells:
             yield cells

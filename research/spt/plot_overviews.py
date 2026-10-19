@@ -11,13 +11,19 @@ from pathlib import Path
 import matplotlib as mpl
 import numpy as np
 
-from research.spt.artifacts import current_manifest, publish
-from research.spt.cache import _generation, _run_lock, _unchanged, fingerprint
+from research.spt.artifacts import (
+    current_manifest,
+    fingerprint,
+    generation_path,
+    publish,
+    records_current,
+    run_lock,
+)
 from research.spt.conditions import pattern_idx2name
+from research.spt.fields import Layer
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import (
     RENDER_VERSION,
-    Layer,
     RenderOptions,
     Samples,
     display_limits,
@@ -206,7 +212,8 @@ def overview_figures(
     source = sources[0]
     directory = source.directory(output_root, "overviews").parent
     paths = tuple(
-        _generation(item.directory(output_root, "plot-data"), manifest) / "samples.npz"
+        generation_path(item.directory(output_root, "plot-data"), manifest)
+        / "samples.npz"
         for item, manifest in zip(sources, prepared, strict=True)
     )
     configuration: dict[str, object] = {
@@ -217,15 +224,15 @@ def overview_figures(
         "options": json.loads(json.dumps(asdict(options))),
         "ranges": {name: list(value) for name, value in ranges.items()},
     }
-    with _run_lock(directory):
+    with run_lock(directory):
         if any(
-            not _unchanged(manifest.get("sources"), item.run.root)
+            not records_current(manifest.get("sources"), item.run.root)
             for item, manifest in zip(sources, prepared, strict=True)
         ):
             raise ValueError("Overview samples are stale; prepare them again")
         cached = current_manifest(directory, configuration, output_root)
         if cached and not force:
-            generation = _generation(directory, cached)
+            generation = generation_path(directory, cached)
         else:
             before = [fingerprint(path) for path in paths]
             samples = [Samples.load(path) for path in paths]
@@ -236,7 +243,7 @@ def overview_figures(
                 with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
                     render_overview(sources, samples, staging, options, ranges)
                 if any(
-                    not _unchanged(manifest.get("sources"), item.run.root)
+                    not records_current(manifest.get("sources"), item.run.root)
                     for item, manifest in zip(sources, prepared, strict=True)
                 ):
                     raise RuntimeError("Overview inputs changed during rendering")

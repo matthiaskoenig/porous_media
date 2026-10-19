@@ -12,11 +12,9 @@ import json
 import shutil
 import tempfile
 import time
-import uuid
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from contextlib import ExitStack, suppress
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
-from multiprocessing import get_context
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -32,7 +30,15 @@ from research.geometry_conversion import (
     transform_cells,
     transform_fields,
 )
-from research.spt.cache import ProcessingResult, _run_lock, fingerprint, validate_roots
+from research.spt.artifacts import (
+    atomic_json,
+    fingerprint,
+    generation_path,
+    publish,
+    records_current,
+    run_lock,
+)
+from research.spt.cache import ProcessingResult, validate_roots
 from research.spt.catalog import (
     CatalogValue,
     RunSource,
@@ -40,8 +46,9 @@ from research.spt.catalog import (
     discover_runs,
     inspect_run,
 )
-from research.spt.cli import atomic_json, selected_studies, write_catalog
+from research.spt.cli import selected_studies, write_catalog
 from research.spt.conditions import conditions_from_source
+from research.spt.execution import execute_jobs, print_result
 from research.spt.sampling import DISCRETE_FIELDS as DISCRETE_FIELDS
 from research.spt.sampling import blend, bracket
 
@@ -196,22 +203,6 @@ def geometry_jobs(
     return jobs
 
 
-def _records_current(records: object, *, root: Path | None = None) -> bool:
-    if not isinstance(records, list) or not records:
-        return False
-    for record in records:
-        if not isinstance(record, dict) or not isinstance(record.get("path"), str):
-            return False
-        path = Path(record["path"])
-        if root is not None and (
-            not path.resolve().is_relative_to(root) or path.is_symlink()
-        ):
-            return False
-        if fingerprint(path) != record:
-            return False
-    return True
-
-
 def geometry_manifest(directory: Path) -> dict[str, object]:
     """Require a complete, current geometry generation and unchanged sources."""
     directory = directory.expanduser().absolute()
@@ -226,18 +217,8 @@ def geometry_manifest(directory: Path) -> dict[str, object]:
         or configuration.get("version") != GEOMETRY_VERSION
     ):
         raise ValueError("Geometry schema changed; rerun geometry processing")
-    generation = manifest.get("generation")
-    if not isinstance(generation, str):
-        raise ValueError("Invalid geometry generation")
-    uuid.UUID(generation.removeprefix("generation-"))
-    path = directory / generation
-    if (
-        not generation.startswith("generation-")
-        or path.is_symlink()
-        or not path.is_dir()
-    ):
-        raise ValueError("Missing geometry generation")
-    if not _records_current(manifest.get("sources")) or not _records_current(
+    path = generation_path(directory, manifest)
+    if not records_current(manifest.get("sources")) or not records_current(
         manifest.get("outputs"), root=path
     ):
         raise ValueError("Geometry is stale; rerun geometry processing")
@@ -500,6 +481,22 @@ def write_composition(
     }
 
 
+def _geometry_catalog(
+    job: GeometryJob, metadata: dict[str, object], generation: Path
+) -> dict[str, CatalogValue]:
+    return {
+        "study": job.study,
+        "run_id": job.run_id,
+        "xdmf": str(generation / f"{job.run_id}.xdmf"),
+        "num_points": cast(int, metadata["num_points"]),
+        "num_cells": cast(int, metadata["num_cells"]),
+        "num_steps": cast(int, metadata["num_steps"]),
+        "tstart_s": cast(float, metadata["tstart_s"]),
+        "tend_s": cast(float, metadata["tend_s"]),
+        "quantitative_analysis": not job.mixed,
+    }
+
+
 def process_geometry(
     job: GeometryJob, output_root: Path, force: bool = False
 ) -> ProcessingResult:
@@ -509,7 +506,7 @@ def process_geometry(
         for source in job.sources:
             _, output_root = validate_roots(source.root, output_root)
         directory = job.directory(output_root)
-        with _run_lock(directory):
+        with run_lock(directory):
             current = _status(job, output_root)
             if current is not None and not force:
                 return ProcessingResult(
@@ -526,9 +523,6 @@ def process_geometry(
                 for path in inspect_run(source).sources
             }
             before = [fingerprint(path) for path in sorted(files)]
-            previous = None
-            with suppress(OSError, ValueError):
-                previous = json.loads((directory / "manifest.json").read_text())
             with tempfile.TemporaryDirectory(
                 prefix=".partial-", dir=directory
             ) as temporary:
@@ -553,49 +547,15 @@ def process_geometry(
                 )
                 if before != [fingerprint(path) for path in sorted(files)]:
                     raise RuntimeError("Inputs changed during geometry processing")
-                generation = directory / f"generation-{uuid.uuid4()}"
-                staging.rename(generation)
-                try:
-                    row: dict[str, CatalogValue] = {
-                        "study": job.study,
-                        "run_id": job.run_id,
-                        "xdmf": str(generation / f"{job.run_id}.xdmf"),
-                        "num_points": cast(int, metadata["num_points"]),
-                        "num_cells": cast(int, metadata["num_cells"]),
-                        "num_steps": cast(int, metadata["num_steps"]),
-                        "tstart_s": cast(float, metadata["tstart_s"]),
-                        "tend_s": cast(float, metadata["tend_s"]),
-                        "quantitative_analysis": not job.mixed,
-                    }
-                    manifest = {
-                        "configuration": job.configuration(),
-                        "generation": generation.name,
-                        "sources": before,
-                        "outputs": [
-                            fingerprint(path) for path in sorted(generation.iterdir())
-                        ],
-                        "catalog": row,
-                    }
-                    if before != [fingerprint(path) for path in sorted(files)]:
-                        raise RuntimeError("Inputs changed before geometry publication")
-                    atomic_json(directory / "manifest.json", manifest)
-                except BaseException:
-                    shutil.rmtree(generation)
-                    raise
-            if isinstance(previous, dict):
-                old_name = previous.get("generation")
-                if (
-                    isinstance(old_name, str)
-                    and old_name.startswith("generation-")
-                    and old_name != generation.name
-                ):
-                    try:
-                        uuid.UUID(old_name.removeprefix("generation-"))
-                        old = directory / old_name
-                        if not old.is_symlink():
-                            shutil.rmtree(old)
-                    except (OSError, ValueError):
-                        pass
+                generation = publish(
+                    directory,
+                    staging,
+                    job.configuration(),
+                    tuple(sorted(files)),
+                    before,
+                    catalog=lambda path: _geometry_catalog(job, metadata, path),
+                )
+                row = _geometry_catalog(job, metadata, generation)
         return ProcessingResult(
             job.study,
             job.run_id,
@@ -659,35 +619,14 @@ def process_geometries(
             )
         else:
             pending.append(job)
-    if workers == 1 or len(pending) <= 1:
-        for job in pending:
-            result = process_geometry(job, output_root, force)
-            results.append(result)
-            print(
-                f"{result.study}/{result.run_id}: {result.status} ({result.elapsed_s:.2f}s) {result.message}",
-                flush=True,
-            )
-    else:
-        with ProcessPoolExecutor(
-            max_workers=min(workers, len(pending)), mp_context=get_context("spawn")
-        ) as executor:
-            futures = {
-                executor.submit(process_geometry, job, output_root, force): job
-                for job in pending
-            }
-            for future in as_completed(futures):
-                job = futures[future]
-                try:
-                    result = future.result()
-                except Exception as error:
-                    result = ProcessingResult(
-                        job.study, job.run_id, "failed", str(error), 0.0, {}
-                    )
-                results.append(result)
-                print(
-                    f"{result.study}/{result.run_id}: {result.status} ({result.elapsed_s:.2f}s) {result.message}",
-                    flush=True,
-                )
+    for _, result in execute_jobs(
+        pending,
+        partial(process_geometry, output_root=output_root, force=force),
+        workers=workers,
+        failed=lambda job, error: ProcessingResult.failed(job.study, job.run_id, error),
+    ):
+        results.append(result)
+        print_result(result)
     results.sort(key=lambda result: (result.study, result.run_id))
     for result in results:
         if result.row and result.study.endswith("_combinations"):

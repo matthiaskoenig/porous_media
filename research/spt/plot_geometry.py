@@ -5,9 +5,8 @@ from __future__ import annotations
 import html
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, replace
-from multiprocessing import get_context
+from functools import partial
 from pathlib import Path
 from typing import cast
 from urllib.parse import quote
@@ -16,8 +15,11 @@ import numpy as np
 import pandas as pd
 
 from research import RESULTS_DIR
+from research.spt.artifacts import atomic_json, atomic_text
 from research.spt.cache import ProcessingResult, validate_roots
-from research.spt.cli import atomic_json, selection_parser, write_catalog
+from research.spt.cli import selection_parser, write_catalog
+from research.spt.execution import execute_jobs, print_result
+from research.spt.fields import LAYERS, Layer
 from research.spt.plot_data import (
     PlotSource,
     plot_sources,
@@ -25,7 +27,7 @@ from research.spt.plot_data import (
     sample_times,
 )
 from research.spt.plot_overviews import overview_figures
-from research.spt.plot_render import LAYERS, Layer, RenderOptions, render_source
+from research.spt.plot_render import RenderOptions, render_source
 
 
 @dataclass
@@ -42,17 +44,34 @@ def _prepare(
     source: PlotSource,
     output: Path,
     fields: tuple[str, ...],
-    times: tuple[float, ...],
+    times: dict[str, tuple[float, ...]],
     force: bool,
 ) -> Prepared:
     try:
         return Prepared(
             source,
-            prepare_samples(source, output, fields, times, force=force),
+            prepare_samples(source, output, fields, times[source.family], force=force),
             created=True,
         )
     except Exception as error:
         return Prepared(source, None, f"{type(error).__name__}: {error}")
+
+
+def _render(
+    item: Prepared,
+    output: Path,
+    options: dict[str, RenderOptions],
+    ranges: dict[str, dict[str, tuple[float, float]]],
+    force: bool,
+) -> ProcessingResult:
+    return render_source(
+        item.source,
+        cast(dict[str, object], item.manifest),
+        output,
+        options[item.source.family],
+        ranges[item.source.family],
+        force=force,
+    )
 
 
 def shared_ranges(
@@ -102,11 +121,7 @@ def write_gallery(rows: list[dict[str, object]], output_root: Path, study: str) 
         )
     page = f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SPT geometry figures</title><style>body{{font:16px system-ui;margin:2rem;background:#f5f6f8;color:#17212b}}main{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem}}article{{background:white;padding:1rem;border-radius:8px}}h2{{font-size:1rem}}img{{width:100%;height:320px;object-fit:contain}}a{{color:#075ca8}}</style><h1>SPT geometry figures</h1><p>Shared time windows and color scales within each study. SVG and PDF preserve vector cell geometry. Videos and separate panels are opt-in.</p><main>{"".join(items)}</main></html>"""
     path = directory / f"index-{study}.html"
-    temporary = path.with_suffix(".partial")
-    if path.is_symlink() or temporary.is_symlink():
-        raise ValueError("Gallery outputs must not follow symbolic links")
-    temporary.write_text(page, encoding="utf-8")
-    temporary.replace(path)
+    atomic_text(path, page)
     return path
 
 
@@ -158,49 +173,37 @@ def process_plots(
     for selected in family_options.values():
         selected.validate()
     fields = tuple(layer.sid for layer in options.layers)
+    all_times = {
+        family: tuple(
+            float(value) for value in np.union1d(chosen.snapshots, chosen.video_times)
+        )
+        for family, chosen in family_options.items()
+    }
     prepared = []
     pending = []
     for source in sources:
-        chosen = family_options[source.family]
-        all_times = tuple(
-            float(value) for value in np.union1d(chosen.snapshots, chosen.video_times)
+        manifest = prepare_samples(
+            source, output_root, fields, all_times[source.family], dry_run=True
         )
-        manifest = prepare_samples(source, output_root, fields, all_times, dry_run=True)
         if manifest is not None and not force:
             prepared.append(Prepared(source, manifest))
         elif dry_run:
             prepared.append(Prepared(source, None))
         else:
-            pending.append((source, all_times))
-    if pending and workers > 1:
-        with ProcessPoolExecutor(
-            max_workers=min(workers, len(pending)), mp_context=get_context("spawn")
-        ) as executor:
-            futures = {
-                executor.submit(
-                    _prepare, source, output_root, fields, selected, force
-                ): source
-                for source, selected in pending
-            }
-            for future in as_completed(futures):
-                source = futures[future]
-                try:
-                    item = future.result()
-                except Exception as error:
-                    item = Prepared(source, None, f"Worker failed: {error}")
-                prepared.append(item)
-                print(
-                    f"sample {source.run.study}/{source.run.run_id}: {'failed: ' + item.error if item.error else 'prepared'}",
-                    flush=True,
-                )
-    else:
-        for source, selected in pending:
-            item = _prepare(source, output_root, fields, selected, force)
-            prepared.append(item)
-            print(
-                f"sample {source.run.study}/{source.run.run_id}: {'failed: ' + item.error if item.error else 'prepared'}",
-                flush=True,
-            )
+            pending.append(source)
+    for source, item in execute_jobs(
+        pending,
+        partial(
+            _prepare, output=output_root, fields=fields, times=all_times, force=force
+        ),
+        workers=workers,
+        failed=lambda source, error: Prepared(source, None, f"Worker failed: {error}"),
+    ):
+        prepared.append(item)
+        print(
+            f"sample {source.run.study}/{source.run.run_id}: {'failed: ' + item.error if item.error else 'prepared'}",
+            flush=True,
+        )
     prepared.sort(key=lambda item: (item.source.run.study, item.source.run.run_id))
     ranges = shared_ranges(prepared)
     results = []
@@ -251,55 +254,22 @@ def process_plots(
             )
         else:
             render_jobs.append(item)
-    if render_jobs and workers > 1:
-        with ProcessPoolExecutor(
-            max_workers=min(workers, len(render_jobs)), mp_context=get_context("spawn")
-        ) as executor:
-            futures = {
-                executor.submit(
-                    render_source,
-                    item.source,
-                    cast(dict[str, object], item.manifest),
-                    output_root,
-                    family_options[item.source.family],
-                    ranges[item.source.family],
-                    force=force,
-                ): item.source
-                for item in render_jobs
-            }
-            for future in as_completed(futures):
-                source = futures[future]
-                try:
-                    result = future.result()
-                except Exception as error:
-                    result = ProcessingResult(
-                        source.run.study,
-                        source.run.run_id,
-                        "failed",
-                        f"Worker failed: {error}",
-                        0.0,
-                        {},
-                    )
-                results.append(result)
-                print(
-                    f"figure {source.run.study}/{source.run.run_id}: {result.status} ({result.elapsed_s:.2f}s) {result.message}",
-                    flush=True,
-                )
-    else:
-        for item in render_jobs:
-            result = render_source(
-                item.source,
-                cast(dict[str, object], item.manifest),
-                output_root,
-                family_options[item.source.family],
-                ranges[item.source.family],
-                force=force,
-            )
-            results.append(result)
-            print(
-                f"figure {result.study}/{result.run_id}: {result.status} ({result.elapsed_s:.2f}s) {result.message}",
-                flush=True,
-            )
+    for _, result in execute_jobs(
+        render_jobs,
+        partial(
+            _render,
+            output=output_root,
+            options=family_options,
+            ranges=ranges,
+            force=force,
+        ),
+        workers=workers,
+        failed=lambda item, error: ProcessingResult.failed(
+            item.source.run.study, item.source.run.run_id, error
+        ),
+    ):
+        results.append(result)
+        print_result(result, prefix="figure ")
     results.sort(key=lambda result: (result.study, result.run_id))
     if dry_run:
         return results

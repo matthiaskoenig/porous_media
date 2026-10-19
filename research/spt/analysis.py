@@ -5,9 +5,8 @@ from __future__ import annotations
 import html
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict
-from multiprocessing import get_context
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -20,8 +19,10 @@ from research.spt.analysis_plots import (
     cached_analysis_figures,
     render_analysis,
 )
+from research.spt.artifacts import atomic_json, atomic_text
 from research.spt.cache import ProcessingResult, validate_roots
-from research.spt.cli import atomic_json, selection_parser, write_catalog
+from research.spt.cli import selection_parser, write_catalog
+from research.spt.execution import execute_jobs
 from research.spt.plot_data import PlotSource, plot_sources
 
 
@@ -30,11 +31,11 @@ def _prepare(
     data_root: Path,
     output_root: Path,
     options: AnalysisOptions,
-    times: tuple[float, ...],
-    spatial: tuple[float, ...],
+    windows: dict[str, tuple[tuple[float, ...], tuple[float, ...]]],
     force: bool,
 ) -> tuple[dict[str, object] | None, str]:
     try:
+        times, spatial = windows[source.family]
         manifest = prepare_analysis(
             source, data_root, output_root, options, times, spatial, force=force
         )
@@ -142,42 +143,20 @@ def process_analysis(
             flush=True,
         )
 
-    if pending and workers > 1:
-        with ProcessPoolExecutor(
-            max_workers=min(workers, len(pending)), mp_context=get_context("spawn")
-        ) as executor:
-            futures = {
-                executor.submit(
-                    _prepare,
-                    source,
-                    data_root,
-                    output_root,
-                    options,
-                    *windows[source.family],
-                    force,
-                ): source
-                for source in pending
-            }
-            for future in as_completed(futures):
-                source = futures[future]
-                try:
-                    outcome = future.result()
-                except Exception as error:
-                    outcome = None, f"Worker failed: {error}"
-                record(source, outcome)
-    else:
-        for source in pending:
-            record(
-                source,
-                _prepare(
-                    source,
-                    data_root,
-                    output_root,
-                    options,
-                    *windows[source.family],
-                    force,
-                ),
-            )
+    for source, outcome in execute_jobs(
+        pending,
+        partial(
+            _prepare,
+            data_root=data_root,
+            output_root=output_root,
+            options=options,
+            windows=windows,
+            force=force,
+        ),
+        workers=workers,
+        failed=lambda _source, error: (None, f"Worker failed: {error}"),
+    ):
+        record(source, outcome)
     results.sort(key=lambda result: (result.study, result.run_id))
     if dry_run:
         for family in sorted({source.family for source in sources}):
@@ -239,14 +218,10 @@ def process_analysis(
         f'<li><a href="{html.escape(Path(str(row["gallery"])).relative_to(directory).as_posix(), quote=True)}">{html.escape(str(row["study"]))}</a> ({row["runs"]} runs)</li>'
         for row in rows
     )
-    temporary = directory / ".index.partial"
-    if temporary.is_symlink() or (directory / "index.html").is_symlink():
-        raise ValueError("Analysis index must not follow symbolic links")
-    temporary.write_text(
+    atomic_text(
+        directory / "index.html",
         f'<!doctype html><html lang="en"><meta charset="utf-8"><title>SPT quantitative analysis</title><h1>SPT quantitative analysis</h1><ul>{links}</ul><p>Time courses retain native histories. Matched comparisons interpolate cell values and volumes before reduction. SD describes spatial variation.</p></html>',
-        encoding="utf-8",
     )
-    temporary.replace(directory / "index.html")
     write_catalog(pd.DataFrame(rows), output_root, name=f"analysis-catalog-{study}")
     atomic_json(
         output_root / f"analysis-report-{study}.json",

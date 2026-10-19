@@ -16,13 +16,20 @@ from matplotlib.axes import Axes
 from matplotlib.colors import to_hex
 from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 
-from research.spt.analysis_data import DIAGNOSTICS, VOLUME, load_analysis
-from research.spt.artifacts import current_manifest, publish
-from research.spt.cache import _generation, _run_lock, fingerprint
-from research.spt.cli import atomic_json
+from research.spt.analysis_data import load_analysis
+from research.spt.artifacts import (
+    atomic_json,
+    atomic_text,
+    current_manifest,
+    fingerprint,
+    generation_path,
+    publish,
+    run_lock,
+)
 from research.spt.conditions import pattern_idx2name
+from research.spt.fields import DIAGNOSTICS, LAYERS, VOLUME
 from research.spt.plot_data import PlotSource
-from research.spt.plot_render import LAYERS, RenderOptions, figure, save_figure
+from research.spt.plot_render import RenderOptions, figure, save_figure
 
 ANALYSIS_PLOT_VERSION = 4
 LABELS = {layer.sid: layer.title for layer in LAYERS}
@@ -510,10 +517,10 @@ def render_analysis(
         for source in sources
     )
     configuration = plot_configuration(sources, options)
-    with _run_lock(directory):
+    with run_lock(directory):
         cached = current_manifest(directory, configuration, output_root)
         if cached and not force:
-            return _generation(directory, cached)
+            return generation_path(directory, cached)
         before = [fingerprint(path) for path in paths]
         native = [load_analysis(source, output_root, "native") for source in sources]
         profiles = [
@@ -677,9 +684,9 @@ def render_analysis(
                 cards.append(
                     f"<article><h2>{name}</h2>{preview}<p>{exports}</p></article>"
                 )
-            (staging / "index.html").write_text(
+            atomic_text(
+                staging / "index.html",
                 f'<!doctype html><html lang="en"><meta charset="utf-8"><title>SPT analysis</title><style>body{{font:16px system-ui;margin:2rem}}article{{max-width:1500px;margin:2rem 0}}h2{{font-size:1.1rem}}</style><h1>{sources[0].run.study}</h1><p>Volume-weighted means; SD describes spatial variation. Concentrations retain source units. Necrosis figures use percent; serialized values remain fractions. Empty spatial bins remain missing.</p><ul>{"".join(links)}</ul>{"".join(cards)}</html>',
-                encoding="utf-8",
             )
             generation = publish(
                 directory,
