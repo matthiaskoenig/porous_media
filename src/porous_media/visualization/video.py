@@ -16,11 +16,23 @@ def create_video(
     codec: str = "mpeg4",
     overwrite: bool = True,
 ) -> None:
-    """Create video by combining images.
+    """Create a video from image frames using ffmpeg.
 
-    :param overwrite: flag for overwriting existing videos
+    Args:
+        image_pattern: ffmpeg input pattern for the image sequence.
+        video_path: Destination video path.
+        frame_rate: Frames per second.
+        codec: ffmpeg video codec name.
+        overwrite: Whether ffmpeg may overwrite an existing video.
+
+    Raises:
+        FileExistsError: If the destination exists and overwrite is false.
+        subprocess.CalledProcessError: If ffmpeg fails.
     """
-    overwrite_flag = "-y" if overwrite else ""
+    if not overwrite and video_path.exists():
+        raise FileExistsError(f"Video path already exists: {video_path}")
+
+    overwrite_flag = "-y" if overwrite else "-n"
     command = [
         "ffmpeg",
         overwrite_flag,
@@ -36,24 +48,34 @@ def create_video(
     ]
     console.print(f"Create video: {video_path}")
     console.print(command)
-    subprocess.run(command)
+    subprocess.run(command, check=True)
 
 
 def create_gif_from_video(
     video_path: Path, gif_path: Path, overwrite: bool = True
 ) -> None:
-    """Gif from video.
+    """Convert a video to a GIF using ffmpeg.
 
-    :param overwrite: flag for overwriting existing gifs
+    Args:
+        video_path: Existing source video path.
+        gif_path: Destination GIF path.
+        overwrite: Whether ffmpeg may overwrite an existing GIF.
+
+    Raises:
+        OSError: If the source video does not exist.
+        FileExistsError: If the destination exists and overwrite is false.
+        subprocess.CalledProcessError: If ffmpeg fails.
     """
     if not video_path.exists():
-        raise IOError(f"Video path does not exist: {video_path}")
+        raise OSError(f"Video path does not exist: {video_path}")
+    if not overwrite and gif_path.exists():
+        raise FileExistsError(f"GIF path already exists: {gif_path}")
 
-    overwrite_flag = "-y" if overwrite else ""
+    overwrite_flag = "-y" if overwrite else "-n"
     command = ["ffmpeg", overwrite_flag, "-i", video_path, gif_path]
     console.print(f"Create gif: {gif_path}")
     console.print(command)
-    subprocess.run(command)
+    subprocess.run(command, check=True)
 
 
 if __name__ == "__main__":

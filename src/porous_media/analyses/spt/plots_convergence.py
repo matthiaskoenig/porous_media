@@ -10,7 +10,6 @@ from matplotlib import pyplot as plt
 from porous_media.console import console
 from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
 
-
 label_kwargs = {
     "fontsize": 12,
     "fontweight": "bold",
@@ -323,7 +322,7 @@ def convergence_analysis(data_dir: Path):
     results_dir.mkdir(exist_ok=True, parents=True)
 
     xdmf_dir = data_dir / "xdmf"
-    xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
+    xdmf_paths = sorted(xdmf_dir.glob("*.xdmf"))
 
     # Load xarray datasets
     xr_cells_dict: dict[str, xr.Dataset] = {}

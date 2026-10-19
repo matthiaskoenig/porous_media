@@ -1,7 +1,7 @@
 """Helpers for zonated meshes."""
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import ClassVar, Protocol
 
 import meshio
 import numpy as np
@@ -18,8 +18,20 @@ from porous_media.visualization.pyvista_visualization import (
     visualize_data_layers,
 )
 
-
 np.random.seed(42)
+
+
+class ZonationPattern(Protocol):
+    """Named function that creates zonation values and accepts a scaling factor."""
+
+    @property
+    def __name__(self) -> str:
+        """Return the name used to identify the resulting variable."""
+        ...
+
+    def __call__(self, p: np.ndarray, *, f_scale: float = 1.0) -> np.ndarray:
+        """Calculate the pattern at the supplied positions."""
+        ...
 
 
 class ZonationPatterns:
@@ -143,18 +155,17 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Sharp periveneous pattern in [0, 1]."""
-        result: np.ndarray = f_scale * (value_min + (value_max - value_min) *
-                                        (1 - (1 - p) ** n / ((1 - p) ** n + 0.25**n)))
+        result: np.ndarray = f_scale * (
+            value_min
+            + (value_max - value_min) * (1 - (1 - p) ** n / ((1 - p) ** n + 0.25**n))
+        )
         return result
-
-
-
 
 
 class ZonatedMesh:
     """Class for zonated meshes."""
 
-    patterns: list[Callable] = [
+    patterns: ClassVar[list[ZonationPattern]] = [
         # increasing patterns
         ZonationPatterns.linear_increase,
         ZonationPatterns.exp_increase,
@@ -175,13 +186,13 @@ class ZonatedMesh:
     def create_zonated_mesh_from_vtk(
         cls,
         vtk_path: Path,
-        patterns: Optional[list[Callable]] = None,
+        patterns: list[ZonationPattern] | None = None,
         remove_point_data: bool = True,
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
     ) -> meshio.Mesh:
         """Create a zonated mesh from VTK and serialize results to XDMF."""
-        f_patterns: list[Callable] = cls.patterns if patterns is None else patterns
+        f_patterns = cls.patterns if patterns is None else patterns
 
         # mesh
         mesh: meshio.Mesh = meshio.read(vtk_path)
@@ -216,7 +227,6 @@ class ZonatedMesh:
             1: periportal (inflow)
             2: perivenous (outflow)
         """
-
         # clone mesh
         if copy_mesh:
             m: meshio.Mesh = mesh.copy()
@@ -226,7 +236,7 @@ class ZonatedMesh:
         # check for variables
         # console.print(m.cell_data.keys())
         if "cell_type" not in m.cell_data:
-            raise IOError("'cell_type' required in cell_data for zonation patterns")
+            raise OSError("'cell_type' required in cell_data for zonation patterns")
 
         # remove cell data
         if remove_cell_data:
@@ -241,7 +251,7 @@ class ZonatedMesh:
             m.point_data = {}
 
         # calculate positions based on cell_type info
-        cell_type: np.ndarray = m.cell_data["cell_type"][0]
+        cell_type = np.asarray(m.cell_data["cell_type"][0])
         position = np.nan * np.ones_like(cell_type)
 
         pp_cells: dict[int, np.ndarray] = {}
@@ -297,26 +307,29 @@ class ZonatedMesh:
 
     @staticmethod
     def _add_zonated_variable(
-        m: meshio.Mesh, variable_id: str, f_zonation: Callable
+        m: meshio.Mesh, variable_id: str, f_zonation: ZonationPattern
     ) -> meshio.Mesh:
         """Add zonation variable to the mesh based on the position variable in [0,1].
 
-        :param variable_id: identifier in cell_data
-        :param f_zonation: function to calculate zonation
+        Args:
+            m: Mesh containing position and volume cell data.
+            variable_id: Identifier for the resulting cell data.
+            f_zonation: Function that calculates the zonation pattern.
 
-        position:
-            0: periveneous
-            1: periportal
+        Position values are 0 at periportal cells and 1 at perivenous cells.
+
+        Returns:
+            The mesh with normalized zonation values stored as cell data.
         """
         # check for variables
         for key in ["position", "volume"]:
             if key not in m.cell_data:
-                raise IOError(
+                raise OSError(
                     f"'{key}' required in calculate zonation patterns, 'create_zonated_mesh' first."
                 )
 
-        position: np.ndarray = m.cell_data["position"][0]
-        volume: np.ndarray = m.cell_data["volume"][0]
+        position = np.asarray(m.cell_data["position"][0])
+        volume = np.asarray(m.cell_data["volume"][0])
 
         # unscaled zonation data
         protein_constant = ZonationPatterns.constant(position)
@@ -366,7 +379,7 @@ def visualize_zonation_patterns(
     dmaxs: dict[str, float] = {}
 
     for key in dl_sids:
-        data = mesh.cell_data[key][0]
+        data = np.asarray(mesh.cell_data[key][0])
         # min, max
         dmins[key] = data.min()
         dmaxs[key] = data.max()
@@ -403,8 +416,7 @@ def visualize_zonation_patterns(
 
 
 def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
-    """Run example for mesh zonation."""
-
+    """Export the zonation example, optionally rendering its patterns."""
     results_path: Path = results_dir / "mesh_zonation"
     results_path.mkdir(parents=True, exist_ok=True)
     vtk_path = RESOURCES_DIR / "zonation" / "mesh_zonation_lobulus.vtk"
@@ -418,6 +430,9 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     mesh_to_xdmf(m=m, xdmf_path=xdmf_path)
     vtk_path = results_path / "mesh_zonation_lobulus.vtk"
     mesh_to_vtk(m=m, vtk_path=vtk_path)
+
+    if not visualize:
+        return
 
     # visualize mesh
     console.rule(title="Mesh Visualization", style="white")

@@ -5,13 +5,15 @@ Helper function for composition and manipulation of mesh geometries.
 """
 
 import os
-import shutil
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import meshio
 import numpy as np
+from numpy.typing import ArrayLike
 from rich.progress import track
-from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from porous_media.data.xdmf_tools import XDMFTimeSeriesWriter
 
 
 def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
@@ -82,50 +84,51 @@ def unique_with_tolerance(
     points: np.ndarray, tol: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """Find the unique points within a given tolerance."""
+    if not np.isfinite(tol) or tol <= 0:
+        raise ValueError("tol must be a positive finite number")
+
     unique_points = []
-    unique_inverse = np.zeros(points.shape[0], dtype=int)
+    unique_inverse = np.full(points.shape[0], -1, dtype=int)
     current_label = 0
     for i, point in enumerate(points):
-        if unique_inverse[i] == 0:
+        if unique_inverse[i] == -1:
             distances = np.linalg.norm(points - point, axis=1)
-            close_points = distances < tol
+            close_points = (distances < tol) & (unique_inverse == -1)
             unique_inverse[close_points] = current_label
             unique_points.append(points[close_points].mean(axis=0))
             current_label += 1
 
-    unique_points = np.array(unique_points)
+    unique_points = np.array(unique_points) if unique_points else points[:0].copy()
     return unique_points, unique_inverse
 
 
 def remove_duplicate_points(
-    mesh: meshio.Mesh, unique_points: np.ndarray, unique_indices
+    mesh: meshio.Mesh, unique_points: np.ndarray, unique_indices: np.ndarray
 ) -> meshio.Mesh:
-    """Remove the duplicate points."""
+    """Remap cells and keep data from the first point in each duplicate group."""
     # Step 2: Update cell data to use new point indices
-    new_cells = []
+    new_cells: list[tuple[str, ArrayLike] | meshio.CellBlock] = []
     for cell_block in mesh.cells:
         new_cell_data = unique_indices[cell_block.data]
         new_cells.append(meshio.CellBlock(cell_block.type, new_cell_data))
     # Step 3: Filter point data to keep only the rows corresponding to unique points
-    new_point_data = {}
+    _, first_indices = np.unique(unique_indices, return_index=True)
+    new_point_data: dict[str, ArrayLike] = {}
     for key, data in mesh.point_data.items():
-        new_point_data[key] = np.zeros((len(unique_points), data.shape[1]))
-        for i, index in enumerate(np.unique(unique_indices)):
-            new_point_data[key][i] = data[index]
+        new_point_data[key] = np.asarray(data)[first_indices]
     # Step 4: Create a new mesh with unique points and updated cells
-    new_mesh = meshio.Mesh(
+    return meshio.Mesh(
         points=unique_points,
         cells=new_cells,
         point_data=new_point_data,
         cell_data=mesh.cell_data,
         field_data=mesh.field_data,
     )
-    return new_mesh
 
 
 def create_lobulus_mesh(
-    points: np.ndarray, cells: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+    points: np.ndarray, cells: list[meshio.CellBlock]
+) -> tuple[np.ndarray, list[meshio.CellBlock]]:
     """Create the lobulus from the sixth element.
 
     Requires to copy all the data associated with the geometry.
@@ -134,13 +137,11 @@ def create_lobulus_mesh(
     angles = 2 * np.pi / 6 * np.linspace(start=1, stop=5, num=5)
 
     all_points = [points]
-    all_cells = [cells]
 
     # create points
-    cell_block: meshio.CellBlock
     n_points = len(points)
     mirror_angle = find_reflection_angle_in_sixth(points)
-    for k, angle in enumerate(angles):
+    for angle in angles:
         # mirror for matching points
         reflected_points = reflect_points(points, mirror_angle)
 
@@ -148,31 +149,16 @@ def create_lobulus_mesh(
         rotated_points = rotate_points(reflected_points, angle)
         all_points.append(rotated_points)
 
-        # Adjust cell connectivity
-        # find points and connect
-        offset = n_points * (k + 1)
-        new_cells = []
-
-        for cell_block in cells:
-            new_data = cell_block.data + offset
-            new_cells.append(meshio.CellBlock(cell_block.type, new_data))
-
-        all_cells.extend([new_cells])
-
     full_circle_points = np.vstack(all_points)
 
-    # create cells
-    full_circle_cells = []
-    cell_types = set(cell_block.type for cell_block in cells)
-
-    for cell_type in cell_types:
-        cells_for_type = []
-        for cell_block_list in all_cells:
-            for cell_block in cell_block_list:
-                if cell_block.type == cell_type:
-                    cells_for_type.append(cell_block.data)
-
-        full_circle_cells.append(meshio.CellBlock(cell_type, np.vstack(cells_for_type)))
+    # Keep the original block order so connectivity and cell data stay aligned.
+    full_circle_cells = [
+        meshio.CellBlock(
+            block.type,
+            np.vstack([np.asarray(block.data) + n_points * k for k in range(6)]),
+        )
+        for block in cells
+    ]
 
     # FIXME
     # # remove duplicate points
@@ -185,34 +171,36 @@ def create_lobulus_mesh(
     return full_circle_points, full_circle_cells
 
 
-def create_lobulus_data(point_data: np.ndarray, cell_data: list[np.ndarray]) -> tuple:
+def create_lobulus_data(
+    point_data: dict[str, ArrayLike], cell_data: dict[str, list[ArrayLike]]
+) -> tuple[dict[str, ArrayLike], dict[str, list[ArrayLike]]]:
     """Create the lobulus data from the sixth element."""
-    new_point_data = {}
+    new_point_data: dict[str, ArrayLike] = {}
     for key, data in point_data.items():
-        new_point_data[key] = np.vstack([data for _ in range(6)])
+        new_point_data[key] = np.concatenate([np.asarray(data)] * 6)
 
-    new_cell_data = {}
+    new_cell_data: dict[str, list[ArrayLike]] = {}
     for key, data_list in cell_data.items():
-        new_data_list = []
-        for data in data_list:
-            new_data_list.append(np.vstack([data for _ in range(6)]))
-
-        new_cell_data[key] = new_data_list
+        new_cell_data[key] = [
+            np.concatenate([np.asarray(data)] * 6) for data in data_list
+        ]
 
     return new_point_data, new_cell_data
 
 
 def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> None:
     """Construct lobulus data layer from sixth xdmf file."""
-
+    xdmf_out.parent.mkdir(parents=True, exist_ok=True)
     # Read the original sixth of the circle mesh
     with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
         # create the mesh
         points, cells = reader.read_points_cells()
         new_points, new_cells = create_lobulus_mesh(points, cells)
 
-        with meshio.xdmf.TimeSeriesWriter(xdmf_out, data_format="HDF") as writer:
-            writer.write_points_cells(new_points, new_cells)
+        with XDMFTimeSeriesWriter(xdmf_out, data_format="HDF") as writer:
+            writer.write_points_cells(
+                new_points, [(block.type, block.data) for block in new_cells]
+            )
 
             # process all the data
             for k in track(range(reader.num_steps), description="Process data"):
@@ -223,17 +211,9 @@ def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> None:
                 )
                 writer.write_data(t, point_data=new_point_data, cell_data=new_cell_data)
 
-    # Fix incorrect *.h5 path
-    # https://github.com/nschloe/meshio/pull/1358
-    h5_path = xdmf_out.parent / f"{xdmf_out.stem}.h5"
-    if h5_path.exists():
-        os.remove(h5_path)
-    shutil.move(f"{xdmf_out.stem}.h5", str(xdmf_out.parent))
-
 
 def reconstruct_lobulus_from_hexagon_dir(xdmf_in_dir: Path, xdmf_out_dir: Path) -> None:
     """Parallel reconstruction of lobulus."""
-
     xdmf_out_dir.mkdir(parents=True, exist_ok=True)
 
     files = [

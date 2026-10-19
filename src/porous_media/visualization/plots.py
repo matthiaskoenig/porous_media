@@ -2,7 +2,6 @@
 
 import matplotlib
 
-
 SMALL_SIZE = 13
 MEDIUM_SIZE = 18
 BIGGER_SIZE = 25

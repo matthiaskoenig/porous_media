@@ -6,9 +6,9 @@ dependencies:
 """
 
 from pathlib import Path
+
 import jinja2
 import numpy as np
-
 
 # from porous_media.console import console
 
@@ -21,9 +21,10 @@ def create_feb_files(
     Tags are of the form: {{ boundary_pressure }}, {{ boundary_flux }}
     Uses jinja2 language for context rendering.
 
-    :param feb_template: path to feb template file with tags
-    :param feb_data: dictionary of simulation_id:context information for rendering (provides information for the tags)
-    :param output_dir: directory where the feb files are generated.
+    Args:
+        feb_template: Path to the Jinja2 FEBio template.
+        feb_data: Template context for each simulation identifier.
+        output_dir: Directory for the generated FEBio files.
     """
     # create output directory
     output_dir.mkdir(parents=True, exist_ok=True)

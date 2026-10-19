@@ -15,9 +15,14 @@ from porous_media.visualization.pyvista_visualization import (
 
 
 def vtu_to_xdmf(vtu_path: Path, xdmf_path: Path) -> meshio.Mesh:
-    """Convert VTK timesteps to XDMF time course.
+    """Read a VTU mesh for visualization.
 
-    :param overwrite: forces overwrite of files, by default existing files are ignored.
+    Args:
+        vtu_path: Input VTU mesh path.
+        xdmf_path: XDMF path displayed in the console; no XDMF file is written.
+
+    Returns:
+        The mesh read from the VTU file.
     """
     console.rule(title=f"{xdmf_path}", style="white")
 

@@ -5,15 +5,16 @@ E.g. streamlines in addition to other data.
 
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Iterable, Optional
 
 import meshio
 import pyvista as pv
 from pyvista.plotting._typing import ColormapOptions
 from rich.progress import track
+
 from porous_media import RESOURCES_DIR, RESULTS_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import (
@@ -25,7 +26,7 @@ from porous_media.data.xdmf_tools import (
 from porous_media.visualization.image_manipulation import merge_images
 
 
-class VizType(str, Enum):
+class VizType(str, Enum):  # noqa: UP042 - Preserve the public Enum string representation.
     """Type of visualization layer."""
 
     SCALAR = "Scalar"
@@ -48,7 +49,7 @@ pv.global_theme.font.label_size = 30
 pv.global_theme.font.color = "black"
 
 
-class DataRangeType(str, Enum):
+class DataRangeType(str, Enum):  # noqa: UP042 - Preserve the public Enum string representation.
     """Enum for handling the data range.
 
     Local: use the data range of every individual variable
@@ -66,28 +67,34 @@ class DataLayer:
     Currently only a single data layer is supported but this will be extended
     to map multiple layers in a single visualiztion
 
-    :param conversion_factor: factor f to convert data before plotting with data_new = data * f
+    Attributes:
+        sid: Name of the mesh data array to render.
+        title: Scalar bar title.
+        colormap: PyVista colormap name or definition.
+        viz_type: Type of mesh attribute to activate.
+        color_limits: Fixed minimum and maximum scalar values.
+        scalar_bar: Whether to show a scalar bar.
+        conversion_factor: Factor for converting data before plotting.
     """
 
     sid: str
     title: str
     colormap: ColormapOptions = "magma"
     viz_type: AttributeType = AttributeType.SCALAR
-    color_limits: Optional[tuple[float, float]] = None
+    color_limits: tuple[float, float] | None = None
     scalar_bar: bool = True
-    conversion_factor: Optional[float] = None
+    conversion_factor: float | None = None
 
     def update_color_limits(
         self, data_limits: DataLimits, only_empty: bool = True
     ) -> None:
         """Update color limits.
 
-        :param only_empty: The parameter determines if only the empty limits should be
-        updated or all limits
+        Args:
+            data_limits: Available limits indexed by the data layer identifier.
+            only_empty: Update only layers without existing limits when true.
         """
-        if not only_empty:
-            self.color_limits = data_limits.limits[self.sid]
-        elif only_empty and not self.color_limits:
+        if not only_empty or (only_empty and not self.color_limits):
             self.color_limits = data_limits.limits[self.sid]
 
 
@@ -99,10 +106,12 @@ def visualize_datalayers_timecourse(
 ) -> None:
     """Create visualizations for individual panels.
 
-    :param xdmf_path: timecourse xdmf
-    :param data_layers: iterable of data layers to visualize, for every layer a plot is generated
+    Args:
+        xdmf_path: Input XDMF time course.
+        output_dir: Directory for rendered panels.
+        data_layers: Layers to render separately for each time point.
+        window_size: Width and height of each panel in pixels.
     """
-
     # FIXME: Create more flexible visualization combining multiple datalayers into a single plot;
     # e.g., scalar value, vector field, streamlines, cloud visualization of steatosis.
 
@@ -118,10 +127,10 @@ def visualize_datalayers_timecourse(
         for k in track(
             range(tnum), description=f"Creating {tnum} panels for {xdmf_path.stem} ..."
         ):
-            t, point_data, cell_data = reader.read_data(k)
+            _, point_data, cell_data = reader.read_data(k)
 
             # Create mesh with single data point
-            mesh: meshio = meshio.Mesh(
+            mesh: meshio.Mesh = meshio.Mesh(
                 points=points, cells=cells, cell_data=cell_data, point_data=point_data
             )
             visualize_data_layers(
@@ -156,12 +165,16 @@ def visualize_data_layers(
     data_layers: Iterable[DataLayer],
     output_dir: Path,
     image_name: str,
-    visualization_settings: Optional[VisualizationSettings] = None,
+    visualization_settings: VisualizationSettings | None = None,
 ) -> None:
     """Visualize geometry with pyvista.
 
-    :param mesh: mesh with single time point scalar data
-    :param image_name: name of the created image, without extension.
+    Args:
+        mesh: Geometry and data for one time point.
+        data_layers: Layers to render as separate panels.
+        output_dir: Directory for per-layer output folders.
+        image_name: Output image name without its extension.
+        visualization_settings: Camera and rendering settings, or defaults.
     """
     if not visualization_settings:
         # create default settings
@@ -204,7 +217,8 @@ def visualize_data_layers(
             clim=data_layer.color_limits,
         )
         if data_layer.scalar_bar:
-            p.add_scalar_bar(  # type: ignore[call-arg]
+            # PyVista's functools.wraps exposes an unbound method signature to ty.
+            p.add_scalar_bar(  # ty: ignore[missing-argument]
                 title=data_layer.title,
                 n_labels=5,
                 bold=True,
@@ -243,11 +257,10 @@ def create_combined_images(
     output_dir: Path,
     selection: Iterable[str],
     direction: str,
-    ncols: Optional[int] = None,
-    nrows: Optional[int] = None,
+    ncols: int | None = None,
+    nrows: int | None = None,
 ) -> list[Path]:
     """Create combined images for all timepoints."""
-
     image_dir: Path = output_dir / direction
     image_dir.mkdir(parents=True, exist_ok=True)
     all_images: list[Path] = []
@@ -298,9 +311,8 @@ def visualize_interactive(
     elif data_layer.viz_type == "Tensor":
         pvmesh.set_active_tensors(name=name)
 
-    p.show_grid(
-        # type: ignore[call-arg]
-    )
+    # PyVista's functools.wraps exposes an unbound method signature to ty.
+    p.show_grid()  # ty: ignore[missing-argument]
 
     # FIXME: add multiple layers on top of each other, combination of data layers
     actor = p.add_mesh(
@@ -331,12 +343,10 @@ def visualize_interactive(
     # p.add_light(light)
 
     # p.add_floor('-z', lighting=True, color='white', pad=1.0)
-    p.add_floor(  # type: ignore[call-arg]
+    p.add_floor(  # ty: ignore[missing-argument]
         face="-z", lighting=True, color="white", pad=0.5
     )
-    p.enable_shadows(
-        # type: ignore[call-arg]
-    )
+    p.enable_shadows()  # ty: ignore[missing-argument]
 
     # TODO:
     # # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
@@ -347,7 +357,7 @@ def visualize_interactive(
     # )
 
     if data_layer.scalar_bar:
-        p.add_scalar_bar(  # type: ignore[call-arg]
+        p.add_scalar_bar(  # ty: ignore[missing-argument]
             title=data_layer.title,
             n_labels=5,
             bold=True,
@@ -378,7 +388,7 @@ def xdmf_to_mesh(xdmf_path: Path, k: int = 0) -> meshio.Mesh:
     """XDMF to mesh."""
     with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
-        t, point_data, cell_data = reader.read_data(k)
+        _, point_data, cell_data = reader.read_data(k)
 
         return meshio.Mesh(
             points=points, cells=cells, cell_data=cell_data, point_data=point_data

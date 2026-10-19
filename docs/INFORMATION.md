@@ -1,5 +1,10 @@
 # Information about libraries, tools and formats
 
+!!! note "Historical research notes"
+    This survey preserves earlier research context. Tool versions and external
+    links may be outdated. Use the [current user guides](index.md) for package
+    workflows and the [research archive](research.md) for related material.
+
 # Working with meshes
 - meshes are stored as a collection of `points` and `cells`, which are objects made from `points`
 - data can be associated either with the `points` or the cells of the mesh
@@ -14,10 +19,10 @@ There are various mesh formats available for representing unstructured meshes. m
 
     Abaqus (.inp), ANSYS msh (.msh), AVS-UCD (.avs), CGNS (.cgns), DOLFIN XML (.xml), Exodus (.e, .exo), FLAC3D (.f3grid), H5M (.h5m), Kratos/MDPA (.mdpa), Medit (.mesh, .meshb), MED/Salome (.med), Nastran (bulk data, .bdf, .fem, .nas), Netgen (.vol, .vol.gz), Neuroglancer precomputed format, Gmsh (format versions 2.2, 4.0, and 4.1, .msh), OBJ (.obj), OFF (.off), PERMAS (.post, .post.gz, .dato, .dato.gz), PLY (.ply), STL (.stl), Tecplot .dat, TetGen .node/.ele, SVG (2D output only) (.svg), SU2 (.su2), UGRID (.ugrid), VTK (.vtk), VTU (.vtu), WKT (TIN) (.wkt), XDMF (.xdmf, .xmf).
 
-## Gmsh 
+## Gmsh
 A three-dimensional finite element mesh generator with built-in pre- and post-processing facilities
 https://gmsh.info/
-- GUI and python interface; 
+- GUI and python interface;
 
 ## trimesh
 https://trimesh.org/
@@ -53,7 +58,7 @@ https://vtk.org/
 - python interface/library
 - very low-level, complicated to write
 
-## Visit 
+## Visit
 https://visit-dav.github.io/visit-website/
 Python scripting:
 https://visit-sphinx-github-user-manual.readthedocs.io/en/develop/python_scripting/index.html
@@ -84,7 +89,7 @@ https://www.youtube.com/watch?v=raiIft8VeRU
 # Algorithms
 ## scipy.spatial
 *Delauny* triangulation
-- scipy.spatial: https://docs.scipy.org/doc/scipy/reference/spatial.html; 
+- scipy.spatial: https://docs.scipy.org/doc/scipy/reference/spatial.html;
 
 - Delaunay triangulation, convex hulls, and Voronoi diagrams
 - Spatial transformations: https://docs.scipy.org/doc/scipy/reference/spatial.transform.html#module-scipy.spatial.transform
