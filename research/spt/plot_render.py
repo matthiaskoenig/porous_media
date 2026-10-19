@@ -9,7 +9,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import cast
 
 import matplotlib as mpl
 import numpy as np
@@ -22,39 +22,21 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator
 from numpy.typing import ArrayLike
 
-from research.spt.cache import (
-    ProcessingResult,
-    _generation,
-    _run_lock,
-    _unchanged,
+from research.spt.artifacts import (
+    atomic_json,
+    current_manifest,
     fingerprint,
+    generation_path,
+    publish,
+    records_current,
+    run_lock,
 )
+from research.spt.cache import ProcessingResult
 from research.spt.catalog import CatalogValue
-from research.spt.cli import atomic_json
-from research.spt.plot_data import PlotSource, current_manifest, publish
+from research.spt.fields import LAYERS, Layer
+from research.spt.plot_data import PlotSource
 
 RENDER_VERSION = 3
-
-
-@dataclass(frozen=True)
-class Layer:
-    """Describe scalar labels, colors and optional explicit display limits."""
-
-    sid: str
-    title: str
-    colormap: str = "magma"
-    limits: tuple[float, float] | None = None
-    factor: float = 1.0
-    scale: Literal["linear", "symlog"] = "linear"
-
-
-LAYERS = (
-    Layer("rr_(S_ext)", "Substrate [mM]"),
-    Layer("rr_(P_ext)", "Product [mM]", "viridis"),
-    Layer("rr_protein", "Protein", "viridis"),
-    Layer("rr_(T)", "Toxicant [mM]"),
-    Layer("rr_necrosis", "Necrosis (fraction)", "Reds", (0.0, 1.0)),
-)
 
 
 @dataclass(frozen=True)
@@ -387,10 +369,10 @@ def render_source(
     try:
         output_root = output_root.expanduser().resolve()
         options.validate()
-        if not _unchanged(prepared.get("sources"), source.run.root):
+        if not records_current(prepared.get("sources"), source.run.root):
             raise ValueError("Plot samples are stale; prepare them again")
         sample_directory = source.directory(output_root, "plot-data")
-        sample_generation = _generation(sample_directory, prepared)
+        sample_generation = generation_path(sample_directory, prepared)
         paths = tuple(
             sorted(path for path in sample_generation.iterdir() if path.is_file())
         )
@@ -413,7 +395,7 @@ def render_source(
                 0.0,
                 {},
             )
-        with _run_lock(directory):
+        with run_lock(directory):
             cached = current_manifest(directory, configuration, output_root)
             if cached and not force:
                 return ProcessingResult(
@@ -422,11 +404,11 @@ def render_source(
                     "cached",
                     "cached",
                     time.perf_counter() - started,
-                    figure_row(source, _generation(directory, cached), options),
+                    figure_row(source, generation_path(directory, cached), options),
                 )
             before = [fingerprint(path) for path in paths]
-            with _run_lock(sample_directory):
-                if not _unchanged(prepared.get("sources"), source.run.root):
+            with run_lock(sample_directory):
+                if not records_current(prepared.get("sources"), source.run.root):
                     raise ValueError("Plot samples are stale; prepare them again")
                 samples = Samples.load(sample_generation / "samples.npz")
             with tempfile.TemporaryDirectory(
@@ -443,9 +425,9 @@ def render_source(
                     staging / "provenance.json",
                     {**configuration, "sampling": prepared["metadata"]},
                 )
-                if before != [fingerprint(path) for path in paths] or not _unchanged(
-                    prepared.get("sources"), source.run.root
-                ):
+                if before != [
+                    fingerprint(path) for path in paths
+                ] or not records_current(prepared.get("sources"), source.run.root):
                     raise RuntimeError("Plot inputs changed during rendering")
                 metadata: dict[str, object] = {
                     "study": source.run.study,

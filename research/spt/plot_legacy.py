@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 
 from research.spt.cache import ProcessingResult, validate_roots
 from research.spt.catalog import RunSource
+from research.spt.fields import Layer
 from research.spt.plot_data import PlotSource, _time, source_row
 from research.spt.plot_geometry import process_plots
-from research.spt.plot_render import Layer, RenderOptions
+from research.spt.plot_render import RenderOptions
 
 if TYPE_CHECKING:
     from porous_media.visualization.pyvista_visualization import DataLayer

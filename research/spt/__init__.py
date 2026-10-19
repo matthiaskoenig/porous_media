@@ -9,20 +9,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from porous_media.visualization.pyvista_visualization import DataLayer
 from research import DATA_DIR
+from research.spt.fields import SUMMARY_FIELDS
 
 data_spt_dir = Path(
     os.environ.get("POROUS_MEDIA_SPT_DATA", DATA_DIR / "spt")
 ).expanduser()
 
-# subset of scalars to visualize
-selection_spt: list[str] = [
-    "rr_(S_ext)",
-    "rr_(P_ext)",
-    "rr_protein",
-    "rr_(T)",
-    "rr_necrosis",
-    # "pressure",
-]
+selection_spt = list(SUMMARY_FIELDS)
 
 
 def __getattr__(name: str) -> list[DataLayer]:

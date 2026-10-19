@@ -13,16 +13,6 @@ from research.spt.conditions import (
 from research.spt.conditions import boundary_flows as boundary_flows
 from research.spt.conditions import pattern_idx2name as pattern_idx2name
 
-pattern_name2idx = {value: key for key, value in pattern_idx2name.items()}
-pattern_order = list(pattern_idx2name.values())
-pattern_colors = {
-    0: "black",
-    1: "tab:blue",
-    2: "tab:purple",
-    3: "tab:red",
-    4: "tab:orange",
-    5: "tab:green",
-}
 pattern_colormaps = {
     0: "Greys",
     1: "Blues",
@@ -205,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not args.dry_run:
             write_catalog(data, target, excel=args.excel)
-            if args.plots:
+            if args.plots and args.study in {"both", "simulations"}:
                 conditions, _ = conditions_from_source(source)
                 frame = simulation_conditions_df(conditions)
                 plot_boundary_flux(frame, target / "figures")

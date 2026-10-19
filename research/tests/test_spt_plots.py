@@ -133,7 +133,7 @@ def test_vector_figures_and_unchanged_resume(
         "meshio.xdmf.TimeSeriesReader",
         "h5py.File",
         "research.spt.plot_render.Samples.load",
-        "research.spt.plot_geometry.ProcessPoolExecutor",
+        "research.spt.execution.ProcessPoolExecutor",
     ):
         monkeypatch.setattr(name, unexpected)
     resumed = process_plots(

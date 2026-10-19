@@ -1,15 +1,15 @@
 """Process supplied SPT XDMF/NetCDF results into resumable local analysis caches."""
 
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict
-from multiprocessing import get_context
+from functools import partial
 from pathlib import Path
 from typing import cast
 
 import pandas as pd
 
 from porous_media.data.xdmf_tools import xdmfs_from_directory
+from research.spt.artifacts import atomic_json
 from research.spt.cache import (
     LegacyPolicy,
     ProcessingResult,
@@ -19,13 +19,9 @@ from research.spt.cache import (
     validate_roots,
 )
 from research.spt.catalog import CatalogValue, discover_runs, inspect_run
-from research.spt.cli import (
-    atomic_json,
-    selected_studies,
-    selection_parser,
-    write_catalog,
-)
+from research.spt.cli import selected_studies, selection_parser, write_catalog
 from research.spt.conditions import conditions_from_source
+from research.spt.execution import execute_jobs, print_result
 
 
 def process_febio_simulations(input_dir: Path, xdmf_dir: Path) -> dict[Path, Path]:
@@ -117,42 +113,18 @@ def process_studies(
             )
         else:
             pending.append(source)
-    if workers == 1 or len(pending) <= 1:
-        for source in pending:
-            result = process_run(source, target, profile, legacy, force)
-            results.append(result)
-            print(
-                f"{result.study}/{result.run_id}: {result.status} ({result.elapsed_s:.2f}s) {result.message}",
-                flush=True,
-            )
-    else:
-        with ProcessPoolExecutor(
-            max_workers=min(workers, len(pending)), mp_context=get_context("spawn")
-        ) as executor:
-            futures = {
-                executor.submit(
-                    process_run, source, target, profile, legacy, force
-                ): source
-                for source in pending
-            }
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-                except Exception as error:
-                    source = futures[future]
-                    result = ProcessingResult(
-                        source.study,
-                        source.run_id,
-                        "failed",
-                        f"Worker failed: {error}",
-                        0.0,
-                        {},
-                    )
-                results.append(result)
-                print(
-                    f"{result.study}/{result.run_id}: {result.status} ({result.elapsed_s:.2f}s) {result.message}",
-                    flush=True,
-                )
+    for _, result in execute_jobs(
+        pending,
+        partial(
+            process_run, output_root=target, profile=profile, legacy=legacy, force=force
+        ),
+        workers=workers,
+        failed=lambda source, error: ProcessingResult.failed(
+            source.study, source.run_id, error
+        ),
+    ):
+        results.append(result)
+        print_result(result)
     results.sort(key=lambda result: (result.study, result.run_id))
     atomic_json(
         target / "processing-report.json", [asdict(result) for result in results]
