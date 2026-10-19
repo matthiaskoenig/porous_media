@@ -39,7 +39,7 @@ Commands run from the checkout root:
 export POROUS_MEDIA_SPT_DATA=/data/koeniglab/spt
 export MPLBACKEND=Agg
 uv run --no-sync python -m research.spt.information --output-root results/spt
-uv run --no-sync python -m research.spt.data_processing --output-root results/spt
+uv run --no-sync python -m research.spt.data_processing --step all --output-root results/spt
 ```
 
 On PowerShell, set `$env:POROUS_MEDIA_SPT_DATA` and `$env:MPLBACKEND` instead.
@@ -293,6 +293,12 @@ results/spt/<study>/xdmf/<run_id>/
 
 XDMF references its colocated HDF sidecar by relative filename. Copying the pair
 is sufficient to open it elsewhere; it does not depend on network HDF files.
+Each worker stages its input descriptors and HDF sidecars on local storage with
+sequential copies, avoiding repeated small reads over the network filesystem.
+Temporary copies are removed after readers close, including on failure. Allow
+space for one source history per lobule worker or six per mixed-view worker,
+in addition to generated outputs. Original inputs remain the provenance source
+and are checked for changes before publication.
 The HDF writer uses gzip compression and shares identical arrays within the
 sidecar to reduce repeated scalar and time-invariant storage. Source fingerprints,
 conditions, field-transform policy, and temporal alignment are recorded in the

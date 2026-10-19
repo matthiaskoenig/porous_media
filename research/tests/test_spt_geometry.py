@@ -379,3 +379,29 @@ def test_complete_cli_analyzes_lobules_only(convergence: tuple[Path, Path]) -> N
     assert not (target / "convergence_sixth/runs").exists()
     assert not (target / "convergence_combinations/runs").exists()
     assert "figure_png" in (target / "geometry-catalog.tsv").read_text()
+
+
+def test_interrupted_staging_preserves_published_pair(
+    convergence: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the previous geometry readable and remove temporary copies on I/O failure."""
+    root, target = convergence
+    job = geometry_jobs(
+        root, study="convergence", combinations=False, run_ids=("convergence_06250",)
+    )[0]
+    assert process_geometry(job, target).status == "processed"
+    descriptor = geometry_path(job.directory(target))
+
+    def fail_copy(source: Path, destination: Path) -> None:
+        raise OSError("Synthetic network interruption")
+
+    monkeypatch.setattr("research.spt.geometry.shutil.copyfile", fail_copy)
+    failure = process_geometry(job, target, force=True)
+    assert failure.status == "failed"
+    assert "network interruption" in failure.message
+    assert geometry_path(job.directory(target)) == descriptor
+    assert not list(target.rglob(".sources-*"))
+    assert not list(target.rglob(".partial-*"))
+    with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
+        reader.read_points_cells()
+        reader.read_data(0)

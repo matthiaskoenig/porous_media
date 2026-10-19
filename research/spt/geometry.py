@@ -357,8 +357,33 @@ def write_composition(
     output.parent.mkdir(parents=True, exist_ok=True)
     limits: dict[str, tuple[float, float]] = {}
     with ExitStack() as stack:
+        # Sequential copies avoid thousands of small HDF reads over a network
+        # filesystem. Keep the relative source layout so XML needs no rewriting.
+        local = Path(
+            stack.enter_context(
+                tempfile.TemporaryDirectory(prefix=".sources-", dir=output.parent)
+            )
+        )
+        roots = {
+            root: local / f"input-{index}"
+            for index, root in enumerate(
+                dict.fromkeys(source.root for source in unique)
+            )
+        }
+        copied: set[Path] = set()
+        for source, run in parsed.items():
+            for path in (source.xdmf, *run.references.values()):
+                target = roots[source.root] / path.relative_to(source.root)
+                if target not in copied:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(path, target)
+                    copied.add(target)
         readers = {
-            source: stack.enter_context(meshio.xdmf.TimeSeriesReader(source.xdmf))
+            source: stack.enter_context(
+                meshio.xdmf.TimeSeriesReader(
+                    roots[source.root] / source.xdmf.relative_to(source.root)
+                )
+            )
             for source in unique
         }
         meshes = {
