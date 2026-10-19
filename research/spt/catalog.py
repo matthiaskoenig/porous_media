@@ -18,7 +18,12 @@ from research.spt.conditions import (
     pattern_idx2name,
 )
 
-type Study = Literal["simulations_sixth", "convergence_sixth"]
+type Study = Literal[
+    "simulations_sixth",
+    "convergence_sixth",
+    "simulations_lobulus",
+    "convergence_lobulus",
+]
 type CatalogValue = str | int | float | bool | None
 STUDIES: tuple[Study, ...] = ("simulations_sixth", "convergence_sixth")
 
@@ -32,21 +37,25 @@ class RunSource:
     run_id: str
     condition: SimulationCondition | None
     condition_source: str
+    descriptor: Path | None = None
+    model: Path | None = None
 
     @property
     def xdmf(self) -> Path:
         """Return the input descriptor."""
-        return self.root / self.study / "xdmf" / f"{self.run_id}.xdmf"
+        return (
+            self.descriptor or self.root / self.study / "xdmf" / f"{self.run_id}.xdmf"
+        )
 
     @property
     def material(self) -> Path:
         """Return the corresponding model or simulation template."""
         name = (
             "lobule_zonation_pattern.feb.template"
-            if self.study == "simulations_sixth"
+            if self.study.startswith("simulations_")
             else f"{self.run_id}.feb"
         )
-        return self.root / self.study / "material" / name
+        return self.model or self.root / self.study / "material" / name
 
 
 @dataclass

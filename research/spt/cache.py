@@ -370,7 +370,12 @@ def _build(
                 name: stack.enter_context(h5py.File(path, "r"))
                 for name, path in parsed.references.items()
             }
-            if legacy != "ignore" and not force and previous is None:
+            if (
+                legacy != "ignore"
+                and not force
+                and previous is None
+                and source.study.endswith("_sixth")
+            ):
                 try:
                     datasets = _from_legacy(parsed, fields, handles, legacy)
                     method = f"legacy cache ({legacy} validation)"
@@ -454,7 +459,19 @@ def process_run(
     """Process one run without allowing one failure to discard other completed runs."""
     start = time.perf_counter()
     try:
-        _, output_root = validate_roots(source.root, output_root)
+        if source.study.endswith("_lobulus"):
+            output_root = output_root.expanduser().resolve()
+            directory = run_directory(source, output_root)
+            if (
+                source.root.resolve() != output_root
+                or not source.xdmf.resolve().is_relative_to(
+                    output_root / source.study / "xdmf"
+                )
+                or source.xdmf.resolve().is_relative_to(directory)
+            ):
+                raise ValueError("Lobulus cache must be separate from its geometry")
+        else:
+            _, output_root = validate_roots(source.root, output_root)
         message, row = _build(source, output_root, profile, legacy, force)
         return ProcessingResult(
             source.study,

@@ -45,6 +45,7 @@ def process_studies(
     workers: int = 2,
     force: bool = False,
     dry_run: bool = False,
+    geometry: str = "sixth",
 ) -> list[ProcessingResult]:
     """Discover, process, and report independent runs with bounded worker memory.
 
@@ -54,11 +55,18 @@ def process_studies(
     if workers < 1:
         raise ValueError("workers must be positive")
     source_root, target = validate_roots(input_root, output_root)
-    runs = discover_runs(source_root, selected_studies(study), run_ids)
+    if geometry == "lobulus":
+        from research.spt.geometry import lobulus_sources
+
+        runs = lobulus_sources(source_root, target, study=study, run_ids=run_ids)
+    elif geometry == "sixth":
+        runs = discover_runs(source_root, selected_studies(study), run_ids)
+    else:
+        raise ValueError(f"Unknown geometry: {geometry}")
     if not run_ids and study in {"both", "simulations"}:
         conditions, _ = conditions_from_source(source_root)
         missing = {item.sim_id for item in conditions} - {
-            source.run_id for source in runs if source.study == "simulations_sixth"
+            source.run_id for source in runs if source.study.startswith("simulations_")
         }
         if missing:
             raise ValueError(
@@ -160,6 +168,18 @@ def process_studies(
 def main(argv: list[str] | None = None) -> int:
     """Run the local processing CLI and return nonzero if any run fails."""
     parser = selection_parser(__doc__ or "Process SPT data")
+    parser.add_argument(
+        "--step",
+        choices=("cache", "lobulus", "combinations", "geometry", "all"),
+        default="cache",
+        help="Build numerical caches, geometries, or the complete lobulus workflow",
+    )
+    parser.add_argument(
+        "--geometry",
+        choices=("sixth", "lobulus"),
+        default="sixth",
+        help="Geometry used by the cache step; all always analyzes lobules",
+    )
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--profile", choices=("analysis", "full"), default="analysis")
     parser.add_argument(
@@ -181,17 +201,42 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        results = process_studies(
-            args.input_root,
-            args.output_root,
-            study=args.study,
-            run_ids=tuple(args.runs),
-            profile=args.profile,
-            legacy=args.legacy_cache,
-            workers=args.workers,
-            force=args.force,
-            dry_run=args.dry_run,
-        )
+        results = []
+        if args.step != "cache":
+            from research.spt.geometry import process_geometries
+
+            results.extend(
+                process_geometries(
+                    args.input_root,
+                    args.output_root,
+                    study=args.study,
+                    run_ids=tuple(args.runs),
+                    lobulus=args.step != "combinations",
+                    combinations=args.step != "lobulus",
+                    workers=args.workers,
+                    force=args.force,
+                    dry_run=args.dry_run,
+                )
+            )
+        if args.step == "cache" or (
+            args.step == "all"
+            and not args.dry_run
+            and not any(result.status == "failed" for result in results)
+        ):
+            results.extend(
+                process_studies(
+                    args.input_root,
+                    args.output_root,
+                    study=args.study,
+                    run_ids=tuple(args.runs),
+                    profile=args.profile,
+                    legacy=args.legacy_cache,
+                    workers=args.workers,
+                    force=args.force,
+                    dry_run=args.dry_run,
+                    geometry="lobulus" if args.step == "all" else args.geometry,
+                )
+            )
     except (OSError, ValueError) as error:
         print(f"SPT processing: {error}", file=sys.stderr)
         return 1

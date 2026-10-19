@@ -7,8 +7,11 @@ import numpy as np
 import pytest
 
 from research.geometry_conversion import (
+    find_reflection_angle_in_sixth,
     reconstruct_lobulus_from_hexagon,
     remove_duplicate_points,
+    sector_transforms,
+    transform_cells,
     unique_with_tolerance,
 )
 
@@ -95,16 +98,47 @@ def test_reconstruct_lobulus_preserves_blocks_data_and_hdf_location(
         original_data = original[1]
         np.testing.assert_array_equal(result.data[: len(original_data)], original_data)
         np.testing.assert_array_equal(
-            result.data[-len(original_data) :], original_data + 20
+            result.data[-len(original_data) :],
+            transform_cells(
+                meshio.CellBlock(*original),
+                sector_transforms(find_reflection_angle_in_sixth(points))[-1],
+            )
+            + 20,
         )
     np.testing.assert_array_equal(point_data["scalar"], [1.0, 2.0, 3.0, 4.0] * 6)
-    np.testing.assert_array_equal(
-        point_data["vector"], np.tile(np.arange(12).reshape(4, 3), (6, 1))
+    transforms = sector_transforms(find_reflection_angle_in_sixth(points))
+    np.testing.assert_allclose(
+        point_data["vector"],
+        np.concatenate(
+            [np.arange(12).reshape(4, 3) @ matrix.T for matrix in transforms]
+        ),
+        atol=1e-12,
     )
     np.testing.assert_array_equal(cell_data["region"][0], [10, 11] * 6)
     np.testing.assert_array_equal(cell_data["region"][1], [20] * 6)
     np.testing.assert_array_equal(cell_data["region"][2], [30] * 6)
     for index, block in enumerate(cell_data["direction"]):
-        np.testing.assert_array_equal(
-            block, np.full((len(result_cells[index]), 3), index + 1)
+        np.testing.assert_allclose(
+            block,
+            np.concatenate(
+                [
+                    np.full((len(cells[index][1]), 3), index + 1) @ matrix.T
+                    for matrix in transforms
+                ]
+            ),
+            atol=1e-12,
         )
+
+
+def test_reconstruction_protects_existing_inputs_and_sidecars(tmp_path: Path) -> None:
+    """Refuse to replace an input or unrelated HDF sidecar."""
+    source = tmp_path / "source.xdmf"
+    source.write_text("original descriptor")
+    with pytest.raises(ValueError, match="must differ"):
+        reconstruct_lobulus_from_hexagon(source, source)
+    output = tmp_path / "output.xdmf"
+    output.with_suffix(".h5").write_bytes(b"existing data")
+    with pytest.raises(FileExistsError, match="Refusing to overwrite"):
+        reconstruct_lobulus_from_hexagon(source, output)
+    assert source.read_text() == "original descriptor"
+    assert output.with_suffix(".h5").read_bytes() == b"existing data"
