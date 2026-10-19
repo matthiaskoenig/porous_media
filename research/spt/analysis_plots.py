@@ -24,7 +24,7 @@ from research.spt.conditions import pattern_idx2name
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import LAYERS, RenderOptions, figure, save_figure
 
-ANALYSIS_PLOT_VERSION = 3
+ANALYSIS_PLOT_VERSION = 4
 LABELS = {layer.sid: layer.title for layer in LAYERS}
 LABELS["rr_necrosis"] = "Necrotic volume [%]"
 LABELS.update(
@@ -331,8 +331,13 @@ def _diagnostics(
                     )
                 if row == len(indices) - 1:
                     axis.set_xlabel("Normalized position")
+        selection = (
+            "highest selected dose per pattern"
+            if sources[0].family == "simulations"
+            else "all selected meshes"
+        )
         art.suptitle(
-            f"Initial properties | {sources[0].run.study} | highest selected dose per pattern",
+            f"Initial properties | {sources[0].run.study} | {selection}",
             fontsize=12,
         )
         save_figure(
