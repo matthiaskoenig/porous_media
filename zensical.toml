@@ -29,15 +29,10 @@ nav = [
     { "Release process" = "release.md" },
     { "Release notes" = "release-notes/index.md" },
   ] },
-  { "Development" = [
-    { "Overview" = "development.md" },
-    { "Issue #3 code review" = "reviews/issue-3.md" },
-  ] },
+  { "Development" = "development.md" },
   { "Research archive" = [
     { "Overview" = "research.md" },
     { "SPT analysis" = "research/spt.md" },
-    { "Historical FEBio setup" = "run_febio_simulations.md" },
-    { "Historical FEBio and RoadRunner build" = "build_roadrunner_febio.md" },
   ] },
 ]
 

@@ -75,14 +75,5 @@ contain the numerical time. Keep filenames ordered by time and preserve a fixed
 mesh. See [VTK and XDMF data](xdmf.md) for the precise input assumptions and
 [visualization](visualization.md) for image and video export.
 
-## Historical research environments
-
-The [historical run notes](run_febio_simulations.md) and
-[RoadRunner/FEBio build notes](build_roadrunner_febio.md) preserve an older
-workstation and cluster environment. They include pinned upstream revisions,
-local paths, source changes, and private research plugins. They are not required
-to install or use the Python package and are not current general installation
-instructions.
-
 See the [FEBio API reference](api/febio.md) and
 [research archive](research.md) for related material.
