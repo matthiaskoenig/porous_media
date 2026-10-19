@@ -364,7 +364,7 @@ def convergence_analysis(data_dir: Path):
 
 if __name__ == "__main__":
     """Analysis plots of the convergence simulation."""
-    from porous_media.analyses.spt import data_spt_dir
+    from research.spt import data_spt_dir
 
     # data_dir = data_spt_dir / "convergence_lobulus"
     data_dir = data_spt_dir / "convergence_sixth"

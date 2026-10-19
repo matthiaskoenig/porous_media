@@ -3,16 +3,20 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import h5py
 import meshio
 import numpy as np
 import pytest
 
 from porous_media import RESOURCES_DIR
 from porous_media.data.xdmf_tools import (
+    AttributeType,
+    DataLimits,
     XDMFInfo,
     XDMFTimeSeriesWriter,
     interpolate_xdmf,
     vtks_to_xdmf,
+    xdmfs_from_directory,
 )
 
 
@@ -255,3 +259,91 @@ def test_vtk_to_xdmf_supports_concurrent_outputs_with_same_filename(
     assert not (tmp_path / "simulation.h5").exists()
     for output in outputs:
         assert XDMFInfo.from_path(output).num_steps == 1
+
+
+def test_directory_conversion_rejects_flattened_name_collisions(tmp_path: Path) -> None:
+    """Detect ambiguous output names before converting either input directory."""
+    inputs = tmp_path / "inputs"
+    for relative in ("a/b", "a__b"):
+        directory = inputs / relative
+        directory.mkdir(parents=True)
+        (directory / "time.vtk").write_text("unused", encoding="utf-8")
+    output = tmp_path / "output"
+    with pytest.raises(ValueError, match="same output"):
+        xdmfs_from_directory(inputs, output)
+    assert not output.exists()
+
+
+def test_conversion_preserves_orphaned_sidecar(tmp_path: Path) -> None:
+    """An unrelated HDF file must not be replaced when only the XDMF file is absent."""
+    output = tmp_path / "source.xdmf"
+    sidecar = output.with_suffix(".h5")
+    sidecar.write_bytes(b"unrelated data")
+    with pytest.raises(FileExistsError, match="sidecar"):
+        vtks_to_xdmf(RESOURCES_DIR / "vtk" / "vtk_single", output)
+    assert sidecar.read_bytes() == b"unrelated data"
+    assert not output.exists()
+
+
+def test_limits_merge_supports_different_field_sets() -> None:
+    """Merge heterogeneous simulations without requiring the first to contain every field."""
+    first = DataLimits({"pressure": (1.0, 2.0)})
+    result = DataLimits.merge_limits(
+        [first, DataLimits({"pressure": (0.0, 3.0), "new": (4.0, 5.0)})]
+    )
+    assert result.limits == {"pressure": (0.0, 3.0), "new": (4.0, 5.0)}
+    assert first.limits == {"pressure": (1.0, 2.0)}
+
+
+def test_conversion_refreshes_an_existing_limits_cache(tmp_path: Path) -> None:
+    """Recalculate limits whenever a new time series is generated."""
+    output = tmp_path / "simulation.xdmf"
+    cache = DataLimits.json_path_from_xdmf(output)
+    cache.write_text(
+        '{"limits": {"effective_fluid_pressure_TPM": [-999, -999]}}', encoding="utf-8"
+    )
+    vtks_to_xdmf(RESOURCES_DIR / "vtk" / "vtk_single", output)
+    limits = DataLimits.from_xdmf(output)
+    assert limits.limits["effective_fluid_pressure_TPM"] != (-999, -999)
+
+
+def test_conversion_rejects_symlinked_sidecar(tmp_path: Path) -> None:
+    """Preserve a symlink target even when overwrite is explicitly enabled."""
+    output = tmp_path / "simulation.xdmf"
+    target = tmp_path / "unrelated.h5"
+    target.write_bytes(b"unrelated data")
+    try:
+        output.with_suffix(".h5").symlink_to(target)
+    except OSError:
+        pytest.skip("Creating symbolic links is unavailable")
+    with pytest.raises(ValueError, match="symbolic links"):
+        vtks_to_xdmf(RESOURCES_DIR / "vtk" / "vtk_single", output, overwrite=True)
+    assert target.read_bytes() == b"unrelated data"
+
+
+def test_xdmf_writer_closes_hdf_after_metadata_failure(tmp_path: Path) -> None:
+    """Allow reopening a sidecar after XML serialization fails."""
+    output = tmp_path / "simulation.xdmf"
+    output.mkdir()
+    writer = XDMFTimeSeriesWriter(output)
+    with pytest.raises(OSError), writer:
+        writer.write_points_cells(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+    with h5py.File(output.with_suffix(".h5"), "w") as reopened:
+        reopened.create_dataset("valid", data=[1])
+
+
+def test_xdmf_metadata_preserves_six_component_tensor_shapes(tmp_path: Path) -> None:
+    """Describe symmetric tensors on points and cells without artificial dimensions."""
+    source = tmp_path / "tensor.xdmf"
+    with meshio.xdmf.TimeSeriesWriter(source, data_format="XML") as writer:
+        writer.write_points_cells(np.eye(3), [("triangle", np.array([[0, 1, 2]]))])
+        writer.write_data(
+            0.0,
+            point_data={"point_stress": np.ones((3, 6))},
+            cell_data={"stress": [np.ones((1, 6))]},
+        )
+    info = XDMFInfo.from_path(source)
+    assert info.point_data["point_stress"].attribute_type == AttributeType.TENSOR6
+    assert info.cell_data["stress"].attribute_type == AttributeType.TENSOR6
+    assert info.point_data["point_stress"].shape == (3, 6)
+    assert info.cell_data["stress"].shape == (1, 6)

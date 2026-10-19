@@ -36,10 +36,7 @@ keywords = [
 dependencies = [
     "numpy>=2.5.4",
     "matplotlib>=3.11.2",
-    "PyArrow>=26.0.0",
-    "pandas>=3.0.6",
     "xarray>=2026.9.0",
-    "openpyxl>=3.1.5",
     "rich>=15.0.0",
     "meshio>=5.3.5",
     "pyvista>=0.49.1",
@@ -52,6 +49,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    {include-group = "research"},
     "bump-my-version>=1.6.3",
     "ruff>=0.17.1",
     "pre-commit>=4.7.0",
@@ -63,6 +61,11 @@ dev = [
     "build>=1.6.1",
     "twine>=7.0.0",
     "pandas-stubs>=3.0.5.260914",
+]
+research = [
+    "pandas>=3.0.6",
+    "PyArrow>=26.0.0",
+    "openpyxl>=3.1.5",
 ]
 docs = [
     "zensical>=0.0.71",
@@ -104,23 +107,23 @@ path = "./src/porous_media/__init__.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = ["--strict-config", "--strict-markers", "-ra"]
 filterwarnings = ["error::ResourceWarning"]
 
 [tool.coverage.run]
 branch = true
 source = ["porous_media"]
-omit = ["*/analyses/*"]
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
 
 [tool.ty.environment]
-root = ["./src"]
+root = ["./src", "."]
 
 [tool.ty.src]
-include = ["src", "tests", "scripts"]
+include = ["src", "tests", "scripts", "research"]
 
 [tool.ty.terminal]
 error-on-warning = true

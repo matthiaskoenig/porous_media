@@ -28,7 +28,7 @@ add regression coverage that verifies meaningful behavior.
 
 Use bundled or synthetic data for portable tests. Tests must run without external
 solvers, graphics sessions, or unpublished datasets. Research scripts under
-`porous_media.analyses` can have additional requirements; see the
+`research/` can have additional requirements; see the
 [project-specific research guidance](development.md#project-specific-research-code).
 Keep research data and generated simulation outputs out of commits.
 

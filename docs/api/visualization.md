@@ -17,6 +17,20 @@ field selection, camera settings, fixed color limits, and output naming.
         - xdmf_to_mesh
         - create_combined_images
 
+## VTU conversion
+
+::: porous_media.visualization.vtu_reader
+    options:
+      members:
+        - vtu_to_xdmf
+
+## Matplotlib styling
+
+::: porous_media.visualization.plots
+    options:
+      members:
+        - plot_style
+
 ## Image processing
 
 ::: porous_media.visualization.image_manipulation

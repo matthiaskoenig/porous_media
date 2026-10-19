@@ -1,24 +1,24 @@
 """Helpers for zonated meshes."""
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import ClassVar, Protocol
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 import meshio
 import numpy as np
+from scipy.spatial import KDTree
 
 from porous_media import RESOURCES_DIR
 from porous_media.console import console
 from porous_media.data.xdmf_tools import AttributeType
 from porous_media.mesh.mesh_tools import mesh_to_vtk, mesh_to_xdmf
-from porous_media.visualization.image_manipulation import merge_images
-from porous_media.visualization.pyvista_visualization import (
-    DataLayer,
-    DataRangeType,
-    VisualizationSettings,
-    visualize_data_layers,
-)
 
-np.random.seed(42)
+if TYPE_CHECKING:
+    from porous_media.visualization.pyvista_visualization import (
+        DataLayer,
+        DataRangeType,
+    )
 
 
 class ZonationPattern(Protocol):
@@ -56,10 +56,13 @@ class ZonationPatterns:
         value_min: float = 0.0,
         value_max: float = 1.0,
         f_scale: float = 1.0,
+        *,
+        rng: np.random.Generator | None = None,
     ) -> np.ndarray:
-        """Random zonation in [min_value, max_value]."""
+        """Draw random zonation using a local or caller-supplied generator."""
+        generator = np.random.default_rng() if rng is None else rng
         return f_scale * (
-            value_min + (value_max - value_min) * np.random.rand(*p.shape)
+            value_min + (value_max - value_min) * generator.random(p.shape)
         )
 
     @staticmethod
@@ -104,7 +107,11 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Exponential decreasing pattern in [0, 1]."""
-        return f_scale * (1.0 - ZonationPatterns.exp_increase(p, value_min, value_max))
+        return f_scale * (
+            value_min
+            + value_max
+            - ZonationPatterns.exp_increase(p, value_min, value_max)
+        )
 
     @staticmethod
     def only_periveneous(
@@ -114,7 +121,7 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Only periveneous pattern in [0, 1]."""
-        data = np.zeros_like(p)
+        data = np.full_like(p, value_min, dtype=float)
         data[p >= 0.8] = value_max
         data[p < 0.2] = value_min
         return f_scale * data
@@ -127,7 +134,7 @@ class ZonationPatterns:
         f_scale: float = 1.0,
     ) -> np.ndarray:
         """Only periportal pattern in [0, 1]."""
-        data = np.zeros_like(p)
+        data = np.full_like(p, value_min, dtype=float)
         data[p <= 0.2] = value_max
         data[p > 0.2] = value_min
         return f_scale * data
@@ -190,8 +197,10 @@ class ZonatedMesh:
         remove_point_data: bool = True,
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
+        *,
+        rng: np.random.Generator | None = None,
     ) -> meshio.Mesh:
-        """Create a zonated mesh from VTK and serialize results to XDMF."""
+        """Return a zonated mesh; use ``rng`` for reproducible random patterns."""
         f_patterns = cls.patterns if patterns is None else patterns
 
         # mesh
@@ -208,6 +217,7 @@ class ZonatedMesh:
                 m=m,
                 variable_id=f"pattern__{f_pattern.__name__}",
                 f_zonation=f_pattern,
+                rng=rng,
             )
 
         return m
@@ -219,148 +229,105 @@ class ZonatedMesh:
         remove_cell_data: bool = True,
         copy_mesh: bool = True,
     ) -> meshio.Mesh:
-        """Calculate the distance from periportal and perivenous.
+        """Calculate positions using nearest boundary centers across all cell blocks.
 
-        Uses the cell_type variable for determining the position in the lobulus (periportal, perivenous).
-        'cell_type':
-            0: internal node
-            1: periportal (inflow)
-            2: perivenous (outflow)
+        ``cell_type`` labels interior, periportal, and perivenous cells as 0, 1,
+        and 2. Both boundary types are required. Supply finite nonnegative volumes
+        as ``volume`` or ``element_volume_point_TPM``, with a positive total.
+        Geometry and fields are validated before modifying a mesh in place.
         """
-        # clone mesh
-        if copy_mesh:
-            m: meshio.Mesh = mesh.copy()
-        else:
-            m = mesh
-
-        # check for variables
-        # console.print(m.cell_data.keys())
-        if "cell_type" not in m.cell_data:
-            raise OSError("'cell_type' required in cell_data for zonation patterns")
-
-        # remove cell data
-        if remove_cell_data:
-            # keep cell_type and volume (for normalization of pattern)
-            m.cell_data = {
-                "cell_type": m.cell_data["cell_type"],
-                "volume": m.cell_data["element_volume_point_TPM"],
-            }
-
-        # remove point data
+        volume_key = (
+            "volume" if "volume" in mesh.cell_data else "element_volume_point_TPM"
+        )
+        for name in ("cell_type", volume_key):
+            if name not in mesh.cell_data:
+                raise ValueError(f"Cell field {name!r} is required for zonation")
+            if len(mesh.cell_data[name]) != len(mesh.cells):
+                raise ValueError(f"Cell field {name!r} must match every cell block")
+            for block, values in zip(mesh.cells, mesh.cell_data[name], strict=True):
+                if np.asarray(values).size != len(block):
+                    raise ValueError(
+                        f"Cell field {name!r} must have one value per cell"
+                    )
+        if not mesh.cells or not any(len(block) for block in mesh.cells):
+            raise ValueError("Zonation requires at least one cell")
+        points = np.asarray(mesh.points, dtype=float)
+        if not np.isfinite(points).all():
+            raise ValueError("Mesh points must be finite")
+        centers = np.concatenate(
+            [points[block.data].mean(axis=1) for block in mesh.cells], axis=0
+        )
+        labels = np.concatenate(mesh.cell_data["cell_type"]).reshape(-1)
+        volume = np.concatenate(mesh.cell_data[volume_key]).reshape(-1)
+        if not np.isfinite(volume).all() or (volume < 0).any() or volume.sum() <= 0:
+            raise ValueError(
+                "Cell volumes must be finite, nonnegative, and have a positive total"
+            )
+        inner, periportal, perivenous = [
+            np.isclose(labels, value) for value in (0, 1, 2)
+        ]
+        if not (inner | periportal | perivenous).all():
+            raise ValueError("cell_type values must be 0, 1, or 2")
+        if not periportal.any() or not perivenous.any():
+            raise ValueError(
+                "Both periportal and perivenous boundary cells are required"
+            )
+        position = np.empty(len(centers))
+        position[periportal] = 0.0
+        position[perivenous] = 1.0
+        if inner.any():
+            dpp = KDTree(centers[periportal]).query(centers[inner])[0]
+            dpv = KDTree(centers[perivenous]).query(centers[inner])[0]
+            distance = dpp + dpv
+            if not np.isfinite(distance).all() or (distance <= 0).any():
+                raise ValueError(
+                    "Interior cells need a finite, nonzero boundary distance"
+                )
+            position[inner] = dpp / distance
+        m = mesh.copy() if copy_mesh else mesh
         if remove_point_data:
             m.point_data = {}
-
-        # calculate positions based on cell_type info
-        cell_type = np.asarray(m.cell_data["cell_type"][0])
-        position = np.nan * np.ones_like(cell_type)
-
-        pp_cells: dict[int, np.ndarray] = {}
-        pv_cells: dict[int, np.ndarray] = {}
-        inner_cells: dict[int, np.ndarray] = {}
-        cell_block: meshio._mesh.CellBlock
-
-        for _, cell_block in enumerate(m.cells):
-            for kc, cell in enumerate(cell_block.data):
-                # calculate the center of mass of cell
-                count = 0
-                center = np.zeros(shape=3)
-                for kp in cell:
-                    center += m.points[kp]
-                    count += 1
-                center = center / count
-
-                # periportal cell (inside)
-                if np.isclose(cell_type[kc], 1.0):
-                    position[kc] = 0
-                    pp_cells[kc] = center
-
-                # periveneous cell (outside)
-                elif np.isclose(cell_type[kc], 2.0):
-                    position[kc] = 1.0
-                    pv_cells[kc] = center
-
-                # inner cell
-                elif np.isclose(cell_type[kc], 0.0):
-                    position[kc] = np.nan
-                    inner_cells[kc] = center
-
-        # calculate pp-pv position for all inner cells
-        for kc, center in inner_cells.items():
-            # shortest distance perivenous
-            dpv = 1.0
-            for center_pv in pv_cells.values():
-                d: float = float(np.linalg.norm(center - center_pv))
-                if d < dpv:
-                    dpv = d
-
-            # shortest distance periportal
-            dpp = 1.0
-            for center_pp in pp_cells.values():
-                d = float(np.linalg.norm(center - center_pp))
-                if d < dpp:
-                    dpp = d
-
-            position[kc] = dpp / (dpv + dpp)
-
-        m.cell_data["position"] = [position]
+        if remove_cell_data:
+            m.cell_data = {
+                "cell_type": m.cell_data["cell_type"],
+                "volume": m.cell_data[volume_key],
+            }
+        else:
+            m.cell_data["volume"] = m.cell_data[volume_key]
+        m.cell_data["position"] = list(
+            np.split(position, np.cumsum([len(block) for block in m.cells])[:-1])
+        )
         return m
 
     @staticmethod
     def _add_zonated_variable(
-        m: meshio.Mesh, variable_id: str, f_zonation: ZonationPattern
+        m: meshio.Mesh,
+        variable_id: str,
+        f_zonation: ZonationPattern,
+        *,
+        rng: np.random.Generator | None = None,
     ) -> meshio.Mesh:
-        """Add zonation variable to the mesh based on the position variable in [0,1].
-
-        Args:
-            m: Mesh containing position and volume cell data.
-            variable_id: Identifier for the resulting cell data.
-            f_zonation: Function that calculates the zonation pattern.
-
-        Position values are 0 at periportal cells and 1 at perivenous cells.
-
-        Returns:
-            The mesh with normalized zonation values stored as cell data.
-        """
-        # check for variables
-        for key in ["position", "volume"]:
-            if key not in m.cell_data:
-                raise OSError(
-                    f"'{key}' required in calculate zonation patterns, 'create_zonated_mesh' first."
-                )
-
-        position = np.asarray(m.cell_data["position"][0])
-        volume = np.asarray(m.cell_data["volume"][0])
-
-        # unscaled zonation data
-        protein_constant = ZonationPatterns.constant(position)
-        protein = f_zonation(position)
-
-        # scaling factor
-        volume_fraction = volume / volume.sum()
-        f_scale = (protein_constant * volume_fraction).sum() / (
-            protein * volume_fraction
-        ).sum()
-        console.print(f"{variable_id}: {f_scale=}")
-
-        protein_scaled = f_zonation(position, f_scale=f_scale)
-
-        m.cell_data[variable_id] = [protein_scaled]
-        return m
-
-
-data_layers = []
-
-for key in [p.__name__ for p in ZonatedMesh.patterns]:
-    data_layers.append(
-        DataLayer(
-            sid=f"pattern__{key}",
-            title=key,
-            viz_type=AttributeType.SCALAR,
-            colormap="magma",
+        """Sample a pattern once and normalize its volume-weighted mean to 0.5."""
+        position = np.concatenate(m.cell_data["position"]).reshape(-1)
+        volume = np.concatenate(m.cell_data["volume"]).reshape(-1)
+        protein = np.asarray(
+            ZonationPatterns.random(position, rng=rng)
+            if f_zonation is ZonationPatterns.random
+            else f_zonation(position),
+            dtype=float,
         )
-    )
-
-console.print(data_layers)
+        if protein.shape != position.shape or not np.isfinite(protein).all():
+            raise ValueError("A zonation pattern must return one finite value per cell")
+        total = float(np.dot(protein, volume))
+        if not np.isfinite(total) or total == 0:
+            raise ValueError(
+                "A zonation pattern must have a finite, nonzero weighted total"
+            )
+        scaled = protein * (0.5 * volume.sum() / total)
+        m.cell_data[variable_id] = list(
+            np.split(scaled, np.cumsum([len(block) for block in m.cells])[:-1])
+        )
+        return m
 
 
 def visualize_zonation_patterns(
@@ -369,9 +336,16 @@ def visualize_zonation_patterns(
     image_name: str,
     data_layers: list[DataLayer],
     direction: str = "horizontal",
-    drange_type: DataRangeType = DataRangeType.LOCAL,
+    drange_type: DataRangeType | None = None,
 ) -> None:
-    """Visualize zonation patterns."""
+    """Visualize patterns with local ranges by default, importing rendering lazily."""
+    from porous_media.visualization.image_manipulation import merge_images
+    from porous_media.visualization.pyvista_visualization import (
+        DataRangeType,
+        VisualizationSettings,
+        visualize_data_layers,
+    )
+
     dl_sids: list[str] = [dl.sid for dl in data_layers]
 
     # calculate the data ranges
@@ -379,7 +353,7 @@ def visualize_zonation_patterns(
     dmaxs: dict[str, float] = {}
 
     for key in dl_sids:
-        data = np.asarray(mesh.cell_data[key][0])
+        data = np.concatenate(mesh.cell_data[key])
         # min, max
         dmins[key] = data.min()
         dmaxs[key] = data.max()
@@ -434,6 +408,20 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
     if not visualize:
         return
 
+    from porous_media.visualization.pyvista_visualization import (
+        DataLayer,
+        DataRangeType,
+    )
+
+    data_layers = [
+        DataLayer(
+            sid=f"pattern__{pattern.__name__}",
+            title=pattern.__name__,
+            viz_type=AttributeType.SCALAR,
+        )
+        for pattern in ZonatedMesh.patterns
+    ]
+
     # visualize mesh
     console.rule(title="Mesh Visualization", style="white")
     visualize_zonation_patterns(
@@ -467,9 +455,3 @@ def example_mesh_zonation(results_dir: Path, visualize: bool = True) -> None:
             # drange_type=DataRangeType.GLOBAL,
             drange_type=DataRangeType.LOCAL,
         )
-
-
-if __name__ == "__main__":
-    from porous_media import RESULTS_DIR
-
-    example_mesh_zonation(results_dir=RESULTS_DIR)

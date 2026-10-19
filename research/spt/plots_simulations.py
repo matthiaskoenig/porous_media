@@ -6,14 +6,14 @@ import numpy as np
 import xarray as xr
 from matplotlib import pyplot as plt
 
-from porous_media.analyses.spt.information import (
+from porous_media.console import console
+from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
+from research.spt.information import (
     boundary_flows,
     pattern_name2idx,
     pattern_order,
     simulation_conditions_df,
 )
-from porous_media.console import console
-from porous_media.data.xdmf_calculations import mesh_datasets_from_xdmf
 
 label_kwargs = {
     "fontsize": 12,
@@ -410,7 +410,7 @@ def simulations_analysis(data_dir: Path) -> None:
 if __name__ == "__main__":
     """Analysis plots of the SPT simulations."""
 
-    from porous_media.analyses.spt import data_spt_dir
+    from research.spt import data_spt_dir
 
     # data_dir = data_spt_dir / "simulations_lobulus"
     data_dir = data_spt_dir / "simulations_sixth"

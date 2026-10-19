@@ -11,11 +11,13 @@ Use Python's `pathlib.Path` for filesystem arguments.
 | [FEBio](febio.md) | `create_feb_files` |
 
 `porous_media.RESOURCES_DIR` points to resources distributed with the package.
-Use your own output paths rather than relying on repository-relative constants
-such as `DATA_DIR` and `RESULTS_DIR` in installed environments.
+Pass explicit data and output paths. The library no longer exports
+repository-relative `BASE_DIR`, `DATA_DIR`, `RESULTS_DIR`, or `EXAMPLE_*` constants.
+Research path configuration lives in the checkout's `research` namespace.
 
-Research scripts under `porous_media.analyses` are intentionally outside this
-reference. They can depend on unpublished input data and local paths.
+Research scripts under `research/` are intentionally outside this
+reference and release artifacts. They can depend on unpublished inputs and local
+paths. See [research setup and migration](../research.md).
 
 The [user guides](../index.md#start-here) describe input conventions and
 limitations that signatures alone cannot express.

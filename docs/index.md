@@ -29,7 +29,7 @@ are external programs. Numerical data processing does not require a display.
 ## Scope and reference
 
 The [API reference](api/index.md) documents the reusable data, mesh,
-visualization, and FEBio modules. Scripts in `porous_media.analyses` are research
+visualization, and FEBio modules. Scripts in `research/` are research
 workflows with project-specific paths and data requirements.
 They are not a supported command-line interface or portable tutorials.
 

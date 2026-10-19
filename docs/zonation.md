@@ -9,23 +9,26 @@ The bundled liver mesh rendered using the [visualization example](visualization.
 
 ## Input mesh
 
-The current implementation uses one cell block. Provide these cell fields:
+The implementation supports multiple cell blocks. Provide these cell fields:
 
 | Field | Values | Purpose |
 | --- | --- | --- |
 | `cell_type` | `0`: interior, `1`: periportal, `2`: perivenous | Boundary labels |
-| `element_volume_point_TPM` | Positive cell volumes | Pattern normalization with default options |
+| `volume` or `element_volume_point_TPM` | Finite, nonnegative cell volumes with positive total | Pattern normalization |
 
 Both boundary types must be represented. Geometry, boundary labels, and cell
 volumes must describe the same cells. The default operation copies the mesh,
 removes existing point fields, and retains boundary labels and volumes before
 adding zonation fields. Set `remove_point_data=False` or `remove_cell_data=False`
-only when you need to preserve existing fields. When preserving cell fields,
-provide a `volume` cell field for pattern normalization.
+only when you need to preserve existing fields. Both volume field names work
+with either option; the result exposes a canonical `volume` field. Invalid
+geometry, labels, or volumes are rejected before mutating an input mesh.
 
 The computed `position` is `0` for periportal cells and `1` for perivenous cells.
 Interior positions use distances to boundary cell centers. This is a geometric
 distance estimate, not a transport simulation or a distance along flow paths.
+Nearest boundary queries use spatial indexes across every block. Distances are
+not clipped to one mesh unit, so changing length units preserves positions.
 
 ## Generate and export patterns
 
@@ -56,7 +59,7 @@ print(sorted(mesh.cell_data))
 mesh helpers or meshio. Generated field names start with `pattern__`, such as
 `pattern__linear_increase`.
 
-Deterministic patterns are scaled to match the volume-weighted mean of the
+Patterns are sampled once and scaled to match the volume-weighted mean of the
 constant reference pattern, whose default value is `0.5`. Values are not guaranteed
 to remain between `0` and `1` after normalization. `position` remains the spatial
 coordinate; pattern values represent the normalized variable.
@@ -64,9 +67,11 @@ coordinate; pattern values represent the normalized variable.
 Available patterns include constant, random, linear, exponential, and sharp
 boundary patterns. The API preserves the spelling `periveneous` in several
 method names. Use the exact names shown in the [mesh reference](api/mesh.md).
-The random pattern draws fresh values on each evaluation using NumPy's global
-random state. Its final weighted mean need not exactly match the reference.
-Set a NumPy seed before generation when a reproducible random pattern is needed.
+Random patterns use a local NumPy generator and satisfy the same normalization.
+Pass `rng=np.random.default_rng(42)` to `create_zonated_mesh_from_vtk` for
+reproducible values, or to `ZonationPatterns.random` when calling it directly.
+Importing the module does not seed or modify NumPy's global random state.
+Zero or nonfinite weighted pattern totals raise an error.
 
 ## Bundled example
 

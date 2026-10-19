@@ -163,7 +163,7 @@ def plot_colors(df: pd.DataFrame, results_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    from porous_media.analyses.spt import data_spt_dir
+    from research.spt import data_spt_dir
 
     df = simulation_conditions_df()
 

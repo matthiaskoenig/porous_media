@@ -1,100 +1,60 @@
-"""Create febio files.
+"""Render FEBio input files from templates and explicit simulation contexts."""
 
-dependencies:
-    numpy
-    jinja2
-"""
-
+from collections.abc import Mapping
 from pathlib import Path
 
-import jinja2
-import numpy as np
+from jinja2 import FileSystemLoader, StrictUndefined
+from jinja2.sandbox import ImmutableSandboxedEnvironment
 
-# from porous_media.console import console
+from porous_media._paths import filename_component
 
 
 def create_feb_files(
-    feb_template: Path, feb_data: dict[str, dict], output_dir: Path
+    feb_template: Path,
+    feb_data: Mapping[str, Mapping[str, object]],
+    output_dir: Path,
+    *,
+    overwrite: bool = False,
 ) -> None:
-    """Create feb files from template by rendering the template tags with information.
-
-    Tags are of the form: {{ boundary_pressure }}, {{ boundary_flux }}
-    Uses jinja2 language for context rendering.
+    """Render XML-escaped contexts with strict, sandboxed Jinja2 evaluation.
 
     Args:
-        feb_template: Path to the Jinja2 FEBio template.
-        feb_data: Template context for each simulation identifier.
-        output_dir: Directory for the generated FEBio files.
-    """
-    # create output directory
-    output_dir.mkdir(parents=True, exist_ok=True)
+        feb_template: UTF-8 Jinja2 FEBio template. Includes resolve beside it.
+        feb_data: Template context for each portable simulation identifier.
+        output_dir: Directory for generated FEBio files.
+        overwrite: Explicitly allow replacing existing regular output files.
 
-    # template environment
-    template_dir = feb_template.parent
-    template_file = feb_template.name
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(template_dir),
-        extensions=[],
+    Raises:
+        ValueError: An identifier is unsafe or an output is a symbolic link.
+        FileExistsError: An output exists and overwrite is false.
+        jinja2.TemplateError: Template compilation or rendering fails.
+
+    Templates must still be reviewed and contexts must contain trusted data.
+    Sandboxing does not limit CPU, memory, or calls on user-supplied objects.
+    """
+    prefix = filename_component(feb_template.name.split(".")[0])
+    outputs: dict[str, Path] = {}
+    for sim_id in feb_data:
+        filename_component(sim_id)
+        path = output_dir / f"{prefix}_{sim_id}.feb"
+        if path.is_symlink():
+            raise ValueError(f"Refusing to write through a symbolic link: {path}")
+        if path.exists() and not overwrite:
+            raise FileExistsError(f"FEBio output already exists: {path}")
+        outputs[sim_id] = path
+
+    environment = ImmutableSandboxedEnvironment(
+        loader=FileSystemLoader(feb_template.parent, encoding="utf-8"),
+        undefined=StrictUndefined,
+        autoescape=True,
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    template = env.get_template(template_file)
-
-    # render all contexts:
-    prefix = template_file.split(".")[0]
+    template = environment.get_template(feb_template.name)
     for sim_id, context in feb_data.items():
-        feb_str = str(template.render(context))
-        out_path = output_dir / f"{prefix}_{sim_id}.feb"
-        # console.print(f"{out_path}: {context}")
-        print(f"{out_path}: {context}")
-        with open(out_path, "w") as f_feb:
-            f_feb.write(feb_str)
-
-
-if __name__ == "__main__":
-    from porous_media import DATA_DIR
-
-    feb_template = DATA_DIR / "febio" / "lobule_BCflux.feb.template"
-
-    # -----------------------------
-    # Example1: simple rendering
-    # -----------------------------
-    # console.rule(title="Example1", align="left", style="white")
-    print("-" * 80)
-    feb_out_dir: Path = DATA_DIR / "febio" / "febs_example1"
-
-    feb_data = {
-        "sim1": {"boundary_pressure": 133, "boundary_flux": 1},
-        "sim2": {"boundary_pressure": 266, "boundary_flux": 2},
-    }
-    create_feb_files(
-        feb_template=feb_template,
-        feb_data=feb_data,
-        output_dir=feb_out_dir,
-    )
-
-    # --------------------------------
-    # Example2: use numpy vectors
-    # --------------------------------
-    # console.rule(title="Example2", align="left", style="white")
-    print("-" * 80)
-    boundary_pressure = np.linspace(start=1.37 * 133, stop=5 * 133, num=10)
-    boundary_flow = np.linspace(start=0.00008441679, stop=0.00000422083951, num=10)
-
-    feb_data = {}
-    counter = 1
-    for pressure in boundary_pressure:
-        for flow in boundary_flow:
-            feb_data[f"sim{counter:>03}"] = {
-                "boundary_pressure": pressure,
-                "boundary_flow": flow,
-            }
-            counter += 1
-
-    feb_template = DATA_DIR / "febio" / "lobule_BCflux.feb.template"
-    feb_out_dir = DATA_DIR / "febio" / "scanpf"
-    create_feb_files(
-        feb_template=feb_template,
-        feb_data=feb_data,
-        output_dir=feb_out_dir,
-    )
+        rendered = template.render(context)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with outputs[sim_id].open(
+            "w" if overwrite else "x", encoding="utf-8"
+        ) as output:
+            output.write(rendered)

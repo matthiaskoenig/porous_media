@@ -4,76 +4,33 @@ from pathlib import Path
 
 import meshio
 
-from porous_media import RESOURCES_DIR
 from porous_media.console import console
-from porous_media.data.xdmf_tools import AttributeType
-from porous_media.visualization.pyvista_visualization import (
-    DataLayer,
-    VisualizationSettings,
-    visualize_interactive,
-)
+from porous_media.mesh.mesh_tools import mesh_to_xdmf
 
 
-def vtu_to_xdmf(vtu_path: Path, xdmf_path: Path) -> meshio.Mesh:
-    """Read a VTU mesh for visualization.
+def vtu_to_xdmf(
+    vtu_path: Path, xdmf_path: Path, *, overwrite: bool = False
+) -> meshio.Mesh:
+    """Convert a static VTU mesh to XDMF/HDF and return the mesh.
 
     Args:
         vtu_path: Input VTU mesh path.
-        xdmf_path: XDMF path displayed in the console; no XDMF file is written.
+        xdmf_path: Destination XDMF path. Its HDF sidecar stays beside it.
+        overwrite: Explicitly allow replacement of existing regular output files.
 
     Returns:
         The mesh read from the VTU file.
     """
     console.rule(title=f"{xdmf_path}", style="white")
+    if vtu_path.resolve() == xdmf_path.resolve():
+        raise ValueError("Input and output paths must differ")
+    for output in (xdmf_path, xdmf_path.with_suffix(".h5")):
+        if output.is_symlink():
+            raise ValueError("XDMF outputs must not follow symbolic links")
+        if output.exists() and not overwrite:
+            raise FileExistsError(f"Output already exists: {output}")
 
     mesh: meshio.Mesh = meshio.read(vtu_path)
-
-    #
-    #
-    # if not xdmf_path.parent.exists():
-    #     xdmf_path.parent.mkdir(parents=True)
-    #
-    # console.print(f"{vtk_dir} -> {xdmf_path}")
-    # if not overwrite and xdmf_path.exists():
-    #     console.print(f"xdmf file exists: {xdmf_path}")
-    #     DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=overwrite)
-    #     return
-
+    xdmf_path.parent.mkdir(parents=True, exist_ok=True)
+    mesh_to_xdmf(mesh, xdmf_path)
     return mesh
-
-
-if __name__ == "__main__":
-    vtu_path = RESOURCES_DIR / "vtu" / "1ptestfv-00001.vtu"
-    xdmf_path = vtu_path.parent / f"{vtu_path.stem}.xdmf"
-    mesh = vtu_to_xdmf(vtu_path=vtu_path, xdmf_path=xdmf_path)
-
-    console.print(mesh)
-    console.print(f"{mesh.points}")
-    console.print(f"{mesh.cells}")
-    console.print(f"{mesh.cell_data}")
-    console.print(f"{mesh.point_data}")
-
-    data_layers: list[DataLayer] = [
-        DataLayer(
-            sid="p",
-            title="pressure p",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-        DataLayer(
-            sid="velocity_liq (m/s)",
-            title="velocity_liq (m/s)",
-            colormap="magma",
-            viz_type=AttributeType.VECTOR,
-        ),
-        DataLayer(
-            sid="process rank",
-            title="process rank",
-            colormap="magma",
-            viz_type=AttributeType.SCALAR,
-        ),
-    ]
-
-    visualize_interactive(
-        mesh, data_layer=data_layers[2], visualization_settings=VisualizationSettings()
-    )

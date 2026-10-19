@@ -102,6 +102,42 @@ by default. Confirm output files and FFmpeg diagnostics after encoding.
 
 ## Common problems
 
+Batch exports use data-layer identifiers and image names as filename components.
+Choose portable names without path separators, traversal, or Windows device names.
+Unsafe paths are rejected before rendering. Plotters close even when setup or
+screenshot creation fails, and importing the module preserves the application's
+global PyVista theme. Iterator inputs are retained across time steps.
+
+`DataLayer.conversion_factor` converts displayed values without changing the
+source mesh. Ranges set through `update_color_limits` use the same display units.
+Explicit color limits should already use those units.
+
+Annotation uses Pillow's bundled default font. Pass `font_path` and `font_size`
+to select an installed font explicitly. The helper closes its input image and
+creates the output directory when needed.
+
+Montage generation opens one input image at a time, so large panel collections
+do not retain one file descriptor and decoded buffer per input. Optional
+Matplotlib styling is explicit and restores prior settings:
+
+```python
+import matplotlib.pyplot as plt
+
+from porous_media.visualization.plots import plot_style
+
+with plot_style():
+    figure, axes = plt.subplots()
+    try:
+        axes.plot([0, 1], [0, 1])
+        figure.savefig("line.png")
+    finally:
+        plt.close(figure)
+```
+
+`porous_media.visualization.vtu_reader.vtu_to_xdmf` now writes the requested static
+XDMF/HDF conversion and returns its mesh. This replaces its previous read-only
+behavior. Outputs are preserved unless `overwrite=True` is supplied.
+
 - **Field not found:** inspect `XDMFInfo.point_data`, `XDMFInfo.cell_data`, or
   `mesh.point_data` and `mesh.cell_data` before choosing a layer.
 - **Blank or clipped mesh:** check camera settings and coordinate scale.
