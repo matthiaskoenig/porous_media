@@ -1,69 +1,29 @@
-"""Information on the boundary scans."""
+"""Catalogue SPT simulation/convergence runs and export their conditions locally."""
 
+import sys
 from pathlib import Path
-from typing import Any
 
-import matplotlib
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 
-from porous_media.console import console
+from research.spt.conditions import (
+    SimulationCondition,
+    simulation_conditions,
+)
+from research.spt.conditions import boundary_flows as boundary_flows
+from research.spt.conditions import pattern_idx2name as pattern_idx2name
 
-# substrate boundary flows (2026-04-14)
-# boundary_flows = [
-#     -3.797784e-06,
-#     -4.6576515e-06,
-#     -5.5176906e-06,
-#     -7.2377693e-06,
-#     -1.0677926e-05,
-#     -1.4118084e-05,
-#     -1.755824e-05,
-#     -2.0938397e-05,
-# ]
-
-# substrate boundary flows (2026-04-27)
-boundary_flows = [
-    -1.60747e-09,
-    -7.58061e-06,
-    -1.41387e-05,
-    -2.51064e-05,
-    -4.15705e-05,
-    -5.37477e-05,
-    -6.33526e-05,
-    -7.12447e-05,
-]
-
-# zonation patterns
-pattern_idx2name: dict[int, str] = {
-    0: "constant",
-    1: "linear increase",
-    2: "sharp pericentral",
-    3: "linear decrease",
-    4: "sharp periportal",
-    5: "random",
-}
-pattern_name2idx = {v: k for k, v in pattern_idx2name.items()}
-
-pattern_order: list[str] = [
-    "constant",
-    "linear increase",
-    "sharp pericentral",
-    "linear decrease",
-    "sharp periportal",
-    "random",
-]
-
-# colors
-pattern_colors: dict[int, str] = {
-    0: "tab:black",
+pattern_name2idx = {value: key for key, value in pattern_idx2name.items()}
+pattern_order = list(pattern_idx2name.values())
+pattern_colors = {
+    0: "black",
     1: "tab:blue",
     2: "tab:purple",
     3: "tab:red",
     4: "tab:orange",
     5: "tab:green",
 }
-pattern_colormaps: dict[int, str] = {
+pattern_colormaps = {
     0: "Greys",
     1: "Blues",
     2: "Purples",
@@ -73,105 +33,188 @@ pattern_colormaps: dict[int, str] = {
 }
 
 
-def simulation_conditions_df() -> pd.DataFrame:
-    """Create simulation condition DataFrame."""
-    feb_data = {}
-    counter = 1
-    for pattern_key, pattern_name in pattern_idx2name.items():
-        kmax = len(boundary_flows)
-        for k_flow, flow in enumerate(boundary_flows):
-            # calculate colors
-            cmap_key = pattern_colormaps[pattern_key]
-            cmap = matplotlib.colormaps.get_cmap(cmap_key)
+def simulation_conditions_df(
+    conditions: list[SimulationCondition] | None = None,
+) -> pd.DataFrame:
+    """Create a typed condition table with stable simulation IDs and colors.
 
-            # dose_relative = np.log(dose) / np.log(dose_max)
-            color_rgba = cmap((k_flow + 1) / kmax)
-            color_hex = matplotlib.colors.to_hex(color_rgba, keep_alpha=True)
+    Pass conditions extracted from the source generator for a particular study.
+    The default preserves the existing plotting API and archived scan ordering.
+    """
+    import matplotlib
 
-            sim_id = f"sim{counter:>03}"
-
-            feb_data[sim_id] = {
-                "pattern_key": pattern_key,
-                "pattern_name": pattern_name,
-                "boundary_flow_key": k_flow,
-                "boundary_flow": flow,
-                "color": color_hex,
+    conditions = simulation_conditions() if conditions is None else conditions
+    if not conditions:
+        raise ValueError("Simulation conditions must not be empty")
+    num_flows = max(condition.boundary_flow_key for condition in conditions) + 1
+    colormaps = {
+        key: matplotlib.colormaps[name] for key, name in pattern_colormaps.items()
+    }
+    records = [
+        {
+            "sim_key": condition.sim_id,
+            "pattern_key": condition.pattern_key,
+            "pattern_name": pattern_idx2name[condition.pattern_key],
+            "boundary_flow_key": condition.boundary_flow_key,
+            "boundary_flow": condition.boundary_flow,
+            "color": matplotlib.colors.to_hex(
+                colormaps[condition.pattern_key](
+                    (condition.boundary_flow_key + 1) / num_flows
+                ),
+                keep_alpha=True,
+            ),
+        }
+        for condition in conditions
+    ]
+    return (
+        pd.DataFrame.from_records(records)
+        .set_index("sim_key")
+        .astype(
+            {
+                "pattern_key": "int64",
+                "boundary_flow_key": "int64",
+                "boundary_flow": "float64",
+                "color": str,
             }
-            counter += 1
-
-    df = pd.DataFrame(feb_data).T
-    return df.astype({"pattern_key": int, "boundary_flow_key": int, "color": str})
-
-
-plot_kwargs: dict[str, Any] = {
-    "marker": "o",
-    "markersize": 10,
-    "markeredgecolor": "black",
-}
+        )
+    )
 
 
 def plot_boundary_flux(df: pd.DataFrame, results_dir: Path) -> None:
-    """Analysis of boundary scan."""
-    y = np.abs(df.boundary_flow.values[0 : len(boundary_flows)])
+    """Save distinct absolute flow magnitudes without opening a graphics window."""
+    from matplotlib import pyplot as plt
 
-    f, ax = plt.subplots(
-        nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained"
-    )
-
-    ax.plot(
-        y,
-        label="simulation",
-        **plot_kwargs,
-    )
-
-    # ynew = np.linspace(start=y[-1] * 0.01, stop=y[-1], num=8)
-    # console.print(ynew)
-    # ax.plot(
-    #     ynew,
-    #     label="ynew",
-    #     **plot_kwargs,
-    # )
-
-    ax.set_ylim(bottom=0)
-    ax.set_xlabel("simulation index", fontsize=15, fontweight="bold")
-    ax.set_ylabel("absolute boundary flow", fontsize=15, fontweight="bold")
-    ax.legend()
-    plt.show()
-    f.savefig(results_dir / "boundary_flux.png", bbox_inches="tight")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    flows = df.drop_duplicates("boundary_flow_key").sort_values("boundary_flow_key")
+    figure, axes = plt.subplots(figsize=(5, 5), dpi=300, layout="constrained")
+    try:
+        axes.plot(
+            np.abs(flows.boundary_flow.to_numpy(dtype=float)),
+            marker="o",
+            markeredgecolor="black",
+        )
+        axes.set(
+            xlabel="Boundary flow index",
+            ylabel="Absolute boundary flow (source units)",
+            ylim=(0, None),
+        )
+        figure.savefig(results_dir / "boundary_flux.png", bbox_inches="tight")
+    finally:
+        plt.close(figure)
 
 
 def plot_colors(df: pd.DataFrame, results_dir: Path) -> None:
-    """Plot colors."""
-    f, ax = plt.subplots(
-        nrows=1, ncols=1, figsize=(5, 5), dpi=300, layout="constrained"
-    )
+    """Save the pattern/flow color mapping and close the figure reliably."""
+    from matplotlib import pyplot as plt
 
-    for _, row in df.iterrows():
-        ax.plot(
-            row.pattern_key,
-            row.boundary_flow_key,
-            linestyle=None,
-            color=row.color,
-            **plot_kwargs,
+    results_dir.mkdir(parents=True, exist_ok=True)
+    figure, axes = plt.subplots(figsize=(5, 5), dpi=300, layout="constrained")
+    try:
+        axes.scatter(
+            df.pattern_key,
+            df.boundary_flow_key,
+            c=df.color.tolist(),
+            edgecolors="black",
+            s=100,
         )
+        axes.set(
+            xlabel="Zonation pattern", ylabel="Boundary flow index", ylim=(0, None)
+        )
+        figure.savefig(results_dir / "boundary_color.png", bbox_inches="tight")
+    finally:
+        plt.close(figure)
 
-    ax.set_ylim(bottom=0)
-    ax.set_xlabel("zonation pattern", fontsize=15, fontweight="bold")
-    ax.set_ylabel("boundary flow", fontsize=15, fontweight="bold")
-    plt.show()
-    f.savefig(results_dir / "boundary_color.png", bbox_inches="tight")
+
+def main(argv: list[str] | None = None) -> int:
+    """Inspect both studies without writing to the source or loading HDF arrays."""
+    from research.spt.cache import cached_catalog, validate_roots
+    from research.spt.catalog import CatalogValue, discover_runs, inspect_run
+    from research.spt.cli import selected_studies, selection_parser, write_catalog
+    from research.spt.conditions import conditions_from_source
+
+    parser = selection_parser(__doc__ or "Catalogue SPT data")
+    parser.add_argument(
+        "--plots",
+        action="store_true",
+        help="Save condition plots without showing windows",
+    )
+    parser.add_argument(
+        "--excel", action="store_true", help="Also export the catalogue as Excel"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print metadata without writing reports"
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Reread descriptors instead of reusing current catalogue metadata",
+    )
+    args = parser.parse_args(argv)
+    rows: list[dict[str, CatalogValue]] = []
+    try:
+        source, target = validate_roots(args.input_root, args.output_root)
+        runs = discover_runs(source, selected_studies(args.study), tuple(args.runs))
+        for run in runs:
+            try:
+                row = None if args.refresh else cached_catalog(run, target)
+                rows.append(
+                    {
+                        **(inspect_run(run).row if row is None else row),
+                        "status": "available",
+                    }
+                )
+            except (OSError, ValueError, KeyError) as error:
+                rows.append(
+                    {
+                        "study": run.study,
+                        "run_id": run.run_id,
+                        "status": "failed",
+                        "error": str(error),
+                    }
+                )
+        if args.study in {"both", "simulations"} and not args.runs:
+            conditions, _ = conditions_from_source(source)
+            present = {run.run_id for run in runs if run.study == "simulations_sixth"}
+            for condition in conditions:
+                if condition.sim_id not in present:
+                    rows.append(
+                        {
+                            "study": "simulations_sixth",
+                            "run_id": condition.sim_id,
+                            "status": "missing",
+                        }
+                    )
+        data = pd.DataFrame(rows)
+        print(
+            data.to_string(
+                index=False,
+                columns=[
+                    name
+                    for name in (
+                        "study",
+                        "run_id",
+                        "num_cells",
+                        "num_steps",
+                        "tend_s",
+                        "complete",
+                        "status",
+                    )
+                    if name in data
+                ],
+            )
+        )
+        if not args.dry_run:
+            write_catalog(data, target, excel=args.excel)
+            if args.plots:
+                conditions, _ = conditions_from_source(source)
+                frame = simulation_conditions_df(conditions)
+                plot_boundary_flux(frame, target / "figures")
+                plot_colors(frame, target / "figures")
+    except (OSError, ValueError) as error:
+        print(f"SPT information: {error}", file=sys.stderr)
+        return 1
+    return int(any(row.get("status") in {"failed", "missing"} for row in rows))
 
 
 if __name__ == "__main__":
-    from research.spt import data_spt_dir
-
-    df = simulation_conditions_df()
-
-    df.reset_index(level=0, inplace=True)
-    df.rename(columns={"index": "sim_key"}, inplace=True)
-    console.print(df)
-    df.to_excel(data_spt_dir / "simulations.xlsx", index=False)
-    df.to_csv(data_spt_dir / "simulations.tsv", index=False, sep="\t")
-
-    plot_boundary_flux(df, results_dir=data_spt_dir)
-    plot_colors(df, results_dir=data_spt_dir)
+    raise SystemExit(main())
