@@ -1,15 +1,14 @@
 """Information on the boundary scans."""
 
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from typing import Any
 
 from porous_media.console import console
-
 
 # substrate boundary flows (2026-04-14)
 # boundary_flows = [
@@ -76,7 +75,6 @@ pattern_colormaps: dict[int, str] = {
 
 def simulation_conditions_df() -> pd.DataFrame:
     """Create simulation condition DataFrame."""
-
     feb_data = {}
     counter = 1
     for pattern_key, pattern_name in pattern_idx2name.items():
@@ -102,8 +100,7 @@ def simulation_conditions_df() -> pd.DataFrame:
             counter += 1
 
     df = pd.DataFrame(feb_data).T
-    df = df.astype({"pattern_key": int, "boundary_flow_key": int, "color": str})
-    return df
+    return df.astype({"pattern_key": int, "boundary_flow_key": int, "color": str})
 
 
 plot_kwargs: dict[str, Any] = {

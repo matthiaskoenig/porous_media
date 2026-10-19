@@ -32,13 +32,13 @@ from porous_media.data.xdmf_tools import AttributeType, XDMFInfo
 def mesh_datasets_from_xdmf_dir(xdmf_dir: Path, overwrite: bool = True) -> None:
     """Create the cell_data and point_data xarray DataSet in parallel."""
     # prepare datasets for analysis
-    xdmf_paths = sorted([p for p in xdmf_dir.glob("*.xdmf")])
+    xdmf_paths = sorted(xdmf_dir.glob("*.xdmf"))
     console.print(xdmf_paths)
 
     # inject arguments with partial
     mesh_datasets_from_xdmf_args = partial(mesh_datasets_from_xdmf, overwrite=overwrite)
 
-    max_workers = max(1, os.cpu_count() - 1)
+    max_workers = max(1, (os.cpu_count() or 1) - 1)
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # _ = list(executor.map(lambda args: mesh_datasets_from_xdmf(*args), arguments))
         _ = list(executor.map(mesh_datasets_from_xdmf_args, xdmf_paths))

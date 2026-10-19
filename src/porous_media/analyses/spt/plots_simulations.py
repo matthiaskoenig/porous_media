@@ -363,11 +363,12 @@ def plot_spt_over_position(
 
 
 def simulations_analysis(data_dir: Path) -> None:
+    """Create data summaries and plots for simulation time courses."""
     # XDMF
     xdmf_dir = data_dir / "xdmf"
     results_dir = data_dir
 
-    xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
+    xdmf_paths = sorted(xdmf_dir.glob("*.xdmf"))
 
     # Load xarray datasets
     xr_cells_dict: dict[str, xr.Dataset] = {}

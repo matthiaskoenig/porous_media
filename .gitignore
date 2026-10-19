@@ -3,6 +3,16 @@ __pycache__
 src/porous_media.egg-info/
 .tox/
 .cache/
+.venv/
+.ruff_cache/
+.pytest_cache/
+.ty_cache/
+.uv-cache/
+.uv-python/
+build/
+dist/
+site/
+htmlcov/
 .coverage
 coverage.xml
 
@@ -24,5 +34,3 @@ data/simliva_2023-09-20/
 
 *.xplt
 *.vtu
-
-uv.lock

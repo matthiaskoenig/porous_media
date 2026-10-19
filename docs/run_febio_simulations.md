@@ -1,4 +1,10 @@
 # Run FEBio simulations
+
+!!! note "Historical workstation setup"
+    These commands describe an older local FEBio installation. Paths and version
+    requirements are historical. Use [FEBio workflows](febio.md) for the current
+    Python package workflow and current upstream resources.
+
 Information on how to run the FEBio simulations.
 For a given problem an FEBio definition file is used. The simulation can then be executed via:
 

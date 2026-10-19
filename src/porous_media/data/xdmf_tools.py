@@ -7,18 +7,16 @@ https://www.xdmf.org/index.php/XDMF_Model_and_Format
 from __future__ import annotations
 
 import json
-import os
-import shutil
 from copy import deepcopy
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+import h5py
 import meshio
 import numpy as np
 from dataclasses_json import dataclass_json
-from meshio import CellBlock
 from meshio._common import raw_from_cell_data
 from meshio.xdmf.common import attribute_type
 from rich.progress import track
@@ -26,11 +24,27 @@ from rich.progress import track
 from porous_media.console import console
 from porous_media.log import get_logger
 
-
 logger = get_logger(__name__)
 
 
-class AttributeType(str, Enum):
+class XDMFTimeSeriesWriter(meshio.xdmf.TimeSeriesWriter):
+    """Write time series with HDF data beside XDMF, without changing directory.
+
+    This preserves meshio's ``TimeSeriesWriter`` context manager API and writes
+    relative HDF references so that the XDMF and HDF files can be moved together.
+    """
+
+    def __enter__(self) -> XDMFTimeSeriesWriter:
+        """Open the HDF sidecar when using HDF output."""
+        # meshio writes its HDF file into the working directory by default.
+        # Keep the relative filename in the XML, but open it at its actual location.
+        if self.data_format == "HDF":
+            self.h5_filename = str(self.filename.with_suffix(".h5"))
+            self.h5_file = h5py.File(self.h5_filename, "w")
+        return self
+
+
+class AttributeType(StrEnum):
     """Definition of variable type."""
 
     SCALAR = "Scalar"
@@ -78,7 +92,7 @@ class XDMFInfo:
     def from_path(xdmf_path: Path) -> XDMFInfo:
         """Create XDMFInformation from xdmf path."""
         if not xdmf_path:
-            raise IOError(f"xdmf_path does not exist: {xdmf_path}")
+            raise OSError(f"xdmf_path does not exist: {xdmf_path}")
 
         with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
             points, cells = reader.read_points_cells()
@@ -106,20 +120,18 @@ class XDMFInfo:
             # get end time
             tend, _, _ = reader.read_data(reader.num_steps - 1)
 
-        cell_block: CellBlock = cells[0]
-        xdmf_info = XDMFInfo(
+        return XDMFInfo(
             path=xdmf_path,
             tstart=tstart,
             tend=tend,
             num_steps=reader.num_steps,
             num_points=len(points),
-            num_cells=len(cell_block),
+            num_cells=sum(len(cell_block) for cell_block in cells),
             points=points,
             cells=cells,
             point_data=point_data_info,
             cell_data=cell_data_info,
         )
-        return xdmf_info
 
 
 @dataclass_json
@@ -146,7 +158,7 @@ class DataLimits:
         json_path = cls.json_path_from_xdmf(xdmf_path)
         if not overwrite and json_path.exists():
             console.print(f"json file exists: {json_path}")
-            with open(json_path, "r") as f_json:
+            with open(json_path) as f_json:
                 d = json.load(f_json)
                 return DataLimits(**d)
 
@@ -161,7 +173,7 @@ class DataLimits:
             for k in track(
                 range(reader.num_steps), description="Calculating data limits ..."
             ):
-                t, point_data, cell_data = reader.read_data(k)
+                _t, point_data, cell_data = reader.read_data(k)
 
                 # point data limits
                 for name in xdmf_info.point_data:
@@ -186,9 +198,7 @@ class DataLimits:
                 # cell data limits
                 for name in xdmf_info.cell_data:
                     # min and max from data
-                    data = cell_data[name]
-                    data = np.dstack(data)
-                    data = data.squeeze()
+                    data = np.concatenate(cell_data[name])
                     dmin = float(data.min())
                     dmax = float(data.max())
 
@@ -218,19 +228,17 @@ class DataLimits:
     @staticmethod
     def merge_limits(data_limits: list[DataLimits]) -> DataLimits:
         """Merge the limits from multiple data limits."""
-
         # copy limits from simulation 0
         limits = deepcopy(data_limits[0].limits)
         for k, dlim in enumerate(data_limits):
             if k == 0:
                 continue
-            else:
-                for name, lims_k in dlim.limits.items():
-                    lims = limits[name]
-                    limits[name] = (
-                        lims_k[0] if lims_k[0] < lims[0] else lims[0],
-                        lims_k[1] if lims_k[1] > lims[1] else lims[1],
-                    )
+            for name, lims_k in dlim.limits.items():
+                lims = limits[name]
+                limits[name] = (
+                    lims_k[0] if lims_k[0] < lims[0] else lims[0],
+                    lims_k[1] if lims_k[1] > lims[1] else lims[1],
+                )
 
         return DataLimits(limits=limits)
 
@@ -247,19 +255,23 @@ def xdmfs_from_directory(
     easily create all xdms for a given directory.
     XDMF file structure is analogue to the structure in the original directory
 
-    :param input_dir: directory with VTKs, possible subdirectories
-    :param xdmf_dir: directory in which the xdmfs are generated
-    :returns: Dictionary {xdmf_path: subdirectory}
+    Args:
+        input_dir: Directory containing VTK files, including subdirectories.
+        xdmf_dir: Directory in which the XDMF files are generated.
+        overwrite: Whether to replace existing output files.
+
+    Returns:
+        A mapping from each XDMF output path to its VTK source directory.
     """
     console.rule(title="XDMF from directory", align="left", style="white")
     # processes all folders with vtk
 
     # iterate over all directories and subdirectories to collect vtk directories
     vtk_dirs: list[Path] = []
-    all_dirs = sorted([input_dir] + list(input_dir.rglob("*")))
+    all_dirs = sorted([input_dir, *list(input_dir.rglob("*"))])
 
     for d in all_dirs:
-        vtk_paths = sorted(list(d.glob("*.vtk")))
+        vtk_paths = sorted(d.glob("*.vtk"))
         n_vtks = len(vtk_paths)
         if n_vtks > 0:
             console.print(f"{n_vtks} VTKs: {d}")
@@ -267,8 +279,8 @@ def xdmfs_from_directory(
 
     if not vtk_dirs:
         logger.error(
-            f"No directory with VTKs in '{input_dir}'. "
-            f"Check if the 'febio_dir' is correct."
+            "No directory with VTKs in '%s'. Check if the 'febio_dir' is correct.",
+            input_dir,
         )
 
     # process the VTKs in the directory
@@ -286,15 +298,12 @@ def xdmfs_from_directory(
 def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> None:
     """Convert VTK timesteps to XDMF time course.
 
-    :param overwrite: forces overwrite of files, by default existing files are ignored.
+    Args:
+        vtk_dir: Directory containing VTK files ordered by timestep.
+        xdmf_path: Path to the XDMF output file.
+        overwrite: Whether to replace existing output files.
     """
     console.rule(title=f"{xdmf_path}", style="white")
-
-    vtk_paths = sorted(list(vtk_dir.glob("*.vtk")))
-    mesh: meshio.Mesh = meshio.read(vtk_paths[0])
-
-    if not xdmf_path.parent.exists():
-        xdmf_path.parent.mkdir(parents=True)
 
     console.print(f"{vtk_dir} -> {xdmf_path}")
     if not overwrite and xdmf_path.exists():
@@ -302,13 +311,21 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
         DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=overwrite)
         return
 
-    with meshio.xdmf.TimeSeriesWriter(xdmf_path, data_format="HDF") as writer:
-        writer.write_points_cells(mesh.points, mesh.cells)
+    vtk_paths = sorted(vtk_dir.glob("*.vtk"))
+    if not vtk_paths:
+        raise ValueError(f"No VTK files found in '{vtk_dir}'")
+    mesh: meshio.Mesh = meshio.read(vtk_paths[0])
+    xdmf_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with XDMFTimeSeriesWriter(xdmf_path, data_format="HDF") as writer:
+        writer.write_points_cells(
+            mesh.points, [(cell.type, cell.data) for cell in mesh.cells]
+        )
 
         for k in track(range(len(vtk_paths)), description="Processing VTKs ..."):
             vtk_path = vtk_paths[k]
             # read timepoint
-            with open(vtk_path, "r") as f_vtk:
+            with open(vtk_path) as f_vtk:
                 f_vtk.readline()  # skip first line
                 line = f_vtk.readline()
                 t = float(line.strip().split(" ")[-1])
@@ -316,13 +333,6 @@ def vtks_to_xdmf(vtk_dir: Path, xdmf_path: Path, overwrite: bool = False) -> Non
             # read mesh
             mesh = meshio.read(vtk_path)
             writer.write_data(t, point_data=mesh.point_data, cell_data=mesh.cell_data)
-
-    # Fix incorrect *.h5 path
-    # https://github.com/nschloe/meshio/pull/1358
-    h5_path = xdmf_path.parent / f"{xdmf_path.stem}.h5"
-    if h5_path.exists():
-        os.remove(h5_path)
-    shutil.move(f"{xdmf_path.stem}.h5", str(xdmf_path.parent))
 
     # Calculate limits
     DataLimits.from_xdmf(xdmf_path=xdmf_path, overwrite=overwrite)
@@ -334,7 +344,12 @@ def interpolate_xdmf(
     times_interpolate: np.ndarray,
     overwrite: bool = False,
 ) -> None:
-    """Interpolate XDMF."""
+    """Linearly interpolate point and cell data at finite times within the input range.
+
+    The input time series must have strictly increasing, finite timepoints.
+    Requested times must form a nonempty one-dimensional array. Their order and
+    repeated values are preserved. Output directories are created as needed.
+    """
     console.rule(title=f"Interpolate {xdmf_in}", style="white")
 
     if not overwrite and xdmf_out.exists():
@@ -342,52 +357,62 @@ def interpolate_xdmf(
         DataLimits.from_xdmf(xdmf_path=xdmf_out, overwrite=overwrite)
         return
 
+    times_interpolate = np.asarray(times_interpolate, dtype=float)
+    if times_interpolate.ndim != 1 or times_interpolate.size == 0:
+        raise ValueError("Interpolation times must be a nonempty one-dimensional array")
+    if not np.isfinite(times_interpolate).all():
+        raise ValueError("Interpolation times must be finite")
+    if xdmf_in.resolve() == xdmf_out.resolve():
+        raise ValueError("Input and output XDMF paths must differ")
+
     with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
         points, cells = reader.read_points_cells()
 
-        with meshio.xdmf.TimeSeriesWriter(xdmf_out) as writer:
+        times_data = np.zeros(reader.num_steps)
+        for k in track(
+            range(reader.num_steps), description="Calculating timepoints ..."
+        ):
+            t, _, _ = reader.read_data(k)
+            times_data[k] = t
+
+        if (
+            times_data.size == 0
+            or not np.isfinite(times_data).all()
+            or not (np.diff(times_data) > 0).all()
+        ):
+            raise ValueError("Input timepoints must be finite and strictly increasing")
+        if times_interpolate.min() < times_data[0]:
+            raise ValueError(
+                f"Lower interpolation range outside of data: {times_interpolate.min()} < {times_data[0]}"
+            )
+        if times_interpolate.max() > times_data[-1]:
+            raise ValueError(
+                f"Upper interpolation range outside of data: {times_interpolate.max()} > {times_data[-1]}"
+            )
+
+        xdmf_out.parent.mkdir(parents=True, exist_ok=True)
+        with XDMFTimeSeriesWriter(xdmf_out) as writer:
             writer.write_points_cells(points, cells)
-
-            tnum = reader.num_steps
-            times_data = np.zeros((tnum,))
-            for k in track(range(tnum), description="Calculating timepoints ..."):
-                t, _, _ = reader.read_data(k)
-                times_data[k] = t
-
-            if times_interpolate[0] < times_data[0]:
-                raise ValueError(
-                    f"Lower interpolation range outside of data: {times_interpolate[0]} < {times_data[0]}"
-                )
-            if times_interpolate[-1] > times_data[-1]:
-                raise ValueError(
-                    f"Upper interpolation range outside of data: {times_interpolate[-1]} > {times_data[-1]}"
-                )
-
-            lower_indices = np.zeros_like(times_interpolate, dtype=int)
-            upper_indices = np.zeros_like(times_interpolate, dtype=int)
-            for ki, ti in enumerate(times_interpolate):
-                lower_indices[ki] = np.argwhere(times_data <= ti).flatten()[-1]
-                upper_indices[ki] = np.argwhere(times_data >= ti).flatten()[0]
 
             # interpolate data for all data points
             for k in track(
                 range(len(times_interpolate)), description="Interpolating data ..."
             ):
                 t_interpolate = times_interpolate[k]
-                idx_low = lower_indices[k]
-                idx_up = upper_indices[k]
+                idx_up = int(np.searchsorted(times_data, t_interpolate))
+                idx_low = idx_up if times_data[idx_up] == t_interpolate else idx_up - 1
 
                 # interpolate all numpy matrices
                 t_low, point_data_low, cell_data_low = reader.read_data(idx_low)
                 t_up, point_data_up, cell_data_up = reader.read_data(idx_up)
                 f_up: float
                 f_low: float
-                if np.isclose(t_up, t_low):
-                    f_low = 0.0
-                    f_up = 1.0
+                if idx_up == idx_low:
+                    f_low = 1.0
+                    f_up = 0.0
                 else:
-                    f_low = (t_interpolate - t_low) / (t_up - t_low)
-                    f_up = (t_up - t_interpolate) / (t_up - t_low)
+                    f_up = (t_interpolate - t_low) / (t_up - t_low)
+                    f_low = 1.0 - f_up
 
                 # interpolate point data
                 point_data = {}
@@ -402,7 +427,7 @@ def interpolate_xdmf(
                     # console.print(f"{cell_data_low[key]}")
                     # process the list
                     cell_data[key] = [
-                        (f_low * cell_data_low[key][k]) + (f_up * cell_data_low[key][k])
+                        (f_low * cell_data_low[key][k]) + (f_up * cell_data_up[key][k])
                         for k in range(len(cell_data_low[key]))
                     ]
 
@@ -410,13 +435,6 @@ def interpolate_xdmf(
                 writer.write_data(
                     t_interpolate, point_data=point_data, cell_data=cell_data
                 )
-
-        # Fix incorrect *.h5 path
-        # https://github.com/nschloe/meshio/pull/1358
-        h5_path = xdmf_out.parent / f"{xdmf_out.stem}.h5"
-        if h5_path.exists():
-            os.remove(h5_path)
-        shutil.move(f"{xdmf_out.stem}.h5", str(xdmf_out.parent))
 
         # Calculate limits
         DataLimits.from_xdmf(xdmf_path=xdmf_out, overwrite=overwrite)

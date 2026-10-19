@@ -9,7 +9,6 @@ from porous_media.data.xdmf_tools import AttributeType, XDMFInfo, xdmfs_from_dir
 from porous_media.log import get_logger
 from porous_media.visualization.pyvista_visualization import DataLayer
 
-
 logger = get_logger(__name__)
 
 # Definition of variables for which panels are generated (this should be pretty

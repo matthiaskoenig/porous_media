@@ -19,5 +19,3 @@
 
 # Mesh generation
 - [ ] Histology image with staining; mesh generation from image (spatialPCA) -> species comparison
-
-

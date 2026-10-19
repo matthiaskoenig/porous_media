@@ -1,82 +1,95 @@
-![porous_media logo](https://github.com/matthiaskoenig/porous_media/raw/main/docs/images/favicon/porous_media-100x100-300dpi.png)
+![porous_media logo](https://raw.githubusercontent.com/matthiaskoenig/porous_media/main/docs/images/favicon/porous_media-100x100-300dpi.png)
 
-# porous_media: python utilities for SBML
-[![GitHub Actions CI/CD Status](https://github.com/matthiaskoenig/porous_media/workflows/CI-CD/badge.svg)](https://github.com/matthiaskoenig/porous_media/actions/workflows/main.yml)
+# porous_media
+
+[![CI](https://github.com/matthiaskoenig/porous_media/actions/workflows/main.yml/badge.svg)](https://github.com/matthiaskoenig/porous_media/actions/workflows/main.yml)
 [![Version](https://img.shields.io/pypi/v/porous_media.svg)](https://pypi.org/project/porous_media/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/porous_media.svg)](https://pypi.org/project/porous_media/)
-[![MIT License](https://img.shields.io/pypi/l/porous_media.svg)](https://opensource.org/licenses/MIT)
+[![Python versions](https://img.shields.io/pypi/pyversions/porous_media.svg)](https://pypi.org/project/porous_media/)
+[![MIT license](https://img.shields.io/pypi/l/porous_media.svg)](mit.txt)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8335487.svg)](https://doi.org/10.5281/zenodo.8335487)
 
-porous_media is a collection of python utilities for working with porous media simulation results and meshes with source code available from
-[https://github.com/matthiaskoenig/porous_media](https://github.com/matthiaskoenig/porous_media).
+Python utilities for porous media simulation results and meshes:
 
-Features include among others
+- Convert FEBio-exported VTK time series to XDMF/HDF5.
+- Inspect and interpolate simulation data.
+- Generate zonation patterns on annotated liver meshes.
+- Render mesh data with PyVista and combine images and videos.
+- Render FEBio input templates for parameter studies.
 
-- Visualization of VTK results
-- Image processing
-- Mesh manipulation
-- FEBio helpers
-
-If you have any questions or issues please [open an issue](https://github.com/matthiaskoenig/porous_media/issues).
-
-
-## How to cite
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8335487.svg)](https://doi.org/10.5281/zenodo.8335487)
-
-## License
-- Source Code: [MIT](https://opensource.org/license/MIT)
-- Documentation: [CC BY-SA 4.0](http://creativecommons.org/licenses/by-sa/4.0/)
+Python 3.13 or later is required. CI tests Python 3.13 and 3.14 on Linux and Python 3.14 on Windows and macOS.
 
 ## Installation
-### Dependencies
-porous_media depends on [`ffmpeg`](https://ffmpeg.org/) for creation of the videos
-which can be installed via on linux via
+
 ```bash
-sudo apt -y install ffmpeg
+python -m pip install porous_media
 ```
 
-Make sure you can execute the following successfully from the command line:
+Install the current source from `main`:
+
 ```bash
-ffmpeg
+python -m pip install git+https://github.com/matthiaskoenig/porous_media.git@main
 ```
 
-### pip
-porous_media is available from [pypi](https://pypi.python.org/pypi/porous_media) and
-can be installed via
-```bash
-pip install porous_media
+Video creation additionally needs [FFmpeg](https://ffmpeg.org/) on `PATH`.
+Mesh conversion and numerical processing do not need FFmpeg or a display.
+See the [installation guide](docs/installation.md) for rendering requirements.
+
+## Quickstart
+
+Save this script as `quickstart.py` and run `python quickstart.py`:
+
+```python
+from pathlib import Path
+
+from porous_media import RESOURCES_DIR
+from porous_media.data.xdmf_tools import XDMFInfo, vtks_to_xdmf
+
+output = Path("results") / "example.xdmf"
+vtks_to_xdmf(
+    vtk_dir=RESOURCES_DIR / "vtk" / "vtk_timecourse",
+    xdmf_path=output,
+)
+info = XDMFInfo.from_path(output)
+print(f"{info.num_steps} steps: {info.tstart:g} to {info.tend:g}")
+assert info.num_steps == 3
 ```
 
-The develop version can be installed via
+This uses bundled data and writes `example.xdmf`, `example.h5`, and
+`example_limits.json` into `results/`. The summary prints `3 steps: 0 to 220`.
+
+## Documentation and development
+
+Start with the [documentation overview](docs/index.md), [user guides](docs/quickstart.md),
+and [API reference](docs/api/index.md).
+Documentation uses Zensical and API documentation is rendered from source docstrings.
+
 ```bash
-pip install git+https://github.com/matthiaskoenig/porous_media.git@develop
+git clone https://github.com/matthiaskoenig/porous_media.git
+cd porous_media
+uv sync --locked --group dev --group docs
+uv run --no-sync pre-commit install
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync ty check
+uv run --no-sync pytest
+uv run --no-sync zensical build --clean --strict
 ```
 
-## Development
-Setup develop environment
-```bash
-uv sync --group dev
-```
-Setup pre-commit
-```bash
-pre-commit install
-pre-commit run
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and pull requests,
+[development](docs/development.md) for quality checks and repository policies,
+and [RELEASE.md](RELEASE.md) for releases.
+Project-specific scripts under `porous_media.analyses` may require unpublished data
+and are not general-purpose examples.
 
-## Testing
-Run all tests in parallel
-```bash
-tox run-parallel
-```
+## Citation and license
 
-Run single target
-```bash
-tox r -e py314
-```
-
+Cite the project using [doi:10.5281/zenodo.8335487](https://doi.org/10.5281/zenodo.8335487).
+Source code is licensed under [MIT](mit.txt).
+Documentation is licensed under [CC BY-SA 4.0](cc-by-sa-4.0.txt).
 
 ## Funding
-Matthias König is supported and by the German Research Foundation (DFG) within the Research Unit Programme FOR 5151
+
+Matthias König is supported by the German Research Foundation (DFG) within the Research Unit Programme FOR 5151
 "QuaLiPerF (Quantifying Liver Perfusion-Function Relationship in Complex Resection -
 A Systems Medicine Approach)" by grant number 436883643 and by grant number
 465194077 (Priority Programme SPP 2311, Subproject SimLivA).

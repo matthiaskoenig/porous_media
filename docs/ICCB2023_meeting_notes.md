@@ -1,4 +1,10 @@
-# Agent-based modelling 
+# ICCB 2023 meeting notes
+
+!!! note "Informal research archive"
+    These meeting notes are retained for research context. They do not describe
+    supported package APIs. See the [research archive](research.md).
+
+## Agent-based modelling
 Ralph Müller - Aging and osteoporosis
 - Lifespan vs health span; life span increased, but health span not; i.e. ~60 years
 
@@ -17,7 +23,7 @@ interplay is called "remodeling"
 
 Failure mechanisms at the tissue level; concavity and convexity are important
 
-- high resolution micro-CT; loadinng changes; 
+- high resolution micro-CT; loadinng changes;
 
 agent based updates; cells & cytokine updates ~ 40 minutes;
 micro MPA
@@ -33,7 +39,7 @@ locale forces; simulation of flow mechanics interaction
 pulmonary hypertension is a severe cadiovascular disease
 -> changes right ventricle
 
-use shape analysis from imaging data to estimate mechanical properties; 
+use shape analysis from imaging data to estimate mechanical properties;
 -> inverse problem
 
 Objective function based on shape
@@ -49,14 +55,14 @@ Efficient Baysian approaches
 - all problems show spatio-temportal uncertainties
 - but high computational costs (complex models)
 - high stochastic input dimensions (random fields)
-- Lack of HF model gradients/adjoints; 
+- Lack of HF model gradients/adjoints;
 
 - high fidality model and Baysian low fidelity model
 - BMFIA
 - uncertainty propagation depending on parameters
 
 
-# Global and local strain properties 
+# Global and local strain properties
 - orientation analysis of fibres ! polar plots! orientations of lobuli
 - How did you create the actual mesh from the image data?
 
@@ -68,4 +74,4 @@ Dichamp2023
 - 3D -> 1D model reduction
 - velocity fields are an input
 
-see Luca Formagia 2009, Cardiovascular Mathematics 
+see Luca Formagia 2009, Cardiovascular Mathematics

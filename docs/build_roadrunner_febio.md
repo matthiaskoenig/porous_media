@@ -1,4 +1,10 @@
 # Build roadrunner and FEBio
+
+!!! note "Historical research build"
+    This records a pinned research environment, including local source changes,
+    machine-specific paths, and private plugins. It is not required to install
+    the Python package. See [FEBio workflows](febio.md) for current guidance.
+
 Setup information for cluster/workstation to run FEBio simulations with integrated roadrunner.
 
 For roadrunner instructions see
@@ -53,7 +59,7 @@ cmake -DCMAKE_INSTALL_PREFIX="../../libroadrunner-deps-release" -DCMAKE_BUILD_TY
 
 cmake --build . --parallel 10 --target install --config Release
 cd ../../
-``` 
+```
 
 ## Roadrunner
 ```bash
@@ -69,7 +75,7 @@ cmake -DCMAKE_INSTALL_PREFIX="../../roadrunner-release" -DLLVM_INSTALL_PREFIX=".
 cmake --build . --parallel 10 --target install --config Release
 
 cd ../../../
-``` 
+```
 
 ## FEBio
 ```bash

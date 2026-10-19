@@ -3,10 +3,11 @@
 Combine and annotate images using PIL.
 """
 
+from collections.abc import Iterable
+from contextlib import ExitStack
+from math import ceil, sqrt
 from pathlib import Path
-from typing import Iterable, Optional
 
-import numpy as np
 from PIL import Image
 
 
@@ -14,14 +15,20 @@ def merge_images(
     paths: Iterable[Path],
     output_path: Path,
     direction: str = "vertical",
-    ncols: Optional[int] = None,
-    nrows: Optional[int] = None,
+    ncols: int | None = None,
+    nrows: int | None = None,
 ) -> None:
-    """Merge/combine images either vertical or horizontal or square.
+    """Combine images into a vertical strip, horizontal strip, or grid.
 
-    This creates larger images from individual panels. Panels can be combined
-    vertical, horizonal, square or in custom layout.
-    In case of custom layout height and width are required.
+    Args:
+        paths: Input images in panel order.
+        output_path: Destination image path.
+        direction: Layout: "vertical", "horizontal", "square", or "custom".
+        ncols: Positive column count required for a custom grid.
+        nrows: Positive row count required for a custom grid.
+
+    Raises:
+        ValueError: If no images are supplied or the layout is invalid.
     """
     supported_directions = ["vertical", "horizontal", "square", "custom"]
     if direction not in supported_directions:
@@ -29,65 +36,46 @@ def merge_images(
             f"direction '{direction}' not in supported directions: {supported_directions}"
         )
 
-    images = [Image.open(x) for x in paths]
-    widths, heights = zip(*(i.size for i in images))
+    with ExitStack() as stack:
+        images = [stack.enter_context(Image.open(path)) for path in paths]
+        if not images:
+            raise ValueError("paths must contain at least one image")
 
-    if direction == "horizontal":
-        total_width = sum(widths)
-        max_height = max(heights)
-        new_im = Image.new("RGB", (total_width, max_height))
+        widths, heights = zip(*(image.size for image in images), strict=True)
+        max_width, max_height = max(widths), max(heights)
+        offsets: list[tuple[int, int]] = []
+        if direction == "horizontal":
+            size = (sum(widths), max_height)
+            offset = 0
+            for width in widths:
+                offsets.append((offset, 0))
+                offset += width
+        elif direction == "vertical":
+            size = (max_width, sum(heights))
+            offset = 0
+            for height in heights:
+                offsets.append((0, offset))
+                offset += height
+        else:
+            if direction == "square":
+                ncols = nrows = ceil(sqrt(len(images)))
+            if ncols is None or ncols <= 0:
+                raise ValueError("ncols must be positive for a custom grid")
+            if nrows is None or nrows <= 0:
+                raise ValueError("nrows must be positive for a custom grid")
+            if ncols * nrows < len(images):
+                raise ValueError("custom grid must have room for every image")
 
-        x_offset = 0
-        for im in images:
-            new_im.paste(im, (x_offset, 0))
-            x_offset += im.size[0]
+            size = (max_width * ncols, max_height * nrows)
+            offsets = [
+                ((k % ncols) * max_width, (k // ncols) * max_height)
+                for k in range(len(images))
+            ]
 
-    elif direction == "vertical":
-        total_height = sum(heights)
-        max_width = max(widths)
-        new_im = Image.new("RGB", (max_width, total_height))
-
-        y_offset = 0
-        for im in images:
-            new_im.paste(im, (0, y_offset))
-            y_offset += im.size[1]
-
-    elif direction == "square":
-        n = int(np.ceil(np.sqrt(len(images))))
-        max_height = max(widths)
-        max_width = max(widths)
-        total_height = max_height * n
-        total_width = max_width * n
-
-        new_im = Image.new("RGB", (total_width, total_height))
-
-        for k, im in enumerate(images):
-            kx = int(k % n)
-            ky = int(np.floor(k / n))
-            x_offset = kx * im.size[0]
-            y_offset = ky * im.size[1]
-            new_im.paste(im, (x_offset, y_offset))
-
-    elif direction == "custom":
-        if not ncols:
-            raise ValueError(f"width is required for direction '{direction}'")
-        if not nrows:
-            raise ValueError(f"height is required for direction '{direction}'")
-
-        max_height = max(widths)
-        max_width = max(widths)
-        total_height = max_height * nrows
-        total_width = max_width * ncols
-        new_im = Image.new("RGB", (total_width, total_height))
-
-        for k, im in enumerate(images):
-            kx = int(k % ncols)
-            ky = int(np.floor(k / ncols))
-            x_offset = kx * im.size[0]
-            y_offset = ky * im.size[1]
-            new_im.paste(im, (x_offset, y_offset))
-
-    new_im.save(output_path)
+        with Image.new("RGB", size) as merged:
+            for image, position in zip(images, offsets, strict=True):
+                merged.paste(image, position)
+            merged.save(output_path)
 
 
 if __name__ == "__main__":

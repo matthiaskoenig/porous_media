@@ -3,8 +3,8 @@
 Creates static plots and videos of the TPM simulations.
 """
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 
@@ -21,7 +21,6 @@ from porous_media.visualization.pyvista_visualization import (
     visualize_datalayers_timecourse,
 )
 
-
 logger = get_logger(__name__)
 
 
@@ -33,7 +32,6 @@ def visualize_spt_2d(
     create_panels: bool = True,
 ) -> None:
     """Create static images and video."""
-
     # Calculate tend time from all simulations
     tends: np.ndarray = np.zeros(shape=(len(list(xdmf_paths)),))
     for k, xdmf_path in enumerate(xdmf_paths):
@@ -110,7 +108,7 @@ if __name__ == "__main__":
     analysis_folder = "convergence_lobulus"
 
     xdmf_dir = data_spt_dir / analysis_folder / "xdmf"
-    xdmf_paths = sorted([f for f in xdmf_dir.glob("*.xdmf")])
+    xdmf_paths = sorted(xdmf_dir.glob("*.xdmf"))
 
     results_dir: Path = data_spt_dir / analysis_folder / "2D"
     results_dir.mkdir(parents=True, exist_ok=True)
