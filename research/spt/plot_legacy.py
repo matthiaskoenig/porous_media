@@ -29,7 +29,9 @@ def _sources(paths: Iterable[Path], output_root: Path) -> list[PlotSource]:
         validate_roots(path.parent, output_root)
         run = RunSource(
             path.parent,
-            "simulations_sixth",
+            "convergence_sixth"
+            if path.stem.startswith("convergence_")
+            else "simulations_sixth",
             path.stem,
             None,
             "explicit descriptor",

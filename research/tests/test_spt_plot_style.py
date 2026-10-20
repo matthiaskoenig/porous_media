@@ -148,7 +148,7 @@ def test_mesh_edges_and_per_panel_scalar_bars(
             assert collection.cmap.name == "hot"
             np.testing.assert_allclose(
                 np.asarray(collection.get_edgecolor(), dtype=float)[0],
-                [169 / 255] * 3 + [1],
+                [169 / 255] * 3 + [0.18],
             )
             assert np.asarray(collection.get_linewidth(), dtype=float)[0] == 0.48
         for axis in art.axes[2:]:

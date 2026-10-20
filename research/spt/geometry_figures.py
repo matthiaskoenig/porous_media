@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
 import matplotlib.pyplot as plt
 import meshio
 import numpy as np
-from matplotlib.collections import PolyCollection
-from matplotlib.colors import BoundaryNorm, ListedColormap
+from matplotlib.collections import LineCollection, PolyCollection
+from matplotlib.colors import to_rgba
+from numpy.typing import ArrayLike
 
 from research.spt.artifacts import fingerprint, generation_path, publish, run_lock
 from research.spt.conditions import pattern_idx2name
 from research.spt.fields import SPT_LAYERS
 from research.spt.geometry import GeometryJob, geometry_manifest
+from research.spt.plot_mesh import boundary_segments
 
-COMPARISON_PLOT_VERSION = 2
+COMPARISON_PLOT_VERSION = 3
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:
@@ -26,55 +29,60 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
     These thin extruded meshes are viewed along z. One triangular face per wedge
     represents its cell value; separate sector nodes preserve discontinuities.
     """
+    from research.spt.plot_data import projected_faces
+
     with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
         points, cells = reader.read_points_cells()
         _, _, initial = reader.read_data(0)
         end, _, final = reader.read_data(reader.num_steps - 1)
-    faces = []
-    for block in cells:
-        if block.type in {"wedge", "triangle"}:
-            faces.extend(points[block.data[:, :3], :2])
-        elif block.type == "quad":
-            faces.extend(points[block.data, :2])
-        else:
-            raise ValueError(f"Unsupported planar figure cell type: {block.type}")
+    faces, face_ids = projected_faces(points, cells)
     mixed_patterns = job.study == "simulations_combinations"
     selections = (
         (
-            ("rr_protein", "Initial protein zonation", initial, None),
-            ("rr_necrosis", f"Necrosis at {end:g} s", final, None),
+            ("rr_protein", "Initial protein zonation", initial),
+            ("rr_necrosis", f"Necrosis at {end:g} s", final),
         )
         if mixed_patterns
         else (
-            ("sector_id", "Convergence meshes", initial, "tab10"),
-            ("rr_(T)", f"Toxicant at {end:g} s", final, None),
+            ("sector_id", "Convergence meshes", initial),
+            ("rr_(T)", f"Toxicant at {end:g} s", final),
         )
     )
     figure, axes = plt.subplots(1, 2, figsize=(11, 6), layout="constrained")
     try:
-        for axis, (field, title, data, color) in zip(axes, selections, strict=True):
+        for axis, (field, title, data) in zip(axes, selections, strict=True):
             values = np.concatenate(data[field]).reshape(-1)
             if field == "sector_id":
-                cmap = ListedColormap(plt.get_cmap(color)(np.arange(6)))
                 collection = PolyCollection(
-                    faces,
-                    cmap=cmap,
-                    norm=BoundaryNorm(np.arange(7) - 0.5, 6),
-                    linewidths=0.15,
-                    edgecolors="black",
+                    cast(Sequence[ArrayLike], faces),
+                    facecolors="white",
+                    linewidths=0.48,
+                    edgecolors=to_rgba("darkgray", 0.45),
                 )
             else:
                 layer = next(layer for layer in SPT_LAYERS if layer.sid == field)
                 collection = PolyCollection(
-                    faces,
+                    cast(Sequence[ArrayLike], faces),
                     cmap=layer.colormap,
-                    linewidths=layer.line_width,
-                    edgecolors=layer.edge_color,
+                    linewidths=layer.line_width if mixed_patterns else 0,
+                    edgecolors=to_rgba(layer.edge_color, layer.edge_alpha)
+                    if mixed_patterns
+                    else "none",
+                    antialiaseds=mixed_patterns,
                 )
+                collection.set_array(values[face_ids])
                 if field == "rr_necrosis":
                     collection.set_clim(0, 1)
-            collection.set_array(values)
             axis.add_collection(collection)
+            if not mixed_patterns and field != "sector_id":
+                sectors = np.concatenate(initial["sector_id"]).reshape(-1)[face_ids]
+                axis.add_collection(
+                    LineCollection(
+                        cast(Sequence[ArrayLike], boundary_segments(faces, sectors)),
+                        colors=to_rgba("darkgray", 0.8),
+                        linewidths=0.48,
+                    )
+                )
             extent = float(np.linalg.norm(points[:, :2], axis=1).max()) * 1.25
             axis.set_xlim(-extent, extent)
             axis.set_ylim(-extent, extent)

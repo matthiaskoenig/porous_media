@@ -12,16 +12,18 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from research import RESULTS_DIR
 from research.spt.artifacts import atomic_text, generation_path, validate_output
+from research.spt.report_previews import preview_image
 
 SECTIONS = {
     "analysis": "Quantitative analysis",
     "overviews": "Geometry overviews",
+    "meshes": "Meshes only",
     "combinations": "Combined sector layouts",
     "geometry": "Geometry time courses",
     "supplements": "Supplemental geometry figures",
@@ -49,6 +51,8 @@ class Figure:
     identifier: str = ""
     keywords: str = ""
     order: int = 0
+    preview_width: int = 0
+    preview_height: int = 0
 
 
 def _mapping(value: object) -> dict[str, object]:
@@ -133,6 +137,7 @@ def _description(stem: str, spatial_times: list[object]) -> str:
         "initial-properties": "Initial cell properties",
         "final-state": "Final state overview",
         "meshes": "Distinct meshes",
+        "mesh": "Mesh only",
         "timecourse": "Geometry time course",
     }
     if linear.startswith("spatial-"):
@@ -281,6 +286,14 @@ def _collect(
                 title = str(configuration.get("title", "")) or _description(
                     stem.name, spatial_times
                 )
+                mesh_only = stem.name in {"mesh", "meshes"}
+                if mesh_only:
+                    title = (
+                        f"{_description(stem.name, spatial_times)} | {title}"
+                        if configuration.get("title")
+                        else title
+                    )
+                    scale = "Linear"
                 if kind == "xdmf":
                     title = (
                         f"Dose {doses[0]}: six zonation patterns"
@@ -318,7 +331,7 @@ def _collect(
                 figures.append(
                     Figure(
                         title,
-                        section,
+                        "meshes" if mesh_only else section,
                         family,
                         geometry,
                         scale,
@@ -406,6 +419,18 @@ def build_report(output_root: Path) -> Path:
         raise ValueError(f"Results directory does not exist: {root}")
     rows = _catalogue(root)
     figures, downloads, warnings, analysed = _collect(root, rows)
+    preview_warnings = []
+    for figure in figures:
+        if not figure.preview:
+            continue
+        source = root / unquote(figure.preview)
+        try:
+            small = preview_image(source, root)
+            figure.preview = _href(small.path, root)
+            figure.preview_width, figure.preview_height = small.width, small.height
+        except (OSError, ValueError) as error:
+            figure.preview = ""
+            preview_warnings.append(f"{source.relative_to(root)}: {error}")
     pipeline_path = root / "pipeline-report.json"
     pipeline = (
         _read_json(pipeline_path)
@@ -443,6 +468,7 @@ def build_report(output_root: Path) -> Path:
         exports=sum(len(figure.links) for figure in figures),
         pipeline=pipeline,
         warnings=warnings,
+        preview_warnings=preview_warnings,
         rows=rows,
         truncated=[row for row in rows if row.get("complete") == "False"],
         downloads=downloads,

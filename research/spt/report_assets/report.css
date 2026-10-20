@@ -398,6 +398,8 @@ input[type=search] {
   gap: 18px;
 }
 .figure-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 380px;
   border: 1px solid var(--border);
   border-radius: 9px;
   background: #fff;
