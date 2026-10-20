@@ -113,6 +113,15 @@ def test_local_limits_override_malformed_legacy_metadata(
     prepared = Prepared(source, {"metadata": {"ranges": {"rr_(T)": [2, 5]}}})
     assert shared_ranges([prepared], tmp_path)["simulations"]["rr_(T)"] == (0, 42)
     assert shared_ranges([prepared])["simulations"]["rr_(T)"] == (2, 5)
+    source.run.xdmf.with_name(f"{source.run.xdmf.stem}_limits.json").write_text(
+        '{"limits": {"rr_(T)": [0, 100], "rr_(S)": [0, 8]}}'
+    )
+    prepared = Prepared(
+        source, {"metadata": {"ranges": {"rr_(T)": [2, 5], "rr_(S)": [1, 2]}}}
+    )
+    ranges = shared_ranges([prepared], tmp_path)["simulations"]
+    assert ranges["rr_(T)"] == (0, 42)
+    assert ranges["rr_(S)"] == (0, 8)
 
 
 def test_mesh_edges_and_per_panel_scalar_bars(

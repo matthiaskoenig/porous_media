@@ -103,9 +103,12 @@ def shared_ranges(
                 }
             except (OSError, ValueError, KeyError):
                 pass
-        if not full and limits_path.is_file():
+        if set(ranges) - full.keys() and limits_path.is_file():
             with suppress(OSError, ValueError, KeyError):
-                full = json.loads(limits_path.read_text(encoding="utf-8"))["limits"]
+                full = {
+                    **json.loads(limits_path.read_text(encoding="utf-8"))["limits"],
+                    **full,
+                }
         ranges = {name: full.get(name, values) for name, values in ranges.items()}
         selected = result.setdefault(item.source.family, {})
         for name, values in ranges.items():
