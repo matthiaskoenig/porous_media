@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from research.spt.cache import ProcessingResult, validate_roots
 from research.spt.catalog import RunSource
-from research.spt.fields import Layer
+from research.spt.fields import SPT_LAYERS, Layer
 from research.spt.plot_data import PlotSource, _time, source_row
 from research.spt.plot_geometry import process_plots
 from research.spt.plot_render import RenderOptions
@@ -79,6 +79,7 @@ def visualize_spt_2d(
                 layer.colormap,
                 layer.color_limits,
                 1.0 if layer.conversion_factor is None else layer.conversion_factor,
+                scalar_bar=layer.scalar_bar,
             )
         )
     results = process_plots(
@@ -107,7 +108,7 @@ def necrosis_plots(
         results_dir,
         results_dir,
         options=RenderOptions(
-            (Layer("rr_necrosis", "Necrosis (fraction)", "Reds", (0, 1)),)
+            (next(layer for layer in SPT_LAYERS if layer.sid == "rr_necrosis"),)
         ),
         snapshots=1,
         workers=1,

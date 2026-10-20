@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import sys
 import time
+from argparse import BooleanOptionalAction
 from dataclasses import asdict
 from functools import partial
 from pathlib import Path
@@ -264,11 +265,12 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
         choices=("svg", "pdf", "png"),
         default=["svg", "pdf", "png"],
     )
-    parser.add_argument("--dpi", type=int, default=110)
+    parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument(
         "--spread",
-        action="store_true",
-        help="Show volume-weighted population SD, not confidence intervals",
+        action=BooleanOptionalAction,
+        default=None,
+        help="Population SD error bars; enabled by default for simulations",
     )
     parser.add_argument(
         "--linear-only",

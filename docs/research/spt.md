@@ -377,14 +377,27 @@ six study/geometry groups also gets a final-state overview and an overview of
 distinct meshes. Identical simulation meshes appear once in the mesh overview.
 Simulation overviews follow the generator's pattern and dose ordering.
 
-Default figures contain five equally spaced snapshots and only the five
-analysis scalars: extracellular substrate and product, protein, toxicant and
-necrosis. Times share a common interval within each selected study family.
-Simulation plots therefore retain 24 h even when the selected convergence
-comparison ends at 36,590 s. Color scales are shared across selected histories
-and geometries within each study family, using the **sampled frames**, rather
-than an expensive scan of every native frame. Necrosis uses the fixed range
-0 to 1. Titles show the actual time, and combined views identify each sector.
+Default figures preserve the manuscript's five snapshots: indices 1, 3, 5, 7
+and 9 of ten equally spaced times in the common interval. Explicit `--times`
+and other snapshot counts override this selection. The five columns retain
+extracellular substrate and product, protein, toxic compound and necrosis.
+The canonical layers in `research/spt/fields.py` preserve `magma` for
+concentrations, `hot` for protein and `binary` for necrosis, with the original
+labels, dark gray cell edges and horizontal scalar bars in every panel.
+Each panel occupies 4 by 4 inches, matching the original 600 pixel panels at
+150 DPI. Scalar bars retain five labels, bold text and one decimal place.
+Final-state overviews use the same panel sizes and per-panel scalar bars.
+Small ranges use scientific notation when fixed decimals would repeat labels,
+so nonzero product concentrations do not appear as five identical zeros.
+
+Times share a common interval within each selected study family. Simulation
+plots therefore retain 24 h even when convergence ends at 36,590 s. Shared color
+ranges use validated local numerical-cache limits, then full-history
+`_limits.json` metadata beside source descriptors, without scanning network
+arrays again. Missing or malformed legacy metadata falls back to sampled
+ranges when no validated cache is available. Explicit layer limits take precedence. Combined
+views identify each sector. These settings are shared with the historical
+`DataLayer` adapter so the two workflows cannot silently choose different colors.
 
 Continuous scalars are linearly interpolated between neighboring native frames.
 Necrosis, zonation, cell type and other discrete fields retain their previous
@@ -419,7 +432,7 @@ uv run --no-sync python -m research.spt.plot_geometry \
 ```
 
 SVG and PDF preserve vector cell geometry and text. PNG previews default to
-110 DPI; `--dpi` also controls optional video resolution. FFmpeg is required only
+150 DPI; `--dpi` also controls optional video resolution. FFmpeg is required only
 when videos are requested. Video artists are reused and frames stream directly
 to FFmpeg, without writing intermediate PNG panels. GIF conversion is opt-in.
 `--no-overviews` omits study overviews. Bounded spawned workers own their files
@@ -495,12 +508,20 @@ numerical caches instead. Mixed geometries are excluded. `--data-root` selects
 the numerical-cache root; `--output-root` selects local analysis storage.
 Neither the raw share nor reconstructed simulation histories are modified.
 
-Native time-course plots use the cached volume-weighted population means and
-standard deviations at **every original time**. Short convergence histories end
-at their actual last output; longer histories remain available in full. Plots
-show means without hundreds of error bars. `--spread` adds population SD shading
-to time courses and spatial profiles. This describes variation across cells,
-not uncertainty in a mean or a confidence interval.
+Manuscript time-course figures use matched-time cell-volume-weighted means.
+Simulation panels retain the six pattern palettes (`Greys`, `Blues`, `Purples`,
+`Reds`, `Oranges`, `Greens`), dose shades, black-edged circular markers and
+population SD error bars. `--no-spread` explicitly omits the bars; `--spread`
+also enables them for convergence. SD describes cell variation, not uncertainty
+in a mean or a confidence interval. Convergence retains a coarse-to-fine
+`viridis` palette, plain lines, the 1.5 h reference line and the legend above
+the panels. Actual mesh IDs replace obsolete IDs from the archived scripts.
+Colors remain stable when selecting a subset of doses or meshes.
+
+Panels retain bold 12 point labels, 2.7 by 2.5 inch dimensions, the original
+axis labels and PP/PV ticks, and 300 DPI PNG exports. The native histories,
+including every original output and each run's actual endpoint, remain available
+in `native-timecourses.tsv` and the per-run `native.nc` caches.
 
 For comparisons, 51 equally spaced times cover the common interval separately
 within each selected study family. Continuous **cell values and cell volumes
@@ -514,7 +535,8 @@ loading complete histories, point arrays, or network HDF data.
 Spatial plots default to the first common time, the historical reference time
 (10 h for simulations and 1.5 h for convergence), and the last common time.
 If the reference lies outside the common interval, its midpoint is used instead.
-Twenty equal bins cover the source's normalized `rr_position`, from
+Figures show individual cell scatters rather than binned curves, including
+valid fractional necrosis. For quantitative comparisons, twenty equal bins cover the source's normalized `rr_position`, from
 periportal 0 to perivenous 1. Each bin stores volume-weighted mean, population
 SD, minimum, maximum, cell count, and total volume. Position 1 belongs to the
 last bin. Empty or zero-volume bins retain missing statistics and zero volume;
@@ -524,12 +546,19 @@ serialized so later analysis can choose a different reduction.
 The initial-properties figure always uses each run's **first native frame**,
 even when explicit spatial comparison times start later. Simulation diagnostics
 show the highest selected dose per pattern; convergence diagnostics show every
-mesh. Volume and pressure diagnostics retain source units, which are not supplied
-as authoritative variable metadata in the caches.
+mesh. Diagnostics retain the manuscript's ten-bin position count histogram and
+individual cell scatters. Display conversions follow the archived script:
+mesh cell volume uses m³ to nL (`1e12`), and fluid/solid volume uses L to nL
+(`1e9`). Pressure retains the original `Pressure [?]` label. Serialized arrays
+remain in source units; caches do not provide independent unit metadata.
+The former use of the last frame for initial diagnostics remains corrected.
 
 Simulation figures compare doses by pattern and include matched-time dose
 responses. Convergence figures use the actual mesh IDs and lobulus cell counts.
-The mesh with the largest cell count supplies the reference. Exported tables
+Resolution panels retain a linear element-count axis, black connecting line
+and mesh-colored markers at 1.5 h. If that time is absent from explicitly
+selected snapshots, the middle selected snapshot is used and the report names
+its time. The mesh with the largest cell count supplies the reference. Exported tables
 report absolute and relative differences of whole-lobule means at matched times.
 A zero reference makes relative differences undefined, stored as missing values.
 Spatial comparisons report RMS differences of bin means, weighted by reference

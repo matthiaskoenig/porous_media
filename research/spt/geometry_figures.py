@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
 import meshio
@@ -10,8 +12,12 @@ import numpy as np
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import BoundaryNorm, ListedColormap
 
+from research.spt.artifacts import fingerprint, generation_path, publish, run_lock
 from research.spt.conditions import pattern_idx2name
-from research.spt.geometry import GeometryJob
+from research.spt.fields import SPT_LAYERS
+from research.spt.geometry import GeometryJob, geometry_manifest
+
+COMPARISON_PLOT_VERSION = 2
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:
@@ -35,13 +41,13 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
     mixed_patterns = job.study == "simulations_combinations"
     selections = (
         (
-            ("rr_protein", "Initial protein zonation", initial, "viridis"),
-            ("rr_necrosis", f"Necrosis at {end:g} s", final, "magma"),
+            ("rr_protein", "Initial protein zonation", initial, None),
+            ("rr_necrosis", f"Necrosis at {end:g} s", final, None),
         )
         if mixed_patterns
         else (
             ("sector_id", "Convergence meshes", initial, "tab10"),
-            ("rr_(T)", f"Toxicant at {end:g} s", final, "magma"),
+            ("rr_(T)", f"Toxicant at {end:g} s", final, None),
         )
     )
     figure, axes = plt.subplots(1, 2, figsize=(11, 6), layout="constrained")
@@ -58,8 +64,12 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
                     edgecolors="black",
                 )
             else:
+                layer = next(layer for layer in SPT_LAYERS if layer.sid == field)
                 collection = PolyCollection(
-                    faces, cmap=color, linewidths=0, antialiaseds=False
+                    faces,
+                    cmap=layer.colormap,
+                    linewidths=layer.line_width,
+                    edgecolors=layer.edge_color,
                 )
                 if field == "rr_necrosis":
                     collection.set_clim(0, 1)
@@ -114,3 +124,47 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
         figure.savefig(descriptor.with_suffix(".pdf"))
     finally:
         plt.close(figure)
+
+
+def refresh_comparison(job: GeometryJob, output_root: Path) -> dict[str, object]:
+    """Republish preview styling while retaining the existing simulation arrays.
+
+    Hard links keep the large, immutable HDF sidecar unchanged. Publication uses
+    the same atomic generation switch as reconstruction and preserves the previous
+    generation if rendering fails.
+    """
+    directory = job.directory(output_root)
+    with run_lock(directory):
+        current = geometry_manifest(directory)
+        if current.get("metadata", {}) == {
+            "comparison_plot_version": COMPARISON_PLOT_VERSION
+        }:
+            return current
+        previous = generation_path(directory, current)
+        paths = tuple(
+            Path(str(record["path"]))
+            for record in cast(list[dict[str, object]], current["sources"])
+        )
+        before = [fingerprint(path) for path in paths]
+        with tempfile.TemporaryDirectory(
+            prefix=".partial-", dir=directory
+        ) as temporary:
+            staging = Path(temporary)
+            for path in previous.iterdir():
+                if path.suffix not in {".png", ".pdf"}:
+                    (staging / path.name).hardlink_to(path)
+            render_comparison(job, staging / f"{job.run_id}.xdmf")
+            catalog = cast(dict[str, object], current["catalog"])
+            publish(
+                directory,
+                staging,
+                job.configuration(),
+                paths,
+                before,
+                {"comparison_plot_version": COMPARISON_PLOT_VERSION},
+                catalog=lambda generation: {
+                    **catalog,
+                    "xdmf": str(generation / f"{job.run_id}.xdmf"),
+                },
+            )
+        return geometry_manifest(directory)

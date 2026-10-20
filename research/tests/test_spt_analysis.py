@@ -145,7 +145,7 @@ def test_cell_first_statistics_and_serialized_results(
         )
     native_table = pd.read_csv(generation / "native-timecourses.tsv", sep="\t")
     assert list(native_table.time) == [0, 4]
-    assert "Necrotic volume [%]" in (generation / "timecourses.svg").read_text()
+    assert "Necrosis [%]" in (generation / "timecourses.svg").read_text()
     assert not list(
         ET.parse(generation / "timecourses.svg").iter(
             "{http://www.w3.org/2000/svg}image"
