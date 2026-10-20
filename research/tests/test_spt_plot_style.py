@@ -1,5 +1,6 @@
 """Protect the manuscript's scientific display choices against styling drift."""
 
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -163,10 +164,14 @@ def test_small_colorbar_labels_remain_distinct() -> None:
         collection = PolyCollection([[[0, 0], [1, 0], [0, 1]]])
         collection.set_clim(0, 0.006)
         scalar_bar(art, axis, collection, LAYERS[1])
+        art.set_dpi(150)
         art.canvas.draw()
         labels = [tick.get_text() for tick in art.axes[-1].get_xticklabels()]
         assert len(set(labels)) == 5
-        assert any("e-03" in label for label in labels)
+        exponent = art.axes[-1].xaxis.get_offset_text().get_text().replace("−", "-")
+        assert "10^{-3}" in exponent
+        boxes = [tick.get_window_extent() for tick in art.axes[-1].get_xticklabels()]
+        assert not any(left.overlaps(right) for left, right in pairwise(boxes))
     finally:
         art.clear()
 

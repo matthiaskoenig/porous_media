@@ -19,7 +19,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import PolyCollection
 from matplotlib.colors import SymLogNorm
 from matplotlib.figure import Figure
-from matplotlib.ticker import FixedLocator
+from matplotlib.ticker import FixedLocator, ScalarFormatter
 from numpy.typing import ArrayLike
 
 from research.spt.artifacts import (
@@ -36,7 +36,7 @@ from research.spt.catalog import CatalogValue
 from research.spt.fields import LAYERS, Layer
 from research.spt.plot_data import PlotSource
 
-RENDER_VERSION = 4
+RENDER_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -232,10 +232,12 @@ def scalar_bar(
     if not layer.scalar_bar:
         return
     ticks = np.linspace(*collection.get_clim(), 5).tolist()
-    label_format = "%.1f"
-    if len({label_format % value for value in ticks}) < len(ticks):
+    label_format: str | ScalarFormatter = "%.1f"
+    if len({f"{value:.1f}" for value in ticks}) < len(ticks):
         # The original fixed decimals collapse small concentrations to five zeros.
-        label_format = "%.1e"
+        scientific = ScalarFormatter(useMathText=True)
+        scientific.set_powerlimits((0, 0))
+        label_format = scientific
     bar = art.colorbar(
         collection,
         ax=axis,
