@@ -530,10 +530,17 @@ def process_geometry(
                 metadata = write_composition(
                     job.sources, staging / f"{job.run_id}.xdmf"
                 )
+                preview_metadata: dict[str, object] | None = None
                 if job.mixed:
-                    from research.spt.geometry_figures import render_comparison
+                    from research.spt.geometry_figures import (
+                        COMPARISON_PLOT_VERSION,
+                        render_comparison,
+                    )
 
                     render_comparison(job, staging / f"{job.run_id}.xdmf")
+                    preview_metadata = {
+                        "comparison_plot_version": COMPARISON_PLOT_VERSION
+                    }
                 material = job.sources[0].material
                 if not job.mixed and material.is_file():
                     shutil.copyfile(material, staging / "model.feb")
@@ -553,6 +560,7 @@ def process_geometry(
                     job.configuration(),
                     tuple(sorted(files)),
                     before,
+                    preview_metadata,
                     catalog=lambda path: _geometry_catalog(job, metadata, path),
                 )
                 row = _geometry_catalog(job, metadata, generation)
@@ -602,6 +610,14 @@ def process_geometries(
     pending = []
     for job in jobs:
         manifest = _status(job, output_root)
+        if manifest is not None and job.mixed and not force and not dry_run:
+            from research.spt.geometry_figures import refresh_comparison
+
+            try:
+                manifest = refresh_comparison(job, output_root)
+            except Exception as error:
+                results.append(ProcessingResult.failed(job.study, job.run_id, error))
+                continue
         if dry_run or (manifest is not None and not force):
             results.append(
                 ProcessingResult(

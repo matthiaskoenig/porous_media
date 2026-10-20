@@ -12,15 +12,9 @@ from research.spt.conditions import (
 )
 from research.spt.conditions import boundary_flows as boundary_flows
 from research.spt.conditions import pattern_idx2name as pattern_idx2name
+from research.spt.plot_style import PATTERN_COLORMAPS, simulation_color
 
-pattern_colormaps = {
-    0: "Greys",
-    1: "Blues",
-    2: "Purples",
-    3: "Reds",
-    4: "Oranges",
-    5: "Greens",
-}
+pattern_colormaps = PATTERN_COLORMAPS
 
 
 def simulation_conditions_df(
@@ -31,15 +25,10 @@ def simulation_conditions_df(
     Pass conditions extracted from the source generator for a particular study.
     The default preserves the existing plotting API and archived scan ordering.
     """
-    import matplotlib
-
     conditions = simulation_conditions() if conditions is None else conditions
     if not conditions:
         raise ValueError("Simulation conditions must not be empty")
     num_flows = max(condition.boundary_flow_key for condition in conditions) + 1
-    colormaps = {
-        key: matplotlib.colormaps[name] for key, name in pattern_colormaps.items()
-    }
     records = [
         {
             "sim_key": condition.sim_id,
@@ -47,11 +36,8 @@ def simulation_conditions_df(
             "pattern_name": pattern_idx2name[condition.pattern_key],
             "boundary_flow_key": condition.boundary_flow_key,
             "boundary_flow": condition.boundary_flow,
-            "color": matplotlib.colors.to_hex(
-                colormaps[condition.pattern_key](
-                    (condition.boundary_flow_key + 1) / num_flows
-                ),
-                keep_alpha=True,
+            "color": simulation_color(
+                condition.pattern_key, condition.boundary_flow_key + 1, num_flows
             ),
         }
         for condition in conditions
@@ -81,13 +67,14 @@ def plot_boundary_flux(df: pd.DataFrame, results_dir: Path) -> None:
         axes.plot(
             np.abs(flows.boundary_flow.to_numpy(dtype=float)),
             marker="o",
+            markersize=10,
             markeredgecolor="black",
+            label="simulation",
         )
-        axes.set(
-            xlabel="Boundary flow index",
-            ylabel="Absolute boundary flow (source units)",
-            ylim=(0, None),
-        )
+        axes.set_ylim(bottom=0)
+        axes.set_xlabel("simulation index", fontsize=15, fontweight="bold")
+        axes.set_ylabel("absolute boundary flow", fontsize=15, fontweight="bold")
+        axes.legend()
         figure.savefig(results_dir / "boundary_flux.png", bbox_inches="tight")
     finally:
         plt.close(figure)
@@ -107,9 +94,9 @@ def plot_colors(df: pd.DataFrame, results_dir: Path) -> None:
             edgecolors="black",
             s=100,
         )
-        axes.set(
-            xlabel="Zonation pattern", ylabel="Boundary flow index", ylim=(0, None)
-        )
+        axes.set_ylim(bottom=0)
+        axes.set_xlabel("zonation pattern", fontsize=15, fontweight="bold")
+        axes.set_ylabel("boundary flow", fontsize=15, fontweight="bold")
         figure.savefig(results_dir / "boundary_color.png", bbox_inches="tight")
     finally:
         plt.close(figure)

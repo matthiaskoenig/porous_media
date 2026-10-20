@@ -449,9 +449,10 @@ def test_explicit_symlog_figures(simulation: tuple[Path, Path]) -> None:
     layers = manifest["configuration"]["options"]["layers"]
     assert layers[0]["scale"] == "symlog"
     assert layers[1]["scale"] == "linear"
-    assert layers[1]["limits"] == [0, 1]
+    assert layers[1]["limits"] is None
+    assert layers[1]["colormap"] == "binary"
     svg = directory / manifest["generation"] / "timecourse.svg"
-    assert "Toxicant [mM] (symlog)" in svg.read_text()
+    assert "Toxic compound T [mM] (symlog)" in svg.read_text()
     assert not list(ET.parse(svg).iter("{http://www.w3.org/2000/svg}image"))
     report = json.loads((output / "plot-report-simulations.json").read_text())
     assert report["ranges"]["simulations"]["rr_(T)"] == [10, 10]

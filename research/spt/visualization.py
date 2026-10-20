@@ -1,44 +1,20 @@
-"""Visualization-only SPT layer configuration, imported on demand."""
+"""Adapt the canonical manuscript layers for historical PyVista workflows."""
 
-from porous_media.data.xdmf_tools import AttributeType
+from typing import cast
+
+from pyvista.plotting._typing import ColormapOptions
+
 from porous_media.visualization.pyvista_visualization import DataLayer
+from research.spt.fields import SPT_LAYERS
 
-# information for visualization
-data_layers_spt: list[DataLayer] = [
+data_layers_spt = [
     DataLayer(
-        sid="rr_necrosis",
-        title="Necrosis (0: alive, 1: death)",
-        colormap="binary",
-        viz_type=AttributeType.SCALAR,
-    ),
-    DataLayer(
-        sid="rr_protein",
-        title="Protein",
-        colormap="hot",
-    ),
-    DataLayer(
-        sid="rr_(S_ext)",
-        title="Substrate S plasma [mM]",
-        colormap="magma",
-    ),
-    DataLayer(
-        sid="rr_(P_ext)",
-        title="Product P plasma [mM]",
-    ),
-    DataLayer(
-        sid="rr_(S)",
-        title="Substrate S [mM]",
-    ),
-    DataLayer(
-        sid="rr_(P)",
-        title="Product P [mM]",
-    ),
-    DataLayer(
-        sid="rr_(T)",
-        title="Toxic compound T [mM]",
-    ),
-    DataLayer(
-        sid="pressure",
-        title="Pressure [?]",
-    ),
+        sid=layer.sid,
+        title=layer.title,
+        colormap=cast(ColormapOptions, layer.colormap),
+        color_limits=layer.limits,
+        conversion_factor=None if layer.factor == 1.0 else layer.factor,
+        scalar_bar=layer.scalar_bar,
+    )
+    for layer in SPT_LAYERS
 ]

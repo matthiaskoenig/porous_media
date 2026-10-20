@@ -36,7 +36,7 @@ from research.spt.catalog import CatalogValue
 from research.spt.fields import LAYERS, Layer
 from research.spt.plot_data import PlotSource
 
-RENDER_VERSION = 3
+RENDER_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class RenderOptions:
     formats: tuple[str, ...] = ("svg", "pdf", "png")
     snapshots: tuple[float, ...] = ()
     video_times: tuple[float, ...] = ()
-    dpi: int = 110
+    dpi: int = 150
     fps: int = 12
     panels: bool = False
     gif: bool = False
@@ -78,6 +78,9 @@ class RenderOptions:
             ):
                 raise ValueError(f"Invalid display scale: {layer.sid}")
             mpl.colormaps[layer.colormap]
+            if not np.isfinite(layer.line_width) or layer.line_width < 0:
+                raise ValueError(f"Invalid edge width: {layer.sid}")
+            mpl.colors.to_rgba(layer.edge_color)
 
 
 @dataclass
@@ -146,9 +149,9 @@ def panel(
     collection = PolyCollection(
         cast(Sequence[ArrayLike], samples.faces),
         cmap=layer.colormap,
-        linewidths=min(0.13, 5.0 / np.sqrt(len(samples.faces))) if mesh else 0,
-        edgecolors="black" if mesh else "none",
-        antialiaseds=mesh,
+        linewidths=layer.line_width if layer.show_edges or mesh else 0,
+        edgecolors=layer.edge_color if layer.show_edges or mesh else "none",
+        antialiaseds=layer.show_edges or mesh,
     )
     collection.set_array(values[samples.cell_ids] * layer.factor)
     if layer.scale == "symlog":
@@ -215,7 +218,39 @@ def save_figure(art: Figure, destination: Path, options: RenderOptions) -> None:
                         )
     destination.parent.mkdir(parents=True, exist_ok=True)
     for extension in options.formats:
-        art.savefig(destination.with_suffix(f".{extension}"), dpi=options.dpi)
+        art.savefig(
+            destination.with_suffix(f".{extension}"),
+            dpi=options.dpi,
+            bbox_inches="tight",
+        )
+
+
+def scalar_bar(
+    art: Figure, axis: Axes, collection: PolyCollection, layer: Layer
+) -> None:
+    """Preserve the horizontal five-label scalar bars used in manuscript panels."""
+    if not layer.scalar_bar:
+        return
+    ticks = np.linspace(*collection.get_clim(), 5).tolist()
+    label_format = "%.1f"
+    if len({label_format % value for value in ticks}) < len(ticks):
+        # The original fixed decimals collapse small concentrations to five zeros.
+        label_format = "%.1e"
+    bar = art.colorbar(
+        collection,
+        ax=axis,
+        location="bottom",
+        shrink=0.6,
+        aspect=20,
+        pad=0.02,
+        format=label_format if layer.scale == "linear" else None,
+    )
+    if layer.scale == "linear":
+        bar.set_ticks(ticks)
+    bar.ax.set_title(layer.title, fontsize=12, fontweight="bold", pad=8)
+    for label in bar.ax.get_xticklabels():
+        label.set_fontweight("bold")
+        label.set_fontsize(10)
 
 
 def render_timecourse(
@@ -226,7 +261,7 @@ def render_timecourse(
     ranges: dict[str, tuple[float, float]],
 ) -> None:
     """Render exactly the requested times and fields in one composed figure."""
-    art = figure((3.0 * len(options.layers), 2.6 * len(options.snapshots) + 0.9))
+    art = figure((4.0 * len(options.layers), 4.0 * len(options.snapshots)))
     axes = art.subplots(len(options.snapshots), len(options.layers), squeeze=False)
     try:
         for row, time_value in enumerate(options.snapshots):
@@ -236,8 +271,7 @@ def render_timecourse(
                 collection = panel(
                     axis, samples, layer, values[column], display_limits(layer, ranges)
                 )
-                if row == 0:
-                    axis.set_title(layer.title, fontsize=11)
+                scalar_bar(art, axis, collection, layer)
                 if column == 0:
                     axis.text(
                         -0.03,
@@ -251,16 +285,6 @@ def render_timecourse(
                     )
                 if row == 0 and column == 0 and source.sector_labels:
                     label_sectors(axis, samples)
-                if row == len(options.snapshots) - 1:
-                    art.colorbar(
-                        collection,
-                        ax=list(axes[:, column]),
-                        location="bottom",
-                        shrink=0.9,
-                        aspect=20,
-                        pad=0.01,
-                    )
-        art.suptitle(source.title, fontsize=13)
         if source.sector_labels:
             art.supxlabel(
                 " | ".join(
@@ -293,7 +317,7 @@ def render_panels(
                 samples.frame(options.snapshots[0])[index],
                 display_limits(layer, ranges),
             )
-            art.colorbar(collection, ax=axis, shrink=0.75)
+            scalar_bar(art, axis, collection, layer)
             for frame, time_value in enumerate(options.snapshots):
                 collection.set_array(
                     samples.frame(time_value)[index][samples.cell_ids] * layer.factor
@@ -325,7 +349,7 @@ def render_video(
                 axis, samples, layer, first[index], display_limits(layer, ranges)
             )
             axis.set_title(layer.title, fontsize=10)
-            art.colorbar(collection, ax=axis, shrink=0.75)
+            scalar_bar(art, axis, collection, layer)
             collections.append(collection)
         title = art.suptitle("")
         writer = FFMpegWriter(

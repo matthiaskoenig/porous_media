@@ -127,7 +127,7 @@ def _dose(row: dict[str, str]) -> str:
 def _description(stem: str, spatial_times: list[object]) -> str:
     linear = stem.removesuffix("-symlog")
     titles = {
-        "timecourses": "Native time courses",
+        "timecourses": "Matched-time courses",
         "endpoints": "Matched-time endpoints",
         "convergence-errors": "Differences from the finest available mesh",
         "initial-properties": "Initial cell properties",
@@ -138,8 +138,8 @@ def _description(stem: str, spatial_times: list[object]) -> str:
     if linear.startswith("spatial-"):
         token = linear.removeprefix("spatial-")
         if token.isdigit() and int(token) < len(spatial_times):
-            return f"Spatial profiles at {float(str(spatial_times[int(token)])):g} s"
-        return f"Spatial profiles {token}"
+            return f"Cell values at {float(str(spatial_times[int(token)])):g} s"
+        return f"Cell values {token}"
     return titles.get(linear, linear.replace("-", " ").replace("_", " "))
 
 
@@ -287,6 +287,18 @@ def _collect(
                         if doses
                         else "Six convergence resolutions"
                     )
+                if (
+                    kind == "analysis"
+                    and stem.name.removesuffix("-symlog") == "endpoints"
+                    and family == "Convergence"
+                    and spatial_times
+                ):
+                    reference = (
+                        5400.0
+                        if 5400.0 in spatial_times
+                        else float(str(spatial_times[len(spatial_times) // 2]))
+                    )
+                    title = f"Mesh resolution at {reference / 3600:g} h"
                 caption = " · ".join(
                     filter(
                         None,

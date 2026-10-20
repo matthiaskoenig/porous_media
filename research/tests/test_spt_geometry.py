@@ -405,3 +405,43 @@ def test_interrupted_staging_preserves_published_pair(
     with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
         reader.read_points_cells()
         reader.read_data(0)
+
+
+def test_preview_style_refresh_reuses_simulation_arrays(
+    convergence: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refresh mixed previews atomically without reconstructing large HDF files."""
+    root, target = convergence
+    job = geometry_jobs(root, study="convergence", lobulus=False)[0]
+    assert process_geometry(job, target).status == "processed"
+    previous = geometry_path(job.directory(target))
+    original_hdf = previous.with_suffix(".h5").stat()
+
+    def unexpected(*args: object, **kwargs: object) -> None:
+        pytest.fail("A preview style change must not reconstruct simulation arrays")
+
+    monkeypatch.setattr("research.spt.geometry.write_composition", unexpected)
+    monkeypatch.setattr("research.spt.geometry_figures.COMPARISON_PLOT_VERSION", 999)
+    results = process_geometries(root, target, study="convergence", lobulus=False)
+    assert [result.status for result in results] == ["cached"]
+    current = geometry_path(job.directory(target))
+    assert current != previous
+    current_hdf = current.with_suffix(".h5").stat()
+    assert (current_hdf.st_ino, current_hdf.st_size, current_hdf.st_mtime_ns) == (
+        original_hdf.st_ino,
+        original_hdf.st_size,
+        original_hdf.st_mtime_ns,
+    )
+    manifest = job.directory(target) / "manifest.json"
+    before = manifest.read_bytes()
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("Synthetic preview failure")
+
+    monkeypatch.setattr("research.spt.geometry_figures.COMPARISON_PLOT_VERSION", 1000)
+    monkeypatch.setattr("research.spt.geometry_figures.render_comparison", fail)
+    results = process_geometries(root, target, study="convergence", lobulus=False)
+    assert [result.status for result in results] == ["failed"]
+    assert manifest.read_bytes() == before
+    assert geometry_path(job.directory(target)) == current
+    assert not list(target.rglob(".partial-*"))

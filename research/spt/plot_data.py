@@ -231,6 +231,8 @@ def sample_times(
     snapshots: int,
     explicit: tuple[float, ...] = (),
     video_frames: int = 0,
+    *,
+    manuscript_snapshots: bool = False,
 ) -> dict[str, tuple[tuple[float, ...], tuple[float, ...]]]:
     """Choose common ranges separately for simulation and convergence histories."""
     if snapshots < 1 or video_frames < 0 or video_frames == 1:
@@ -249,7 +251,9 @@ def sample_times(
         if start > end:
             raise ValueError(f"No common time interval for {family}")
         times = explicit or (
-            (end,)
+            tuple(float(value) for value in np.linspace(start, end, 10)[1::2])
+            if manuscript_snapshots and snapshots == 5
+            else (end,)
             if snapshots == 1
             else tuple(float(value) for value in np.linspace(start, end, snapshots))
         )

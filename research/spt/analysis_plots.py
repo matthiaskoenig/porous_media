@@ -13,10 +13,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from matplotlib.axes import Axes
-from matplotlib.colors import to_hex
 from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 
-from research.spt.analysis_data import load_analysis
+from research.spt.analysis_data import load_analysis, weighted_statistics
 from research.spt.artifacts import (
     atomic_json,
     atomic_text,
@@ -26,31 +25,41 @@ from research.spt.artifacts import (
     publish,
     run_lock,
 )
+from research.spt.cache import open_processed_cells
 from research.spt.conditions import pattern_idx2name
-from research.spt.fields import DIAGNOSTICS, LAYERS, VOLUME
+from research.spt.fields import DIAGNOSTICS, POSITION, VOLUME
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions, figure, save_figure
-
-ANALYSIS_PLOT_VERSION = 4
-LABELS = {layer.sid: layer.title for layer in LAYERS}
-LABELS["rr_necrosis"] = "Necrotic volume [%]"
-LABELS.update(
-    {
-        VOLUME: "Cell volume [source units]",
-        "rr_Vext": "Fluid volume [source units]",
-        "rr_Vli": "Solid volume [source units]",
-        "pressure": "Pressure [source units]",
-    }
+from research.spt.plot_style import (
+    CONVERGENCE_ORDER,
+    LABEL_STYLE,
+    convergence_color,
+    simulation_color,
 )
+
+ANALYSIS_PLOT_VERSION = 5
+LABELS = {
+    "rr_(S_ext)": "Substrate [mM]",
+    "rr_(P_ext)": "Product [mM]",
+    "rr_protein": "Protein [-]",
+    "rr_(T)": "Toxic compound [mM]",
+    "rr_necrosis": "Necrosis [%]",
+    VOLUME: "Mesh cell volume [nl]",
+    "rr_Vext": "Fluid volume [nl]",
+    "rr_Vli": "Solid volume [nl]",
+    "pressure": "Pressure [?]",
+}
+# These are the unit conversions declared in the manuscript's diagnostic script.
+DIAGNOSTIC_FACTORS = {VOLUME: 1e12, "rr_Vext": 1e9, "rr_Vli": 1e9}
 
 
 @dataclass(frozen=True)
 class PlotOptions:
-    """Select compact figures and optional population spread or symlog comparisons."""
+    """Select manuscript figures and optional population SD or symlog comparisons."""
 
     formats: tuple[str, ...] = ("svg", "pdf", "png")
-    dpi: int = 110
-    spread: bool = False
+    dpi: int = 300
+    spread: bool | None = None
     convergence_symlog: bool = True
 
     def validate(self) -> None:
@@ -119,13 +128,12 @@ def _factor(field: str) -> float:
 
 def _style(source: PlotSource, index: int, count: int) -> tuple[str, str]:
     if source.run.condition:
-        dose = source.run.condition.boundary_flow_key + 1
-        return f"Dose {dose}", to_hex(
-            mpl.colormaps["viridis"](0.08 + 0.85 * (dose - 1) / 7)
+        condition = source.run.condition
+        return source.run.run_id, simulation_color(
+            condition.pattern_key, condition.boundary_flow_key + 1
         )
-    return source.run.run_id.removeprefix("convergence_"), to_hex(
-        mpl.colormaps["viridis"](index / max(count - 1, 1))
-    )
+    mesh = source.run.run_id.removeprefix("convergence_")
+    return mesh, convergence_color(mesh, index, count)
 
 
 def _scale(axis: Axes, field: str, symlog: bool) -> None:
@@ -171,7 +179,6 @@ def _scale(axis: Axes, field: str, symlog: bool) -> None:
         axis.ticklabel_format(
             axis="y", style="sci", scilimits=(-2, 3), useMathText=True
         )
-    axis.grid(alpha=0.18)
 
 
 def _curves(
@@ -185,6 +192,7 @@ def _curves(
     spatial_time: float | None = None,
     symlog: bool = False,
 ) -> None:
+    """Keep manuscript panels, matched-time error bars and individual cell scatters."""
     simulation = sources[0].family == "simulations"
     patterns = (
         sorted(
@@ -197,10 +205,10 @@ def _curves(
         if simulation
         else [0]
     )
-    art = figure((max(8.0, 3.0 * len(fields)), 2.35 * len(patterns) + 1.2))
-    axes = art.subplots(
-        len(patterns), len(fields), squeeze=False, sharex=True, sharey="col"
-    )
+    spread = simulation if options.spread is None else options.spread
+    art = figure((2.7 * len(fields), 2.5 * len(patterns)))
+    axes = art.subplots(len(patterns), len(fields), squeeze=False)
+    maxima = dict.fromkeys(fields, 0.0)
     legend = {}
     try:
         for index, (source, dataset) in enumerate(zip(sources, datasets, strict=True)):
@@ -212,70 +220,93 @@ def _curves(
             label, color = _style(source, index, len(sources))
             for column, field in enumerate(fields):
                 axis = axes[row, column]
-                if spatial_time is None:
-                    x, y, std = (
-                        dataset.time.values / 3600,
-                        dataset[f"{field}_mean"].values,
-                        dataset[f"{field}_std"].values,
-                    )
-                else:
-                    values = dataset.sel(time=spatial_time, field=field)
-                    x, y, std = (
-                        dataset.position.values,
-                        values["mean"].values,
-                        values["std"].values,
-                    )
                 factor = _factor(field)
-                (line,) = axis.plot(
-                    x, y * factor, color=color, linewidth=1.15, label=label
-                )
-                if options.spread:
-                    axis.fill_between(
-                        x,
-                        (y - std) * factor,
-                        (y + std) * factor,
-                        color=color,
-                        alpha=0.10,
+                if spatial_time is None:
+                    selected = dataset.sel(field=field)
+                    x = selected.time.values / 3600
+                    y, std = (
+                        selected["mean"].values * factor,
+                        selected["std"].values * factor,
                     )
-                legend[label] = line
+                    artist = axis.errorbar(
+                        x,
+                        y,
+                        yerr=std if spread else None,
+                        color=color,
+                        label=label,
+                        linestyle="-",
+                        linewidth=1.5,
+                        marker="o" if simulation else "None",
+                        markersize=6 if simulation else 3,
+                        markeredgecolor="black",
+                        markeredgewidth=1 if simulation else 0.5,
+                    )
+                    upper = y + std
+                else:
+                    selected = dataset.sel(time=spatial_time)
+                    x, y = selected[POSITION].values, selected[field].values * factor
+                    (artist,) = axis.plot(
+                        x,
+                        y,
+                        color=color,
+                        label=label,
+                        linestyle="",
+                        marker="o",
+                        markersize=6 if simulation else 3,
+                        markeredgecolor="black",
+                        markeredgewidth=1 if simulation else 0.5,
+                    )
+                    upper = y
+                finite = upper[np.isfinite(upper)]
+                if len(finite):
+                    maxima[field] = max(maxima[field], float(finite.max()))
+                legend[label] = artist
         for row in range(len(patterns)):
             for column, field in enumerate(fields):
                 axis = axes[row, column]
-                _scale(axis, field, symlog)
-                if row == 0:
-                    axis.set_title(LABELS[field], fontsize=10)
-                if row == len(patterns) - 1:
-                    axis.set_xlabel(
-                        "Time [h]"
-                        if spatial_time is None
-                        else "Normalized position (PP to PV)"
-                    )
-                if spatial_time is not None:
+                axis.set_ylabel(LABELS[field], **LABEL_STYLE)
+                maximum = maxima[field] or 1.0
+                if not simulation and spatial_time is None:
+                    axis.set_ylim(bottom=0)
+                else:
+                    axis.set_ylim(-0.05 * maximum if simulation else 0, 1.05 * maximum)
+                if field == "rr_necrosis" and spatial_time is None and simulation:
+                    axis.set_ylim(0, 105)
+                if symlog:
+                    _scale(axis, field, True)
+                bottom = row == len(patterns) - 1
+                if spatial_time is None:
+                    if simulation:
+                        axis.set_xticks([0, 10, 20])
+                    else:
+                        axis.axvline(
+                            1.5, color="darkgray", linestyle="--", linewidth=0.5
+                        )
+                    if bottom:
+                        axis.set_xlabel("Time [hr]", **LABEL_STYLE)
+                else:
                     axis.set_xlim(0, 1)
-            if simulation:
-                axes[row, 0].set_ylabel(pattern_idx2name[patterns[row]], fontsize=10)
-        art.legend(
-            list(legend.values()),
-            list(legend),
-            loc="outside lower center",
-            ncol=min(8, len(legend)),
-            fontsize=9,
-        )
-        suffix = " | symlog concentration axes" if symlog else ""
-        time_label = (
-            "Native-time volume-weighted means"
-            if spatial_time is None
-            else f"Volume-weighted spatial profiles at {spatial_time / 3600:g} h"
-        )
-        spread_note = (
-            "\nShading: volume-weighted population SD across cells; not a confidence interval"
-            if options.spread
-            else ""
-        )
-        art.suptitle(
-            f"{sources[0].family.title()} | {sources[0].geometry} | {time_label}{suffix}{spread_note}",
-            fontsize=12,
-        )
+                    axis.set_xticks([0, 0.5, 1], labels=["PP", "", "PV"])
+                    if bottom:
+                        axis.set_xlabel("Position [-]", **LABEL_STYLE)
+                axis.tick_params(axis="x", labelbottom=bottom)
+        if not simulation and spatial_time is None:
+            labels = sorted(
+                legend,
+                key=lambda label: (
+                    CONVERGENCE_ORDER.index(label)
+                    if label in CONVERGENCE_ORDER
+                    else len(CONVERGENCE_ORDER)
+                ),
+            )
+            art.legend(
+                [legend[label] for label in labels],
+                labels,
+                loc="lower center",
+                bbox_to_anchor=(0.5, 1.0),
+                ncol=len(legend),
+                frameon=True,
+            )
         save_figure(
             art,
             directory / name,
@@ -285,13 +316,23 @@ def _curves(
         art.clear()
 
 
+def _initial_cells(
+    source: PlotSource, cells: xr.Dataset, data_root: Path
+) -> xr.Dataset:
+    """Use the first native cells even when explicitly selected snapshots start later."""
+    if source.start in cells.time.values:
+        return cells.sel(time=source.start)
+    with open_processed_cells(source.run, data_root) as native:
+        return native.isel(time=0)[[POSITION, "rr_protein", *DIAGNOSTICS]].load()
+
+
 def _diagnostics(
     sources: list[PlotSource],
-    profiles: list[xr.Dataset],
+    cells: list[xr.Dataset],
     directory: Path,
     options: PlotOptions,
 ) -> None:
-    chosen = {}
+    chosen: dict[int | str, int] = {}
     for index, source in enumerate(sources):
         key = (
             source.run.condition.pattern_key
@@ -304,49 +345,45 @@ def _diagnostics(
             chosen[key] = index
     indices = list(chosen.values())
     fields = ("rr_protein", *DIAGNOSTICS)
-    art = figure((17, 2.15 * len(indices) + 0.8))
-    axes = art.subplots(len(indices), 6, squeeze=False, sharex=True, sharey="col")
+    art = figure((6 * 2.7, len(indices) * 2.5))
+    axes = art.subplots(len(indices), 6, squeeze=False)
+    maximum_volume = 0.0
     try:
         for row, index in enumerate(indices):
-            source, data = sources[index], profiles[index].isel(time=0)
-            volume = data.volume.values
-            axes[row, 0].bar(
-                data.position.values,
-                volume / volume.sum(),
-                width=0.9 / len(volume),
-                color="tab:blue",
+            source, data = sources[index], cells[index]
+            _, color = _style(source, index, len(sources))
+            position = data[POSITION].values
+            axes[row, 0].hist(
+                position, bins=10, color=color, edgecolor="black", alpha=0.7
             )
-            axes[row, 0].set_ylabel(
-                pattern_idx2name[source.run.condition.pattern_key]
-                if source.run.condition
-                else source.run.run_id,
-                fontsize=9,
-            )
+            axes[row, 0].set_ylabel("Frequency [-]", **LABEL_STYLE)
             for column, field in enumerate(fields, start=1):
-                values = data.sel(field=field)
-                axes[row, column].plot(data.position, values["mean"], color="tab:blue")
+                values = data[field].values * DIAGNOSTIC_FACTORS.get(field, 1.0)
+                axes[row, column].plot(
+                    position,
+                    values,
+                    color=color,
+                    marker="o",
+                    linestyle="",
+                    markeredgecolor="black",
+                    alpha=0.7,
+                )
+                axes[row, column].set_ylabel(LABELS[field], **LABEL_STYLE)
+                if field in DIAGNOSTIC_FACTORS:
+                    maximum_volume = max(maximum_volume, float(np.nanmax(values)))
+        for row in range(len(indices)):
             for column in range(6):
                 axis = axes[row, column]
-                axis.grid(alpha=0.18)
                 axis.set_xlim(0, 1)
-                if row == 0:
-                    axis.set_title(
-                        "Volume fraction per bin"
-                        if column == 0
-                        else LABELS[fields[column - 1]],
-                        fontsize=10,
-                    )
+                axis.set_xticks([0, 0.5, 1], labels=["PP", "0.5", "PV"])
+                axis.tick_params(axis="x", labelbottom=row == len(indices) - 1)
                 if row == len(indices) - 1:
-                    axis.set_xlabel("Normalized position")
-        selection = (
-            "highest selected dose per pattern"
-            if sources[0].family == "simulations"
-            else "all selected meshes"
-        )
-        art.suptitle(
-            f"Initial properties | {sources[0].run.study} | {selection}",
-            fontsize=12,
-        )
+                    axis.set_xlabel("Position [-]", **LABEL_STYLE)
+                if column < 5:
+                    axis.set_ylim(bottom=0)
+                if column in (3, 4):
+                    upper = maximum_volume or 1.0
+                    axis.set_ylim(-0.05 * upper, 1.05 * upper)
         save_figure(
             art,
             directory / "initial-properties",
@@ -362,9 +399,20 @@ def _endpoints(
     directory: Path,
     options: PlotOptions,
     symlog: bool,
+    cells: list[xr.Dataset],
 ) -> None:
+    if sources[0].family == "convergence":
+        _resolution(
+            cells,
+            sources,
+            directory,
+            options,
+            symlog,
+            tuple(str(field) for field in aligned.field.values),
+        )
+        return
     fields = [str(field) for field in aligned.field.values]
-    art = figure((max(8.0, 3.1 * len(fields)), 3.6))
+    art = figure((2.7 * len(fields), 2.5))
     axes = art.subplots(1, len(fields), squeeze=False)[0]
     groups = sorted(
         {source.run.condition.pattern_key for source in sources if source.run.condition}
@@ -394,11 +442,15 @@ def _endpoints(
                     x[order],
                     y[order],
                     marker="o",
-                    markersize=3,
+                    markersize=6,
+                    markeredgecolor="black",
+                    color=simulation_color(group, 8) if group is not None else "black",
                     label=pattern_idx2name[group] if group is not None else "Mesh mean",
                 )
-                axis.set_title(LABELS[field], fontsize=10)
-                axis.set_xlabel("Dose index" if group is not None else "Lobulus cells")
+                axis.set_ylabel(LABELS[field], **LABEL_STYLE)
+                axis.set_xlabel(
+                    "Dose index" if group is not None else "# Elements", **LABEL_STYLE
+                )
                 if group is None:
                     axis.set_xscale("log")
         for axis, field in zip(axes, fields, strict=True):
@@ -415,6 +467,57 @@ def _endpoints(
             f"Matched-time means at {float(aligned.time.values[-1]) / 3600:g} h"
             + (" | symlog concentration axes" if symlog else "")
         )
+        save_figure(
+            art,
+            directory / ("endpoints-symlog" if symlog else "endpoints"),
+            RenderOptions(formats=options.formats, dpi=options.dpi),
+        )
+    finally:
+        art.clear()
+
+
+def _resolution(
+    cells: list[xr.Dataset],
+    sources: list[PlotSource],
+    directory: Path,
+    options: PlotOptions,
+    symlog: bool,
+    fields: tuple[str, ...],
+) -> None:
+    """Compare cell means at the historical 1.5 h snapshot when available."""
+    times = cells[0].time.values
+    time = 5400.0 if 5400.0 in times else float(times[len(times) // 2])
+    art = figure((2.7 * len(fields), 2.5))
+    axes = art.subplots(1, len(fields), squeeze=False)[0]
+    try:
+        sizes = np.array([data.sizes["cell"] for data in cells])
+        order = np.argsort(sizes)
+        for axis, field in zip(axes, fields, strict=True):
+            means = []
+            for index, (source, data) in enumerate(zip(sources, cells, strict=True)):
+                selected = data.sel(time=time)
+                mean, _ = weighted_statistics(
+                    selected[field].values[None, :], selected[VOLUME].values
+                )
+                value = float(mean[0]) * _factor(field)
+                means.append(value)
+                _, color = _style(source, index, len(sources))
+                axis.plot(
+                    sizes[index],
+                    value,
+                    marker="o",
+                    markersize=6,
+                    markeredgecolor="black",
+                    color=color,
+                    linestyle="",
+                )
+            axis.plot(sizes[order], np.asarray(means)[order], color="black")
+            axis.set_xlabel("# Elements", **LABEL_STYLE)
+            axis.set_ylabel(LABELS[field], **LABEL_STYLE)
+            axis.set_xlim(left=0, right=axis.get_xlim()[1] * 1.05)
+            axis.set_ylim(bottom=0, top=max(axis.get_ylim()[1] * 1.05, 1e-12))
+            if symlog:
+                _scale(axis, field, True)
         save_figure(
             art,
             directory / ("endpoints-symlog" if symlog else "endpoints"),
@@ -526,7 +629,15 @@ def render_analysis(
         profiles = [
             load_analysis(source, output_root, "profiles") for source in sources
         ]
-        initial = [load_analysis(source, output_root, "initial") for source in sources]
+        cells = [load_analysis(source, output_root, "cells") for source in sources]
+        initial = [
+            _initial_cells(
+                source,
+                data,
+                Path(str(cast(dict[str, object], item["metadata"])["data_root"])),
+            )
+            for source, data, item in zip(sources, cells, prepared, strict=True)
+        ]
         aligned_parts = [
             load_analysis(source, output_root, "aligned") for source in sources
         ]
@@ -627,7 +738,7 @@ def render_analysis(
                     suffix = "-symlog" if symlog else ""
                     _curves(
                         sources,
-                        native,
+                        aligned_parts,
                         staging,
                         f"timecourses{suffix}",
                         options,
@@ -637,7 +748,7 @@ def render_analysis(
                     for index, time in enumerate(profiles[0].time.values):
                         _curves(
                             sources,
-                            profiles,
+                            cells,
                             staging,
                             f"spatial-{index:02}{suffix}",
                             options,
@@ -645,7 +756,7 @@ def render_analysis(
                             spatial_time=float(time),
                             symlog=symlog,
                         )
-                    _endpoints(aligned, sources, staging, options, symlog)
+                    _endpoints(aligned, sources, staging, options, symlog, cells)
                     if means is not None and spatial_errors is not None:
                         _errors(
                             means, spatial_errors, aligned, staging, options, symlog
@@ -700,6 +811,7 @@ def render_analysis(
             *native,
             *profiles,
             *initial,
+            *cells,
             *aligned_parts,
             aligned,
             all_profiles,

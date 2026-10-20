@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import html
+import json
 import sys
 import time
+from contextlib import suppress
 from dataclasses import asdict, dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -16,10 +18,10 @@ import pandas as pd
 
 from research import RESULTS_DIR
 from research.spt.artifacts import atomic_json, atomic_text
-from research.spt.cache import ProcessingResult, validate_roots
+from research.spt.cache import ProcessingResult, _current_generation, validate_roots
 from research.spt.cli import selection_parser, write_catalog
 from research.spt.execution import execute_jobs, print_result
-from research.spt.fields import LAYERS, Layer
+from research.spt.fields import LAYERS, SPT_LAYERS, Layer
 from research.spt.plot_data import (
     PlotSource,
     plot_sources,
@@ -76,14 +78,35 @@ def _render(
 
 def shared_ranges(
     prepared: list[Prepared],
+    data_root: Path | None = None,
 ) -> dict[str, dict[str, tuple[float, float]]]:
-    """Share sampled color ranges across all selected geometries in each study."""
+    """Share full-history source limits, falling back to sampled synthetic data."""
     result: dict[str, dict[str, tuple[float, float]]] = {}
     for item in prepared:
         if item.manifest is None:
             continue
         metadata = cast(dict[str, object], item.manifest["metadata"])
         ranges = cast(dict[str, list[float]], metadata["ranges"])
+        limits_path = item.source.run.xdmf.with_name(
+            f"{item.source.run.xdmf.stem}_limits.json"
+        )
+        full = {}
+        if data_root is not None:
+            try:
+                cache = _current_generation(item.source.run, data_root)
+                cached_limits = json.loads(
+                    (cache / "limits.json").read_text(encoding="utf-8")
+                )["Cell"]
+                full = {
+                    name: [values["min"], values["max"]]
+                    for name, values in cached_limits.items()
+                }
+            except (OSError, ValueError, KeyError):
+                pass
+        if not full and limits_path.is_file():
+            with suppress(OSError, ValueError, KeyError):
+                full = json.loads(limits_path.read_text(encoding="utf-8"))["limits"]
+        ranges = {name: full.get(name, values) for name, values in ranges.items()}
         selected = result.setdefault(item.source.family, {})
         for name, values in ranges.items():
             low, high = selected.get(name, (float("inf"), float("-inf")))
@@ -163,7 +186,9 @@ def process_plots(
     )
     if any(output_root.is_relative_to(source.run.xdmf.parent) for source in sources):
         raise ValueError("Plot outputs must not modify a source history directory")
-    timelines = sample_times(sources, snapshots, times, video_frames)
+    timelines = sample_times(
+        sources, snapshots, times, video_frames, manuscript_snapshots=True
+    )
     if not per_history and (video_frames or options.panels):
         raise ValueError("Videos and standalone panels require per-history rendering")
     family_options = {
@@ -205,7 +230,7 @@ def process_plots(
             flush=True,
         )
     prepared.sort(key=lambda item: (item.source.run.study, item.source.run.run_id))
-    ranges = shared_ranges(prepared)
+    ranges = shared_ranges(prepared, data_root)
     results = []
     render_jobs = []
     for item in prepared:
@@ -348,7 +373,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
         "--scale",
         choices=("linear", "symlog"),
         default="linear",
-        help="Continuous scalar color scale; necrosis retains a linear 0-to-1 scale",
+        help="Continuous scalar color scale; necrosis retains a linear scale",
     )
     parser.add_argument(
         "--formats",
@@ -368,7 +393,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
     parser.add_argument(
         "--dpi",
         type=int,
-        default=110,
+        default=150,
         help="PNG preview and video resolution; SVG/PDF stay vector",
     )
     parser.add_argument(
@@ -389,7 +414,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", "--status", action="store_true")
     args = parser.parse_args(argv)
-    known = {layer.sid: layer for layer in LAYERS}
+    known = {layer.sid: layer for layer in SPT_LAYERS}
     layers = tuple(known.get(name, Layer(name, name)) for name in args.fields)
     if args.scale == "symlog":
         layers = tuple(
