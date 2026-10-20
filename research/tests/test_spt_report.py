@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 import pytest
+from PIL import Image
 
 from research.spt.report import build_report, main
 
@@ -50,7 +51,11 @@ def _publish(
     records = []
     for name in names:
         output = generation / name
-        output.write_text("{}" if output.suffix == ".json" else "synthetic output")
+        if output.suffix == ".png":
+            with Image.new("RGB", (24, 16), "white") as image:
+                image.save(output)
+        else:
+            output.write_text("{}" if output.suffix == ".json" else "synthetic output")
         records.append(
             {
                 "path": str(output),
@@ -90,7 +95,7 @@ def published(tmp_path: Path) -> Path:
             ("timecourse.png", "timecourse.pdf", "provenance.json"),
             {"title": "sim001 | constant | dose 1"},
         )
-    _publish(root, "overviews/simulations_lobulus", ("meshes.svg",))
+    _publish(root, "overviews/simulations_lobulus", ("meshes.svg", "final-state.png"))
     _publish(root, "simulations_combinations/xdmf/dose_01", ("dose_01.png",))
     _publish(
         root,
@@ -103,7 +108,8 @@ def published(tmp_path: Path) -> Path:
         ("timecourse.png",),
         {"options": {"layers": [{"title": "Substrate", "scale": "symlog"}]}},
     )
-    (root / "figures/boundary_color.png").write_text("condition figure")
+    with Image.new("RGB", (24, 16), "white") as image:
+        image.save(root / "figures/boundary_color.png")
     with (root / "catalog.tsv").open("w", newline="") as handle:
         writer = csv.DictWriter(
             handle,
@@ -141,14 +147,15 @@ def test_report_covers_all_figures_and_exports(published: Path) -> None:
     }
     document = build_report(published).read_text()
     parsed = ReportParser(document)
-    assert len(parsed.cards) == 8
-    assert len({card["id"] for card in parsed.cards}) == 8
+    assert len(parsed.cards) == 9
+    assert len({card["id"] for card in parsed.cards}) == 9
     assert len(set(parsed.identifiers)) == len(parsed.identifiers)
     assert {card["data-section"] for card in parsed.cards} == {
         "analysis",
         "geometry",
         "combinations",
         "overviews",
+        "meshes",
         "supplements",
         "conditions",
     }
@@ -165,6 +172,8 @@ def test_report_covers_all_figures_and_exports(published: Path) -> None:
     assert json.loads(str(simulation["data-pattern"])) == ["constant"]
     assert json.loads(str(simulation["data-dose"])) == ["1"]
     assert all(image.get("loading") == "lazy" for image in parsed.images)
+    assert all(str(image["src"]).endswith(".webp") for image in parsed.images)
+    assert all(0 < int(str(image["width"])) <= 768 for image in parsed.images)
     assert not any(str(image["src"]).endswith(".svg") for image in parsed.images)
     assert any(link.endswith("analysis.nc") for link in parsed.links)
     assert any(link.endswith("native.tsv") for link in parsed.links)
@@ -226,7 +235,7 @@ def test_invalid_generations_are_omitted(
         image.symlink_to(external)
     document = build_report(published).read_text()
     parsed = ReportParser(document)
-    assert len(parsed.cards) == 7
+    assert len(parsed.cards) == 8
     assert "1 omitted generation requires attention" in document
     assert not any(link.endswith("timecourses.png") for link in parsed.links)
 
@@ -247,7 +256,7 @@ def test_escape_metadata_and_encode_filenames(tmp_path: Path) -> None:
     assert parsed.cards[0]["data-title"] == title
     assert title not in document
     assert len(parsed.images) == 1
-    assert "%23%20%26%20%22" in str(parsed.images[0]["src"])
+    assert any("%23%20%26%20%22" in link for link in parsed.links)
     assert (root / unquote(str(parsed.images[0]["src"]))).is_file()
 
 

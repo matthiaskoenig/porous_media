@@ -376,6 +376,9 @@ lobules, eight dose comparisons and one mixed convergence history. Each of the
 six study/geometry groups also gets a final-state overview and an overview of
 distinct meshes. Identical simulation meshes appear once in the mesh overview.
 Simulation overviews follow the generator's pattern and dose ordering.
+Convergence histories additionally export a separate `mesh.svg`, `mesh.pdf` and
+`mesh.png`. These neutral mesh-only views show cell boundaries independently of
+the scalar fields and appear in the report's **Meshes only** section.
 
 Default figures preserve the manuscript's five snapshots: indices 1, 3, 5, 7
 and 9 of ten equally spaced times in the common interval. Explicit `--times`
@@ -383,7 +386,12 @@ and other snapshot counts override this selection. The five columns retain
 extracellular substrate and product, protein, toxic compound and necrosis.
 The canonical layers in `research/spt/fields.py` preserve `magma` for
 concentrations, `hot` for protein and `binary` for necrosis, with the original
-labels, dark gray cell edges and horizontal scalar bars in every panel.
+labels and horizontal scalar bars in every panel. Simulation cell-edge strokes
+use 18% opacity while scalar colors remain fully opaque. Convergence scalar
+panels omit internal mesh lines and show only the domain outline, including
+holes. Homogeneous lobule outlines omit artificial sector seams; independent
+combined sectors retain their own outlines. Mesh-only figures use a white
+background and 45% opacity cell-edge strokes.
 Each panel occupies 4 by 4 inches, matching the original 600 pixel panels at
 150 DPI. Scalar bars retain five labels, bold text and one decimal place.
 Final-state overviews use the same panel sizes and per-panel scalar bars.
@@ -451,13 +459,14 @@ Historical `visualize_spt_2d` calls remain available, including generator inputs
 custom layer labels, unit conversions and fixed color limits. Separate panels
 and videos now require explicit selection in that helper too.
 
-Outputs live under three separate trees:
+Outputs and preview caches use the following layout:
 
 ```text
 results/spt/
 ├── plot-data/<study>/<run_id>/manifest.json
 ├── figures/<study>/<run_id>/manifest.json
 ├── overviews/<study>/manifest.json
+├── report-previews/<fingerprint>.webp
 ├── figures/index-both.html
 ├── plot-catalog-both.tsv
 └── plot-report-both.json
@@ -696,10 +705,16 @@ opening numerical arrays, or rerendering figures. It lists missing, modified, or
 invalid generations as omissions instead of linking incomplete outputs. The
 pipeline status refers to the latest pipeline invocation; the report does not
 independently validate raw-source freshness. Condition PNGs are included when
-present. Images load lazily; large vector exports load only when opened.
+present. The gallery uses lazily loaded, lossless WebP previews bounded by
+768 by 768 pixels. Opening a figure loads its original resolution; PNG, SVG and
+PDF downloads remain unchanged. Previews are cached under `report-previews/`
+using relative source paths and file metadata. An unchanged report refresh reads
+only metadata and reuses previews without decoding the original images. Missing
+or changed previews are regenerated locally without rereading simulation data.
 
 The HTML embeds its styling and interaction code and needs no web server or
 internet connection. Images and data retain relative links. Move or share the
-whole results directory, including its generation folders, to keep those links
-working. The report generator also recognizes relocated generation files from
-their manifests. Generated reports and private results stay outside Git.
+whole results directory, including its generation and `report-previews` folders,
+to keep those links working. The report generator also recognizes relocated
+generation files from their manifests. Generated reports and private results stay
+outside Git.

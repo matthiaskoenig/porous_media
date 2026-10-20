@@ -8,6 +8,7 @@ import tempfile
 import time
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import cast
 
@@ -16,7 +17,7 @@ import numpy as np
 from matplotlib.animation import FFMpegWriter
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.collections import PolyCollection
+from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.colors import SymLogNorm
 from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator, ScalarFormatter
@@ -35,8 +36,9 @@ from research.spt.cache import ProcessingResult
 from research.spt.catalog import CatalogValue
 from research.spt.fields import LAYERS, Layer
 from research.spt.plot_data import PlotSource
+from research.spt.plot_mesh import OUTLINE_VERSION, boundary_segments
 
-RENDER_VERSION = 5
+RENDER_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,8 @@ class RenderOptions:
             if not np.isfinite(layer.line_width) or layer.line_width < 0:
                 raise ValueError(f"Invalid edge width: {layer.sid}")
             mpl.colors.to_rgba(layer.edge_color)
+            if not np.isfinite(layer.edge_alpha) or not 0 <= layer.edge_alpha <= 1:
+                raise ValueError(f"Invalid edge opacity: {layer.sid}")
 
 
 @dataclass
@@ -92,6 +96,16 @@ class Samples:
     values: np.ndarray
     sectors: np.ndarray
     times: np.ndarray
+
+    @cached_property
+    def boundary(self) -> np.ndarray:
+        """Cache outer contours and holes without homogeneous-sector seams."""
+        return boundary_segments(self.faces)
+
+    @cached_property
+    def sector_boundaries(self) -> np.ndarray:
+        """Cache the independent outlines of mixed comparison sectors."""
+        return boundary_segments(self.faces, self.sectors[self.cell_ids])
 
     @classmethod
     def load(cls, path: Path) -> Samples:
@@ -144,16 +158,22 @@ def panel(
     limits: tuple[float, float],
     *,
     mesh: bool = False,
+    sectors: bool = False,
 ) -> PolyCollection:
     """Draw the original cell values on planar faces without point averaging."""
     collection = PolyCollection(
         cast(Sequence[ArrayLike], samples.faces),
         cmap=layer.colormap,
         linewidths=layer.line_width if layer.show_edges or mesh else 0,
-        edgecolors=layer.edge_color if layer.show_edges or mesh else "none",
+        edgecolors=mpl.colors.to_rgba(layer.edge_color, layer.edge_alpha)
+        if layer.show_edges or mesh
+        else "none",
         antialiaseds=layer.show_edges or mesh,
     )
-    collection.set_array(values[samples.cell_ids] * layer.factor)
+    if mesh:
+        collection.set_facecolor("white")
+    else:
+        collection.set_array(values[samples.cell_ids] * layer.factor)
     if layer.scale == "symlog":
         collection.set_norm(
             SymLogNorm(
@@ -165,6 +185,17 @@ def panel(
     else:
         collection.set_clim(*limits)
     axis.add_collection(collection)
+    if layer.outline:
+        axis.add_collection(
+            LineCollection(
+                cast(
+                    Sequence[ArrayLike],
+                    samples.sector_boundaries if sectors else samples.boundary,
+                ),
+                colors=mpl.colors.to_rgba(layer.edge_color, 0.8),
+                linewidths=layer.line_width,
+            )
+        )
     low = samples.faces.min(axis=(0, 1))
     high = samples.faces.max(axis=(0, 1))
     center = (low + high) / 2
@@ -271,7 +302,12 @@ def render_timecourse(
             for column, layer in enumerate(options.layers):
                 axis = axes[row, column]
                 collection = panel(
-                    axis, samples, layer, values[column], display_limits(layer, ranges)
+                    axis,
+                    samples,
+                    layer,
+                    values[column],
+                    display_limits(layer, ranges),
+                    sectors=source.geometry == "combined",
                 )
                 scalar_bar(art, axis, collection, layer)
                 if column == 0:
@@ -318,6 +354,7 @@ def render_panels(
                 layer,
                 samples.frame(options.snapshots[0])[index],
                 display_limits(layer, ranges),
+                sectors=source.geometry == "combined",
             )
             scalar_bar(art, axis, collection, layer)
             for frame, time_value in enumerate(options.snapshots):
@@ -334,11 +371,45 @@ def render_panels(
             art.clear()
 
 
+def render_mesh(
+    source: PlotSource, samples: Samples, directory: Path, options: RenderOptions
+) -> None:
+    """Publish a neutral mesh view independently of convergence scalar fields."""
+    art = figure((4.0, 4.0))
+    try:
+        axis = art.subplots()
+        panel(
+            axis,
+            samples,
+            Layer("mesh", "Mesh", edge_alpha=0.45),
+            np.zeros(len(samples.sectors)),
+            (0, 1),
+            mesh=True,
+        )
+        axis.set_title(
+            f"{source.run.run_id}\n{len(samples.sectors):,} cells", fontsize=11
+        )
+        if source.sector_labels:
+            label_sectors(axis, samples)
+            art.supxlabel(
+                " | ".join(
+                    f"{index + 1}: {name}"
+                    for index, name in enumerate(source.sector_labels)
+                ),
+                fontsize=9,
+            )
+        save_figure(art, directory / "mesh", options)
+    finally:
+        art.clear()
+
+
 def render_video(
     samples: Samples,
     directory: Path,
     options: RenderOptions,
     ranges: dict[str, tuple[float, float]],
+    *,
+    sectors: bool = False,
 ) -> None:
     """Reuse artists and stream a single combined frame directly into FFmpeg."""
     art = figure((3.2 * len(options.layers), 3.8))
@@ -348,7 +419,12 @@ def render_video(
         first = samples.frame(options.video_times[0])
         for index, (axis, layer) in enumerate(zip(axes, options.layers, strict=True)):
             collection = panel(
-                axis, samples, layer, first[index], display_limits(layer, ranges)
+                axis,
+                samples,
+                layer,
+                first[index],
+                display_limits(layer, ranges),
+                sectors=sectors,
             )
             axis.set_title(layer.title, fontsize=10)
             scalar_bar(art, axis, collection, layer)
@@ -411,6 +487,8 @@ def render_source(
             "options": json.loads(json.dumps(asdict(options))),
             "ranges": {name: list(values) for name, values in ranges.items()},
         }
+        if any(layer.outline for layer in options.layers):
+            configuration["outline_version"] = OUTLINE_VERSION
         cached = current_manifest(directory, configuration, output_root)
         if dry_run:
             return ProcessingResult(
@@ -443,10 +521,18 @@ def render_source(
                 staging = Path(temporary)
                 with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
                     render_timecourse(source, samples, staging, options, ranges)
+                    if source.family == "convergence":
+                        render_mesh(source, samples, staging, options)
                     if options.panels:
                         render_panels(source, samples, staging, options, ranges)
                     if options.video_times:
-                        render_video(samples, staging, options, ranges)
+                        render_video(
+                            samples,
+                            staging,
+                            options,
+                            ranges,
+                            sectors=source.geometry == "combined",
+                        )
                 atomic_json(
                     staging / "provenance.json",
                     {**configuration, "sampling": prepared["metadata"]},
@@ -498,6 +584,8 @@ def figure_row(
     }
     for extension in options.formats:
         row[extension] = str(generation / f"timecourse.{extension}")
+        if source.family == "convergence":
+            row[f"mesh_{extension}"] = str(generation / f"mesh.{extension}")
     if options.video_times:
         row["video"] = str(generation / "timecourse.mp4")
     if options.gif:

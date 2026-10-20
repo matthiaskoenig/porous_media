@@ -22,6 +22,7 @@ from research.spt.artifacts import (
 from research.spt.conditions import pattern_idx2name
 from research.spt.fields import Layer
 from research.spt.plot_data import PlotSource
+from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_render import (
     RENDER_VERSION,
     RenderOptions,
@@ -34,7 +35,7 @@ from research.spt.plot_render import (
     scalar_bar,
 )
 
-OVERVIEW_VERSION = 3
+OVERVIEW_VERSION = 4
 
 
 def _label(source: PlotSource) -> str:
@@ -111,6 +112,7 @@ def render_overview(
                 layer,
                 data.frame(options.snapshots[-1])[field],
                 display_limits(layer, ranges),
+                sectors=source.geometry == "combined",
             )
             scalar_bar(art, axis, collection, layer)
             if not column_labels:
@@ -164,7 +166,7 @@ def render_overview(
             panel(
                 axis,
                 data,
-                Layer("mesh", "Mesh", "tab10"),
+                Layer("mesh", "Mesh", edge_alpha=0.45),
                 values,
                 (-0.5, 5.5),
                 mesh=True,
@@ -216,6 +218,8 @@ def overview_figures(
         "options": json.loads(json.dumps(asdict(options))),
         "ranges": {name: list(value) for name, value in ranges.items()},
     }
+    if any(layer.outline for layer in options.layers):
+        configuration["outline_version"] = OUTLINE_VERSION
     with run_lock(directory):
         if any(
             not records_current(manifest.get("sources"), item.run.root)

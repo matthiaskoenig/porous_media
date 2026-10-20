@@ -30,6 +30,7 @@ from research.spt.plot_data import (
 )
 from research.spt.plot_overviews import overview_figures
 from research.spt.plot_render import RenderOptions, render_source
+from research.spt.report_previews import preview_image
 
 
 @dataclass
@@ -128,7 +129,16 @@ def write_gallery(rows: list[dict[str, object]], output_root: Path, study: str) 
         title = f"{row['study']} / {row['run_id']}"
         links = []
         preview = ""
-        for name in ("svg", "pdf", "png", "video", "gif"):
+        for name in (
+            "svg",
+            "pdf",
+            "png",
+            "video",
+            "gif",
+            "mesh_svg",
+            "mesh_pdf",
+            "mesh_png",
+        ):
             value = row.get(name)
             if not isinstance(value, str):
                 continue
@@ -139,9 +149,14 @@ def write_gallery(rows: list[dict[str, object]], output_root: Path, study: str) 
                 )
             relative = Path("..") / path.relative_to(output_root)
             url = quote(relative.as_posix(), safe="/")
-            links.append(f'<a href="{url}">{name.upper()}</a>')
+            links.append(f'<a href="{url}">{name.replace("_", " ").upper()}</a>')
             if name == "png":
-                preview = f'<a href="{url}"><img loading="lazy" src="{url}" alt="{html.escape(title, quote=True)}"></a>'
+                small = preview_image(path, output_root)
+                small_url = quote(
+                    (Path("..") / small.path.relative_to(output_root)).as_posix(),
+                    safe="/",
+                )
+                preview = f'<a href="{url}"><img loading="lazy" decoding="async" src="{small_url}" width="{small.width}" height="{small.height}" alt="{html.escape(title, quote=True)}"></a>'
         items.append(
             f"<article><h2>{html.escape(title)}</h2>{preview}<p>{' | '.join(links)}</p></article>"
         )
@@ -195,7 +210,17 @@ def process_plots(
     if not per_history and (video_frames or options.panels):
         raise ValueError("Videos and standalone panels require per-history rendering")
     family_options = {
-        family: replace(options, snapshots=values[0], video_times=values[1])
+        family: replace(
+            options,
+            snapshots=values[0],
+            video_times=values[1],
+            layers=tuple(
+                replace(layer, show_edges=False, outline=True)
+                for layer in options.layers
+            )
+            if family == "convergence"
+            else options.layers,
+        )
         for family, values in timelines.items()
     }
     for selected in family_options.values():

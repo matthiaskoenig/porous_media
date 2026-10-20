@@ -230,6 +230,17 @@ def test_three_geometries_and_separate_common_windows(tmp_path: Path) -> None:
     )
     assert len(results) == 15
     assert all(result.status == "rendered" for result in results)
+    for result in results:
+        assert Path(str(result.row["mesh_svg"])).is_file()
+        mesh = Path(str(result.row["mesh_png"]))
+        assert mesh.is_file()
+        provenance = json.loads((mesh.parent / "provenance.json").read_text())
+        assert all(
+            layer["outline"] and not layer["show_edges"]
+            for layer in provenance["options"]["layers"]
+        )
+    gallery = (output / "figures/index-convergence.html").read_text()
+    assert "MESH SVG" in gallery and "report-previews/" in gallery
     catalog = (output / "plot-catalog-convergence.tsv").read_text()
     assert "convergence_combinations" in catalog
     assert len(list((output / "overviews").rglob("*.svg"))) == 6
