@@ -1,5 +1,6 @@
 """Protect the manuscript's scientific display choices against styling drift."""
 
+from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from research.spt.conditions import simulation_conditions
 from research.spt.fields import LAYERS, POSITION, SPT_LAYERS, VOLUME
 from research.spt.plot_data import PlotSource, sample_times
 from research.spt.plot_geometry import Prepared, shared_ranges
+from research.spt.plot_overviews import render_overview
 from research.spt.plot_render import RenderOptions, Samples, render_timecourse
 from research.spt.plot_style import convergence_color, simulation_color
 from research.spt.visualization import data_layers_spt
@@ -183,6 +185,42 @@ def test_small_colorbar_labels_remain_distinct() -> None:
         assert not any(left.overlaps(right) for left, right in pairwise(boxes))
     finally:
         art.clear()
+
+
+@pytest.mark.parametrize("show_bar", [True, False])
+def test_overview_preserves_panel_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, show_bar: bool
+) -> None:
+    """Keep manuscript panel sizes and honor each layer's scalar-bar setting."""
+    source = _source(tmp_path)
+    other = replace(
+        source,
+        run=replace(source.run, run_id="sim024", condition=simulation_conditions()[23]),
+    )
+    samples = Samples(
+        np.array([[[0, 0], [1, 0], [0, 1]]]),
+        np.array([0]),
+        np.array([[[0.0]]]),
+        np.array([-1]),
+        np.array([0]),
+    )
+    layer = replace(LAYERS[-1], scalar_bar=show_bar)
+
+    def inspect(art: Figure, destination: Path, options: RenderOptions) -> None:
+        if destination.name == "final-state":
+            assert tuple(art.get_size_inches()) == (4, 8)
+            assert len(art.axes) == (4 if show_bar else 2)
+            if show_bar:
+                assert art.axes[2].get_title() == "Necrosis (0: alive, 1: death)"
+
+    monkeypatch.setattr("research.spt.plot_overviews.save_figure", inspect)
+    render_overview(
+        [source, other],
+        [samples, samples],
+        tmp_path,
+        RenderOptions(layers=(layer,), snapshots=(0,)),
+        {layer.sid: (0, 1)},
+    )
 
 
 def test_simulation_errorbars_and_cell_scatter(

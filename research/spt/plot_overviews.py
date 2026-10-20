@@ -31,9 +31,10 @@ from research.spt.plot_render import (
     label_sectors,
     panel,
     save_figure,
+    scalar_bar,
 )
 
-OVERVIEW_VERSION = 2
+OVERVIEW_VERSION = 3
 
 
 def _label(source: PlotSource) -> str:
@@ -95,12 +96,11 @@ def render_overview(
     )
     field = options.layers.index(layer)
     rows, columns, positions, row_labels, column_labels = _layout(sources)
-    art = figure((2.5 * columns + 0.6, 2.5 * rows + 1.0))
+    art = figure((4.0 * columns, 4.0 * rows))
     axes = art.subplots(rows, columns, squeeze=False)
     try:
         for axis in axes.flat:
             axis.set_axis_off()
-        collection = None
         for source, data, (row, column) in zip(
             sources, samples, positions, strict=True
         ):
@@ -112,6 +112,7 @@ def render_overview(
                 data.frame(options.snapshots[-1])[field],
                 display_limits(layer, ranges),
             )
+            scalar_bar(art, axis, collection, layer)
             if not column_labels:
                 axis.set_title(_label(source), fontsize=11)
             elif row == 0:
@@ -127,15 +128,6 @@ def render_overview(
                     rotation=90,
                     fontsize=10,
                 )
-        if collection is not None:
-            art.colorbar(
-                collection,
-                ax=list(axes.flat),
-                location="bottom",
-                shrink=0.6,
-                aspect=35,
-                label=layer.title,
-            )
         if sources[0].sector_labels:
             label_sectors(axes.flat[0], samples[0])
             art.supxlabel(

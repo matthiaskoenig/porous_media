@@ -386,6 +386,7 @@ concentrations, `hot` for protein and `binary` for necrosis, with the original
 labels, dark gray cell edges and horizontal scalar bars in every panel.
 Each panel occupies 4 by 4 inches, matching the original 600 pixel panels at
 150 DPI. Scalar bars retain five labels, bold text and one decimal place.
+Final-state overviews use the same panel sizes and per-panel scalar bars.
 Small ranges use scientific notation when fixed decimals would repeat labels,
 so nonzero product concentrations do not appear as five identical zeros.
 
