@@ -392,6 +392,8 @@ panels omit internal mesh lines and show only the domain outline, including
 holes. Homogeneous lobule outlines omit artificial sector seams; independent
 combined sectors retain their own outlines. Mesh-only figures use a white
 background and 45% opacity cell-edge strokes.
+Boundary-only scalar surfaces use a thin stroke in each cell's own color to close
+vector-export hairlines, without adding neutral mesh lines.
 Each panel occupies 4 by 4 inches, matching the original 600 pixel panels at
 150 DPI. Scalar bars retain five labels, bold text and one decimal place.
 Final-state overviews use the same panel sizes and per-panel scalar bars.

@@ -12,7 +12,7 @@ from research.spt.artifacts import generation_path
 from research.spt.fields import LAYERS
 from research.spt.plot_data import load_heights, plot_sources, prepare_samples
 from research.spt.plot_mesh import boundary_edges, exterior_edges
-from research.spt.plot_render import Samples, figure, panel
+from research.spt.plot_render import SOLID_CELL_STROKE, Samples, figure, panel
 from research.spt.plot_view import (
     SurfaceProjection,
     camera_matrix,
@@ -66,6 +66,11 @@ def test_tilt_keeps_native_thickness_and_cell_colors(cell_type: str) -> None:
             np.asarray(collection.get_facecolor(), dtype=float),
             collection.cmap(values[data.display_ids]),
         )
+        np.testing.assert_allclose(
+            np.asarray(collection.get_edgecolor(), dtype=float),
+            collection.cmap(values[data.display_ids]),
+        )
+        np.testing.assert_array_equal(collection.get_linewidth(), [SOLID_CELL_STROKE])
         np.testing.assert_array_equal(data.faces, faces)
         np.testing.assert_array_equal(data.heights, heights)
         painted = np.concatenate(data.surface.polygons)

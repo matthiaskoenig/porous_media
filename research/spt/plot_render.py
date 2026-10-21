@@ -41,6 +41,7 @@ from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_view import GEOMETRY_VIEW, SurfaceProjection
 
 RENDER_VERSION = 7
+SOLID_CELL_STROKE = 0.2
 
 
 @dataclass(frozen=True)
@@ -185,10 +186,10 @@ def panel(
     collection = PolyCollection(
         cast(Sequence[ArrayLike], samples.surface.polygons),
         cmap=layer.colormap,
-        linewidths=layer.line_width if layer.show_edges or mesh else 0,
+        linewidths=layer.line_width if layer.show_edges or mesh else SOLID_CELL_STROKE,
         edgecolors=mpl.colors.to_rgba(layer.edge_color, layer.edge_alpha)
         if layer.show_edges or mesh
-        else "none",
+        else "face",
         antialiaseds=layer.show_edges or mesh,
     )
     if mesh:
@@ -525,6 +526,8 @@ def render_source(
         }
         if any(layer.outline for layer in options.layers):
             configuration["outline_version"] = OUTLINE_VERSION
+        if any(not layer.show_edges for layer in options.layers):
+            configuration["solid_cell_stroke_points"] = SOLID_CELL_STROKE
         cached = current_manifest(directory, configuration, output_root)
         if dry_run:
             return ProcessingResult(

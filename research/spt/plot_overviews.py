@@ -25,6 +25,7 @@ from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_render import (
     RENDER_VERSION,
+    SOLID_CELL_STROKE,
     RenderOptions,
     Samples,
     display_limits,
@@ -222,6 +223,8 @@ def overview_figures(
     }
     if any(layer.outline for layer in options.layers):
         configuration["outline_version"] = OUTLINE_VERSION
+    if any(not layer.show_edges for layer in options.layers):
+        configuration["solid_cell_stroke_points"] = SOLID_CELL_STROKE
     with run_lock(directory):
         if any(
             not records_current(manifest.get("sources"), item.run.root)
