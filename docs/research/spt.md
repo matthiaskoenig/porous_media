@@ -809,6 +809,60 @@ their provenance and captions. Keep the default when reproducing the manuscript.
 The final inspection report includes published outputs in its **Publication
 figures** section and uses the same small, cached previews as other figures.
 
+### Flat tissue cutouts for linear increase
+
+Create additional top-down CYP2E1, toxic-compound and necrosis panels by repeating
+the linear-increase lobule on a hexagonal lattice:
+
+```bash
+uv run --no-sync python -m research.spt.tissue_panels --data-root results/spt
+```
+
+The defaults use **D6** (`sim014`) at **0, 6, 12, 18 and 24 h**, with canonical
+palettes and full-cohort scalar limits. CYP2E1 displays the model's `rr_protein`
+field. Continuous fields use native-time interpolation; necrosis retains the
+preceding native state. The new workflow reads local processed cells and cached
+XY geometry, without reopening raw HDF histories.
+
+The square measures **2.5 native flat-to-flat lobule widths per side**. Seventeen
+translated lobule copies intersect this cutout. The hexagonal lattice covers the
+entire square and its corners, with no exterior margins. Border cells are clipped
+exactly; they keep their original cell values. Native central and portal vessel
+openings remain visible. Copies repeat the same simulation; this is a tissue
+visualization rather than a new multi-lobule transport solve.
+
+These panels use a direct XY projection with **zero tilt and no visible thickness**,
+independently of the camera used by other geometry figures. New tissue panels
+omit the internal cell grid by default; `--mesh` enables the canonical transparent
+mesh lines. `--vessel-color lightgray` distinguishes the native lumens from white
+living tissue without assigning scalar values to the vessels.
+
+Each standalone panel is an exact, margin-free square, **900 by 900 pixels at
+300 DPI** with the default settings. SVG and PDF versions contain the same
+bounded map image. An additional annotated composite arranges fields in rows and
+time from left to right, with shared scalar bars, the pattern icon and a binary
+necrosis legend. For a final-time selection or a wider square:
+
+```bash
+uv run --no-sync python -m research.spt.tissue_panels \
+  --data-root results/spt --dose 6 --times-hours 24 --width-lobules 2.5
+```
+
+Widths smaller than 2.5, invalid dose indices and times outside the source history
+are rejected. `--formats`, `--dpi`, `--mesh` and `--vessel-color` control only these
+new outputs. Existing manuscript figures and numerical results are preserved.
+The default stable exports include `linear-increase-tissue-d6.pdf` and individual
+files such as `linear-increase-tissue-d6-necrosis-t86400s.png`, under
+`publication/exports/`. Exact fractional seconds use `p` instead of a decimal point
+in filenames. Captions and provenance record the source run, time selection,
+scalar ranges, lattice spacing, vessel coverage and clipping convention.
+
+Outputs publish through one atomic generation under
+`publication/linear-increase-tissue-d6/manifest.json`. An unchanged invocation checks
+metadata without opening numerical arrays or rendering. Missing stable exports
+are restored from that generation. The HTML report lists the composite and each
+field/time panel separately, with small previews and descriptive titles.
+
 ### Final inspection report
 
 Open `results/spt/report.html` or `results/spt/index.html` in a browser after the
