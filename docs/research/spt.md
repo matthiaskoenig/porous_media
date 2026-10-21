@@ -678,6 +678,137 @@ workflow. Historical plotting adapters still serve other research projects and
 delegate to the current renderer. These helpers remain repository-only research
 code, outside the public library and release artifacts.
 
+### Publication figures
+
+Create the updated Figures 4-7 of the
+[SPT manuscript](https://doi.org/10.1101/2024.03.26.586870) and a convergence
+supplement after the complete pipeline and geometry plotting have finished:
+
+```bash
+MPLBACKEND=Agg PYVISTA_OFF_SCREEN=true uv run --no-sync \
+  python -m research.spt.publication --data-root results/spt
+```
+
+This step reads validated local NetCDF summaries, selected cell frames and cached
+projected meshes. It does not require the raw network drive, rerun reductions or
+alter existing plots. Unchanged figures use metadata-only cache checks. Missing
+exports are repaired; `--force` regenerates selected publication figures.
+
+| Figure | Data and layout | Restored annotations |
+| --- | --- | --- |
+| 4 | `sim014`, linear increase, D6; five field rows by five time columns | Pattern/dose heading, field labels, horizontal time arrow and column labels; one vertical colorbar per field row |
+| 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046` at D6; two columns by three pattern blocks | Each block has protein, toxic compound and necrosis rows, five time columns, A-F labels and icons; three shared bottom colorbars |
+| 6 | All 48 homogeneous lobules; six pattern rows and five fields | Consistent A-F pattern labels, field headers and D1-D8 legend |
+| 7 | Necrosis at 24 h; six pattern rows by eight doses | Consistent A-F pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right |
+| S1 | Six source-sector meshes, five common-time mixed-sixth readouts and one row of native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-C panels, exact map time, linear axes, common-window boundary and truncated-history markers |
+
+Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
+historical overview snapshot selection. Labels are derived from the actual times;
+a nonzero overview frame is never relabeled as zero. Continuous cell fields are
+interpolated locally and necrosis holds its preceding native frame. Shared scalar
+limits use full histories of the entire simulation cohort, preserving the mesh
+palettes. Cell-edge widths scale with panel size while retaining their existing
+opacity. Figure 6 reuses the existing volume-weighted means, population SD,
+markers and pattern/dose colors. SD represents spatial heterogeneity, rather than
+uncertainty across replicate simulations.
+
+Time runs left to right in Figures 4 and 5, with columns for 0, 6, 12, 18 and 24 h.
+Figure 4 retains all five fields as rows, each with one vertical colorbar on the
+right. Figure 5 shows only protein, toxic compound and necrosis. Its three bottom
+colorbars serve all six pattern blocks. Figure 7 uses two swatches
+beside the complete grid: black means **necrosis** and white means **no necrosis**.
+Its binary legend has no intermediate values. Individual map panels have no
+colorbars. The field palettes and
+full-cohort limits remain unchanged. Geometry axes use their cropped domain
+extents, including white living tissue; smaller canvases and closely packed grids
+reduce whitespace around the meshes.
+
+All manuscript figures use dose labels **D1-D8**. The representative dose in
+Figures 4 and 5 is **D6**. Pattern names and lettering match across Figures 4-7:
+**A Constant**, **B Linear increase**, **C Sharp perivenous**, **D Linear decrease**,
+**E Sharp periportal** and **F Random**. Figures 6 and 7 share the same row-label
+format and typography; Figure 5 uses those labels as its pattern-block headings.
+Every pattern label also carries the same small square black-and-white vector profile
+panel, including the Figure 4 heading and both compact exports. The horizontal
+direction runs from periportal (left) to perivenous (right); the vertical
+direction shows relative initial protein abundance. Bold profile lines remain
+clear in compact exports. Flat, rising, falling,
+sharp-step and random profiles distinguish all six patterns. These schematics
+explain pattern identity; the random profile is illustrative.
+
+The convergence supplement retains every available native time point and actual
+end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is
+extended to 24 h. The common comparison window ends at 10.16 h. A single row of
+linear time courses uses the six approved meshes `37250`, `25000`, `18750`,
+`12500`, `09375` and `06250`, ordered coarse to fine. Each
+resolution has a distinct qualitative color, shared by its time courses,
+source-mesh boundary and mixed-sector boundaries. Source sixths are selected from
+local lobule meshes, so producing this figure does not reopen the original network
+meshes. The mixed view numbers those same six resolutions clockwise from upper
+left, coarse to fine. This display rotation preserves cell values and the
+archived composition; it applies to the mesh-only view and all five readouts.
+Panel B compares substrate S, product P, protein, toxic compound T and necrosis
+at **5400 s (1.5 h)**, the existing convergence reference time. All six sectors
+use exactly this time, native-frame continuous interpolation and preceding-frame
+necrosis states. The scalar values come from local homogeneous-lobule cell caches,
+with composition order and cell counts checked before assembly. These maps show
+sector outlines without internal mesh edges. Each field uses the canonical palette
+and full-history limits shared by the six meshes; necrosis uses the fixed range
+0-1. Use
+`--comparison-time SECONDS` to select another time within every native history;
+times outside the common interval are rejected. Dashed time-course lines mark
+the map time; dotted lines mark the common interval end.
+
+Stable manuscript filenames are available under `publication/exports/`, for
+example `figure-04.pdf` through `figure-07.pdf` and `figure-s1-convergence.pdf`.
+These files share storage with validated generations. Regenerating a figure
+refreshes its stable exports, caption and provenance from the complete generation.
+Outputs live under `publication/<figure>/manifest.json` in complete generations.
+Each generation contains PNG, SVG and PDF exports, `caption.md` and
+`provenance.json`, including run conditions, snapshot times and native end times.
+Dense map panels are rasterized at the chosen export DPI to keep the composite
+files practical; annotations and time-course curves stay vector in SVG/PDF.
+Each map is rendered as an independent small tile so PDF export never retains
+one full-composite raster buffer per panel.
+All publication formats are cropped to displayed content with a one-point safety
+border. Cropping retains labels, arrows, legends and white living tissue, and
+preserves the spacing between panels. Hidden map-axis rectangles do not add
+empty margins; embedded map tiles are cropped geometrically, independently of
+their scalar colors. SVG/PDF text and time courses remain vector.
+The default is 300 DPI. Select `--dpi 600` when higher-resolution maps are needed.
+For example, regenerate only Figures 4 and 7 as PDF and PNG:
+
+```bash
+uv run --no-sync python -m research.spt.publication \
+  --data-root results/spt --figures 4 7 --formats pdf png --dpi 300
+```
+
+Create additional, smaller versions of **Figures 4 and 5 only** at **300 DPI** with:
+
+```bash
+uv run --no-sync python -m research.spt.publication \
+  --data-root results/spt --compact --dpi 300
+```
+
+Compact figures use a nominal canvas width of 180 mm, preserving the aspect ratio,
+composition, colors and scientific data. Typography, line widths and embedded map
+tiles scale with the canvas. PNG resolution remains 300 DPI; SVG/PDF annotations
+and curves remain vector. Tight cropping can slightly change the exported width.
+Use `--width-mm 200` for another nominal width. Compact exports have independent
+caches and stable names such as `figure-04-compact.pdf` and
+`figure-05-compact.png`; full-size exports remain available. Figures 6, 7 and S1
+use their full-size exports. The publication command retires previously generated
+compact versions of those three figures from the export directory and report.
+Explicitly requesting them with `--compact` is rejected. Width and variant are
+recorded in the provenance. Both sizes of Figures 4 and 5 appear together in the
+inspection report, using its small cached previews.
+
+The default representative dose is index 6, matching the original manuscript.
+`--dose` changes that selection for Figures 4 and 5 and records the choice in
+their provenance and captions. Keep the default when reproducing the manuscript.
+The final inspection report includes published outputs in its **Publication
+figures** section and uses the same small, cached previews as other figures.
+
 ### Final inspection report
 
 Open `results/spt/report.html` or `results/spt/index.html` in a browser after the

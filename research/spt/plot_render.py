@@ -17,9 +17,10 @@ import numpy as np
 from matplotlib.animation import FFMpegWriter
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.cm import ScalarMappable
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.colors import SymLogNorm
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 from matplotlib.ticker import FixedLocator, ScalarFormatter
 from numpy.typing import ArrayLike
 
@@ -257,9 +258,18 @@ def save_figure(art: Figure, destination: Path, options: RenderOptions) -> None:
 
 
 def scalar_bar(
-    art: Figure, axis: Axes, collection: PolyCollection, layer: Layer
+    art: Figure | SubFigure,
+    axis: Axes,
+    collection: ScalarMappable,
+    layer: Layer,
+    *,
+    cax: Axes | None = None,
+    vertical: bool = False,
 ) -> None:
-    """Preserve the horizontal five-label scalar bars used in manuscript panels."""
+    """Preserve canonical five-label scalar bars, horizontally by default.
+
+    An explicit ``cax`` places a shared bar without shrinking the map panel.
+    """
     if not layer.scalar_bar:
         return
     ticks = np.linspace(*collection.get_clim(), 5).tolist()
@@ -272,7 +282,8 @@ def scalar_bar(
     bar = art.colorbar(
         collection,
         ax=axis,
-        location="bottom",
+        cax=cax,
+        location="right" if vertical else "bottom",
         shrink=0.6,
         aspect=20,
         pad=0.02,
@@ -280,8 +291,11 @@ def scalar_bar(
     )
     if layer.scale == "linear":
         bar.set_ticks(ticks)
-    bar.ax.set_title(layer.title, fontsize=12, fontweight="bold", pad=8)
-    for label in bar.ax.get_xticklabels():
+    if vertical:
+        bar.set_label(layer.title, fontsize=12, fontweight="bold")
+    else:
+        bar.ax.set_title(layer.title, fontsize=12, fontweight="bold", pad=8)
+    for label in bar.ax.get_yticklabels() if vertical else bar.ax.get_xticklabels():
         label.set_fontweight("bold")
         label.set_fontsize(10)
 
