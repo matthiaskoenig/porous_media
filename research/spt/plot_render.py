@@ -1,4 +1,4 @@
-"""Render reusable planar figures and stream requested videos without PNG panels."""
+"""Render tilted extruded meshes and stream requested videos without PNG panels."""
 
 from __future__ import annotations
 
@@ -36,10 +36,12 @@ from research.spt.artifacts import (
 from research.spt.cache import ProcessingResult
 from research.spt.catalog import CatalogValue
 from research.spt.fields import LAYERS, Layer
-from research.spt.plot_data import PlotSource
-from research.spt.plot_mesh import OUTLINE_VERSION, boundary_segments
+from research.spt.plot_data import PlotSource, load_heights
+from research.spt.plot_mesh import OUTLINE_VERSION
+from research.spt.plot_view import GEOMETRY_VIEW, SurfaceProjection
 
-RENDER_VERSION = 6
+RENDER_VERSION = 7
+SOLID_CELL_STROKE = 0.2
 
 
 @dataclass(frozen=True)
@@ -97,26 +99,45 @@ class Samples:
     values: np.ndarray
     sectors: np.ndarray
     times: np.ndarray
+    heights: np.ndarray | None = None
+
+    @cached_property
+    def surface(self) -> SurfaceProjection:
+        """Retain native XY faces while projecting the real extrusion for display."""
+        heights = (
+            np.zeros((len(self.faces), 2)) if self.heights is None else self.heights
+        )
+        if heights.shape != (len(self.faces), 2) or not np.isfinite(heights).all():
+            raise ValueError("Mesh heights must match finite native faces")
+        return SurfaceProjection(self.faces, heights)
+
+    @cached_property
+    def display_ids(self) -> np.ndarray:
+        """Use the owning cell's unchanged scalar on both its cap and exterior walls."""
+        return self.cell_ids[self.surface.face_indices]
 
     @cached_property
     def boundary(self) -> np.ndarray:
         """Cache outer contours and holes without homogeneous-sector seams."""
-        return boundary_segments(self.faces)
+        return self.surface.boundary()
 
     @cached_property
     def sector_boundaries(self) -> np.ndarray:
         """Cache the independent outlines of mixed comparison sectors."""
-        return boundary_segments(self.faces, self.sectors[self.cell_ids])
+        return self.surface.boundary(self.sectors[self.cell_ids])
 
     @classmethod
-    def load(cls, path: Path) -> Samples:
+    def load(cls, path: Path, *, heights: np.ndarray | None = None) -> Samples:
         """Load numerical arrays without allowing pickle payloads."""
         with np.load(path, allow_pickle=False) as data:
             return cls(
                 *(
                     np.asarray(data[name])
                     for name in ("faces", "cell_ids", "values", "sectors", "times")
-                )
+                ),
+                heights=np.asarray(data["heights"])
+                if heights is None and "heights" in data
+                else heights,
             )
 
     def frame(self, time_value: float) -> np.ndarray:
@@ -161,20 +182,20 @@ def panel(
     mesh: bool = False,
     sectors: bool = False,
 ) -> PolyCollection:
-    """Draw the original cell values on planar faces without point averaging."""
+    """Draw native cap/wall values with the shared tilt and no lighting changes."""
     collection = PolyCollection(
-        cast(Sequence[ArrayLike], samples.faces),
+        cast(Sequence[ArrayLike], samples.surface.polygons),
         cmap=layer.colormap,
-        linewidths=layer.line_width if layer.show_edges or mesh else 0,
+        linewidths=layer.line_width if layer.show_edges or mesh else SOLID_CELL_STROKE,
         edgecolors=mpl.colors.to_rgba(layer.edge_color, layer.edge_alpha)
         if layer.show_edges or mesh
-        else "none",
+        else "face",
         antialiaseds=layer.show_edges or mesh,
     )
     if mesh:
         collection.set_facecolor("white")
     else:
-        collection.set_array(values[samples.cell_ids] * layer.factor)
+        collection.set_array(values[samples.display_ids] * layer.factor)
     if layer.scale == "symlog":
         collection.set_norm(
             SymLogNorm(
@@ -197,8 +218,7 @@ def panel(
                 linewidths=layer.line_width,
             )
         )
-    low = samples.faces.min(axis=(0, 1))
-    high = samples.faces.max(axis=(0, 1))
+    low, high = samples.surface.bounds
     center = (low + high) / 2
     extent = max(float((high - low).max()), np.finfo(float).eps) * 0.56
     axis.set_xlim(float(center[0] - extent), float(center[0] + extent))
@@ -210,7 +230,7 @@ def panel(
 
 def label_sectors(axis: Axes, samples: Samples) -> None:
     """Number independent sectors once, without covering every time-course panel."""
-    centers = samples.faces.mean(axis=1)
+    centers = samples.surface.caps.mean(axis=1)
     sectors = samples.sectors[samples.cell_ids]
     for sector in np.unique(sectors):
         if sector < 0:
@@ -373,7 +393,7 @@ def render_panels(
             scalar_bar(art, axis, collection, layer)
             for frame, time_value in enumerate(options.snapshots):
                 collection.set_array(
-                    samples.frame(time_value)[index][samples.cell_ids] * layer.factor
+                    samples.frame(time_value)[index][samples.display_ids] * layer.factor
                 )
                 axis.set_title(f"{layer.title} | {time_value / 3600:g} h", fontsize=11)
                 save_figure(
@@ -455,7 +475,9 @@ def render_video(
                 for index, (collection, layer) in enumerate(
                     zip(collections, options.layers, strict=True)
                 ):
-                    collection.set_array(values[index][samples.cell_ids] * layer.factor)
+                    collection.set_array(
+                        values[index][samples.display_ids] * layer.factor
+                    )
                 title.set_text(f"{time_value / 3600:g} h")
                 writer.grab_frame(facecolor="white")
         if options.gif:
@@ -495,6 +517,7 @@ def render_source(
         directory = source.directory(output_root, "figures")
         configuration: dict[str, object] = {
             "version": RENDER_VERSION,
+            "geometry_view": GEOMETRY_VIEW,
             "source": str(source.run.xdmf),
             "title": source.title,
             "sector_labels": list(source.sector_labels),
@@ -503,6 +526,8 @@ def render_source(
         }
         if any(layer.outline for layer in options.layers):
             configuration["outline_version"] = OUTLINE_VERSION
+        if any(not layer.show_edges for layer in options.layers):
+            configuration["solid_cell_stroke_points"] = SOLID_CELL_STROKE
         cached = current_manifest(directory, configuration, output_root)
         if dry_run:
             return ProcessingResult(
@@ -528,7 +553,15 @@ def render_source(
             with run_lock(sample_directory):
                 if not records_current(prepared.get("sources"), source.run.root):
                     raise ValueError("Plot samples are stale; prepare them again")
-                samples = Samples.load(sample_generation / "samples.npz")
+                samples = Samples.load(
+                    sample_generation / "samples.npz",
+                    heights=load_heights(
+                        source.directory(output_root, "plot-depth"),
+                        prepared,
+                        source.run.root,
+                        sample_path=sample_generation / "samples.npz",
+                    ),
+                )
             with tempfile.TemporaryDirectory(
                 prefix=".partial-", dir=directory
             ) as temporary:
