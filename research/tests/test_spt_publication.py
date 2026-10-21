@@ -10,11 +10,12 @@ import numpy as np
 import pytest
 import xarray as xr
 from matplotlib.figure import Figure
+from PIL import Image
 
 from research.spt.analysis_data import AnalysisOptions, prepare_analysis
 from research.spt.conditions import simulation_conditions
 from research.spt.data_processing import process_studies
-from research.spt.geometry import process_geometries
+from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.plot_data import PlotSource, plot_sources, prepare_samples
 from research.spt.plot_render import RenderOptions, Samples
 from research.spt.plot_style import CONVERGENCE_ORDER
@@ -233,6 +234,10 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
         for mesh in CONVERGENCE_ORDER
     ]
     monkeypatch.setattr(data, "mesh", lambda study, run_id: samples)
+    snapshot = data.snapshots(prototype, (5400.0,))
+    monkeypatch.setattr(data, "mixed_snapshot", lambda time: snapshot)
+    ranges = data.ranges([prototype])
+    monkeypatch.setattr(data, "ranges", lambda sources: ranges)
 
     def summary(source: PlotSource, *, native: bool = False) -> xr.Dataset:
         assert native
@@ -246,11 +251,21 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
 
     monkeypatch.setattr(data, "summary", summary)
 
-    def inspect(art: Figure, destination: Path, options: RenderOptions) -> None:
+    def inspect(
+        art: Figure,
+        destination: Path,
+        options: RenderOptions,
+        *,
+        width_mm: float | None,
+    ) -> None:
         assert destination.name == "figure-s1-convergence"
-        assert len(art.axes) == 18
+        assert len(art.axes) == 28
         assert len(art.axes[0].images) == 1
-        for row in (8, 13):
+        for column in range(5):
+            axis = art.axes[8 + 2 * column]
+            assert "at 1.5 h" in axis.get_title()
+            assert len(axis.images) == 1
+        for row in (18, 23):
             curves = {
                 line.get_label(): line
                 for line in art.axes[row].lines
@@ -260,8 +275,8 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
             assert np.asarray(curves["06250"].get_xdata())[-1] == 36590 / 3600
             assert np.asarray(curves["09375"].get_xdata())[-1] == 77687.6 / 3600
             assert np.asarray(curves["50000"].get_xdata())[-1] == 24
-        assert art.axes[8].get_yscale() == "linear"
-        assert art.axes[13].get_yscale() == "symlog"
+        assert art.axes[18].get_yscale() == "linear"
+        assert art.axes[23].get_yscale() == "symlog"
         assert art.axes[-1].get_yscale() == "linear"
         assert any("no extrapolation" in text.get_text() for text in art.texts)
 
@@ -311,6 +326,84 @@ def test_cached_publication_skips_arrays_and_repairs_missing_exports(
     assert provenance["raw_hdf_reads"] == 0
 
 
+def test_compact_exports_preserve_full_size_and_resolution(
+    publication_data: PublicationData, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Compact exports retain 300 DPI, original scalar styles and independent caches."""
+    data = publication_data
+    source = data.source("simulations_lobulus", "sim014")
+    monkeypatch.setattr(
+        "research.spt.publication.simulation_cohort", lambda data: [source]
+    )
+    original = create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
+    pointer = data.root / "publication/figure-04/manifest.json"
+    before = pointer.read_bytes()
+    compact = create_publication(
+        data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
+    )
+    exported = data.root / "publication/exports/figure-04-compact.png"
+    assert exported.samefile(compact["4"] / exported.name)
+    assert pointer.read_bytes() == before
+    assert original["4"] != compact["4"]
+    with Image.open(exported) as image:
+        assert image.info["dpi"] == pytest.approx((300, 300), abs=0.01)
+        assert image.width == pytest.approx(180 / 25.4 * 300, rel=0.05)
+    provenance = json.loads((compact["4"] / "provenance.json").read_text())
+    assert provenance["width_mm"] == 180 and provenance["variant"] == "compact"
+    assert provenance["snapshot_times_s"] == list(SIMULATION_TIMES)
+    with monkeypatch.context() as cached:
+        cached.setattr("numpy.load", _no_hdf)
+        cached.setattr("xarray.open_dataset", _no_hdf)
+        assert (
+            create_publication(
+                data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
+            )
+            == compact
+        )
+
+
+def test_mixed_readouts_sample_native_cells_at_one_common_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unequal sector meshes retain cell order, interpolation and discrete states."""
+    raw, root = tmp_path / "raw", tmp_path / "local"
+    for index, mesh in enumerate(CONVERGENCE_MESHES):
+        _input(raw, f"convergence_{mesh}", index + 1, (0, 1, 2))
+    process_geometries(raw, root, study="convergence", workers=1)
+    process_studies(raw, root, study="convergence", geometry="lobulus", workers=1)
+    sources = plot_sources(raw, root, study="convergence", geometry="lobulus")
+    for source in sources:
+        prepare_analysis(
+            source, root, root, AnalysisOptions(time_points=3), (0, 1, 2), (0, 2)
+        )
+        prepare_samples(source, root, AnalysisOptions().fields, (0, 2))
+    mixed = plot_sources(raw, root, study="convergence", geometry="combined")[0]
+    prepare_samples(mixed, root, AnalysisOptions().fields, (0, 2))
+    data = PublicationData(root)
+    monkeypatch.setattr("h5py.File", _no_hdf)
+    monkeypatch.setattr("meshio.xdmf.TimeSeriesReader", _no_hdf)
+    result = data.mixed_snapshot(0.5)
+    np.testing.assert_array_equal(result.times, [0.5])
+    for sector in range(6):
+        selected = result.sectors == sector
+        assert np.count_nonzero(selected) == sector + 1
+        np.testing.assert_allclose(result.values[0, 0, selected], sector + 2)
+        np.testing.assert_allclose(
+            result.values[0, 2, selected], np.linspace(0.2, 0.8, sector + 1)
+        )
+        np.testing.assert_array_equal(result.values[0, -1, selected], 0)
+    np.testing.assert_array_equal(data.mixed_snapshot(2).values[0, -1], 1)
+    with pytest.raises(ValueError, match="outside native history"):
+        data.mixed_snapshot(3)
+    geometry_pointer = mixed.run.xdmf.parent.parent / "manifest.json"
+    composition = json.loads(geometry_pointer.read_text())
+    composition["configuration"]["sources"].reverse()
+    geometry_pointer.write_text(json.dumps(composition))
+    # The geometry sample validation catches the changed local composition first.
+    with pytest.raises(ValueError, match=r"stale|source order"):
+        data.mixed_snapshot(0.5)
+
+
 def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
     """Expose publication figures in their own report section with small previews."""
     (tmp_path / "catalog.tsv").write_text(
@@ -329,9 +422,23 @@ def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
                 "runs": ["sim014"] if number == 4 else ["sim001", "sim014"],
             },
         )
+    _publish(
+        tmp_path,
+        "publication/figure-04-compact",
+        ("figure-04-compact.png",),
+        {
+            "study": "simulations_lobulus",
+            "title": "Figure 4 (compact)",
+            "runs": ["sim014"],
+        },
+    )
     report = ReportParser(build_report(tmp_path).read_text())
     assert [card["data-title"] for card in report.cards] == [
-        f"Figure {n}" for n in (4, 5, 6, 7)
+        "Figure 4",
+        "Figure 4 (compact)",
+        "Figure 5",
+        "Figure 6",
+        "Figure 7",
     ]
     assert all(card["data-section"] == "publication" for card in report.cards)
     assert report.images[0]["src"] and str(report.images[0]["src"]).endswith(".webp")
@@ -346,4 +453,17 @@ def test_invalid_selection_fails_before_output(
     """Reject invalid figure identifiers and doses before any output is created."""
     with pytest.raises(ValueError):
         create_publication(tmp_path, figures=figures, dose=dose)
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize(
+    "width,time",
+    [(0, 5400), (-1, 5400), (float("nan"), 5400), (180, -1), (180, float("inf"))],
+)
+def test_invalid_dimensions_or_common_time_fail_before_output(
+    tmp_path: Path, width: float, time: float
+) -> None:
+    """Reject invalid physical dimensions and times without touching existing caches."""
+    with pytest.raises(ValueError):
+        create_publication(tmp_path, width_mm=width, comparison_time=time)
     assert not list(tmp_path.iterdir())

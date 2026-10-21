@@ -26,12 +26,20 @@ from research.spt.publication_data import (
     SIMULATION_TIMES,
     PublicationData,
 )
+from research.spt.publication_layout import resize_publication
 
 FIELD_TITLES = ("Substrate", "Product", "Protein", "Toxic\ncompound", "Necrosis")
 
 
-def save_publication(art: Figure, destination: Path, options: RenderOptions) -> None:
+def save_publication(
+    art: Figure,
+    destination: Path,
+    options: RenderOptions,
+    *,
+    width_mm: float | None = None,
+) -> None:
     """Keep annotations as vector text and bound dense map exports at the chosen DPI."""
+    resize_publication(art, width_mm)
     for extension in options.formats:
         art.savefig(
             destination.with_suffix(f".{extension}"),
@@ -49,6 +57,8 @@ def map_panel(
     ranges: dict[str, tuple[float, float]],
     scale: float,
     dpi: int,
+    *,
+    sectors: bool = False,
 ) -> None:
     """Use the existing maps and five-label bars, scaling type with panel size."""
     collection = raster_panel(
@@ -59,6 +69,7 @@ def map_panel(
         display_limits(layer, ranges),
         side=4 * scale,
         dpi=dpi,
+        sectors=sectors,
     )
     scalar_bar(parent, axis, collection, layer)
     bar = parent.axes[-1]
@@ -77,13 +88,16 @@ def raster_panel(
     side: float,
     dpi: int,
     mesh: bool = False,
+    sectors: bool = False,
 ) -> ScalarMappable:
     """Render one bounded tile, avoiding full-figure raster buffers per PDF panel."""
     tile = Figure(figsize=(side, side), dpi=dpi)
     canvas = FigureCanvasAgg(tile)
     try:
         tile_axis = tile.add_axes((0, 0, 1, 1))
-        collection = panel(tile_axis, samples, layer, values, limits, mesh=mesh)
+        collection = panel(
+            tile_axis, samples, layer, values, limits, mesh=mesh, sectors=sectors
+        )
         mappable = ScalarMappable(norm=collection.norm, cmap=collection.cmap)
         canvas.draw()
         pixels = np.asarray(canvas.buffer_rgba()).copy()
@@ -157,6 +171,8 @@ def render_example(
     ranges: dict[str, tuple[float, float]],
     directory: Path,
     options: RenderOptions,
+    *,
+    width_mm: float | None = None,
 ) -> None:
     """Update Figure 4's representative case at 0, 6, 12, 18 and 24 hours."""
     art = figure((15, 15))
@@ -168,7 +184,7 @@ def render_example(
             scale=0.7,
             dpi=options.dpi,
         )
-        save_publication(art, directory / "figure-04", options)
+        save_publication(art, directory / "figure-04", options, width_mm=width_mm)
     finally:
         art.clear()
 
@@ -179,6 +195,8 @@ def render_patterns(
     ranges: dict[str, tuple[float, float]],
     directory: Path,
     options: RenderOptions,
+    *,
+    width_mm: float | None = None,
 ) -> None:
     """Update Figure 5's two-column, three-row comparison with A-F annotations."""
     art = figure((18, 27))
@@ -200,7 +218,7 @@ def render_patterns(
                 scale=0.37,
                 dpi=options.dpi,
             )
-        save_publication(art, directory / "figure-05", options)
+        save_publication(art, directory / "figure-05", options, width_mm=width_mm)
     finally:
         art.clear()
 
@@ -210,6 +228,8 @@ def render_necrosis(
     sources: list[PlotSource],
     directory: Path,
     options: RenderOptions,
+    *,
+    width_mm: float | None = None,
 ) -> None:
     """Update Figure 7 with named rows, ordered doses and the inflow direction."""
     art = figure((18, 14))
@@ -266,6 +286,6 @@ def render_necrosis(
                     fontsize=12,
                     fontweight="bold",
                 )
-        save_publication(art, directory / "figure-07", options)
+        save_publication(art, directory / "figure-07", options, width_mm=width_mm)
     finally:
         art.clear()

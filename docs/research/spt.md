@@ -700,7 +700,7 @@ exports are repaired; `--force` regenerates selected publication figures.
 | 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046`; two columns by three pattern blocks | A-F labels, pattern names, field headers, time labels and arrows |
 | 6 | All 48 homogeneous lobules; six pattern rows and five fields | A-F labels, pattern names, field headers and ordered dose-shade legend |
 | 7 | Necrosis at 24 h; six pattern rows by eight doses | Pattern labels, dose indices and increasing substrate-inflow arrow |
-| S1 | Seven source-sector meshes, mixed sixths and native lobule time courses | Mesh IDs and cell counts, A-C panels, linear/symlog labels, common-window boundary and truncated-history markers |
+| S1 | Seven source-sector meshes, five common-time mixed-sixth readouts and native lobule time courses | Mesh IDs and cell counts, A-D panels, exact map time, linear/symlog labels, common-window boundary and truncated-history markers |
 
 Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
 historical overview snapshot selection. Labels are derived from the actual times;
@@ -719,6 +719,17 @@ symlog views expose the coarse-mesh concentration outlier. Necrosis axes stay
 linear. Source sixths are selected from local lobule meshes, so producing this
 figure does not reopen the original network meshes. The mixed view contains the
 six approved meshes `06250` through `37250`, excluding `50000`.
+Panel B compares substrate S, product P, protein, toxic compound T and necrosis
+at **5400 s (1.5 h)**, the existing convergence reference time. All six sectors
+use exactly this time, native-frame continuous interpolation and preceding-frame
+necrosis states. The scalar values come from local homogeneous-lobule cell caches,
+with composition order and cell counts checked before assembly. These maps show
+sector outlines without internal mesh edges. Each field uses the canonical palette
+and full-history limits shared by the six meshes; necrosis uses the fixed range
+0-1. The coarse `50000` outlier remains in the time courses. Use
+`--comparison-time SECONDS` to select another time within every native history;
+times outside the common interval are rejected. Dashed time-course lines mark
+the map time; dotted lines mark the common interval end.
 
 Stable manuscript filenames are available under `publication/exports/`, for
 example `figure-04.pdf` through `figure-07.pdf` and `figure-s1-convergence.pdf`.
@@ -738,6 +749,23 @@ For example, regenerate only Figures 4 and 7 as PDF and PNG:
 uv run --no-sync python -m research.spt.publication \
   --data-root results/spt --figures 4 7 --formats pdf png --dpi 300
 ```
+
+Create additional, smaller publication exports at **300 DPI** with:
+
+```bash
+uv run --no-sync python -m research.spt.publication \
+  --data-root results/spt --compact --dpi 300
+```
+
+Compact figures use a nominal canvas width of 180 mm, preserving the aspect ratio,
+composition, colors and scientific data. Typography, line widths and embedded map
+tiles scale with the canvas. PNG resolution remains 300 DPI; SVG/PDF annotations
+and curves remain vector. Tight cropping can slightly change the exported width.
+Use `--width-mm 200` for another nominal width. Compact exports have independent
+caches and stable names such as `figure-04-compact.pdf` and
+`figure-s1-convergence-compact.png`; full-size exports remain available. Width and
+variant are recorded in their provenance. Both variants appear together in the
+inspection report, using its small cached previews.
 
 The default representative dose is index 6, matching the original manuscript.
 `--dose` changes that selection for Figures 4 and 5 and records the choice in

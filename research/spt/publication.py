@@ -6,9 +6,11 @@ import argparse
 import sys
 import tempfile
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 
 import matplotlib as mpl
+import numpy as np
 
 from research import RESULTS_DIR
 from research.spt.analysis_plots import PlotOptions, _curves
@@ -24,10 +26,15 @@ from research.spt.artifacts import (
     validate_output,
 )
 from research.spt.fields import SUMMARY_FIELDS
+from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions
 from research.spt.plot_style import CONVERGENCE_ORDER
-from research.spt.publication_data import SIMULATION_TIMES, PublicationData
+from research.spt.publication_data import (
+    CONVERGENCE_TIME,
+    SIMULATION_TIMES,
+    PublicationData,
+)
 from research.spt.publication_geometry import (
     render_example,
     render_necrosis,
@@ -104,7 +111,12 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
     )
 
 
-def caption(number: str, sources: list[PlotSource], dose: int) -> str:
+def caption(
+    number: str,
+    sources: list[PlotSource],
+    dose: int,
+    comparison_time: float = CONVERGENCE_TIME,
+) -> str:
     """Describe the actual run selection, timing, normalization and statistics."""
     if number == "4":
         return (
@@ -145,7 +157,13 @@ def caption(number: str, sources: list[PlotSource], dose: int) -> str:
     return (
         "Convergence supplement. A: source-sector meshes ordered coarse to fine, "
         "plus the six-mesh mixed lobule (06250, 09375, 12500, 18750, 25000, 37250). "
-        "B: native volume-weighted lobule time courses with linear axes. C: the "
+        f"B: mixed-sixth substrate, product, protein, toxic compound and necrosis "
+        f"at the common output time {comparison_time:g} s ({comparison_time / 3600:g} h). "
+        "Canonical field palettes and full-history limits shared across the six "
+        "meshes permit direct sector comparisons. Only sector outlines are shown. "
+        "Continuous values use native-frame interpolation; necrosis holds its "
+        "preceding native state. C: native volume-weighted lobule time courses "
+        "with linear axes. D: the "
         "same data with symlog axes except for necrosis, which remains linear. Crosses "
         "mark the actual ends of truncated histories, without extrapolation. The "
         f"dotted line marks the shared interval ending at {common_end / 3600:.4f} h. "
@@ -160,6 +178,8 @@ def create_publication(
     dose: int = 6,
     formats: tuple[str, ...] = ("svg", "pdf", "png"),
     dpi: int = 300,
+    width_mm: float | None = None,
+    comparison_time: float = CONVERGENCE_TIME,
     force: bool = False,
 ) -> dict[str, Path]:
     """Publish figures atomically from local caches and reuse unchanged exports.
@@ -174,6 +194,10 @@ def create_publication(
         raise ValueError("Select unique figure identifiers: 4, 5, 6, 7, S1")
     if not 1 <= dose <= 8:
         raise ValueError("Dose index must be between 1 and 8")
+    if width_mm is not None and (not np.isfinite(width_mm) or width_mm <= 0):
+        raise ValueError("Publication width must be finite and positive")
+    if not np.isfinite(comparison_time) or comparison_time < 0:
+        raise ValueError("Comparison time must be finite and nonnegative")
     data = PublicationData(data_root)
     simulations = simulation_cohort(data) if set(figures) - {"S1"} else []
     chosen = [source for source in simulations if source.dose == dose - 1]
@@ -185,6 +209,14 @@ def create_publication(
                 data.source("convergence_lobulus", f"convergence_{mesh}")
                 for mesh in CONVERGENCE_ORDER
             ]
+            if (
+                not max(source.start for source in sources)
+                <= comparison_time
+                <= min(source.end for source in sources)
+            ):
+                raise ValueError(
+                    "Convergence comparison time is outside the common native history"
+                )
         elif number == "4":
             sources = [
                 source
@@ -224,6 +256,31 @@ def create_publication(
             "mesh_rendering": "raster at export DPI; editable vector annotations and curves",
         }
         stem = f"figure-{int(number):02}" if number != "S1" else "figure-s1-convergence"
+        rendered_stem = stem
+        if number == "S1":
+            configuration.update(
+                convergence_readouts_version=1,
+                snapshot_times_s=[comparison_time],
+                mixed_sector_meshes=list(CONVERGENCE_MESHES),
+                scalar_ranges={
+                    field: list(limits)
+                    for field, limits in data.ranges(
+                        [
+                            source
+                            for source in sources
+                            if not source.run.run_id.endswith("50000")
+                        ]
+                    ).items()
+                },
+            )
+        if width_mm is not None:
+            configuration.update(
+                width_mm=width_mm,
+                variant="compact",
+                compact_layout_version=1,
+                title=f"{TITLES[number]} (compact)",
+            )
+            stem += "-compact"
         directory = data.root / "publication" / stem
         with run_lock(directory):
             cached = current_manifest(directory, configuration, data.root)
@@ -239,13 +296,31 @@ def create_publication(
                 staging = Path(temporary)
                 with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
                     if number == "4":
-                        render_example(data, sources[0], ranges, staging, options)
+                        render_example(
+                            data,
+                            sources[0],
+                            ranges,
+                            staging,
+                            options,
+                            width_mm=width_mm,
+                        )
                     elif number == "5":
-                        render_patterns(data, sources, ranges, staging, options)
+                        render_patterns(
+                            data, sources, ranges, staging, options, width_mm=width_mm
+                        )
                     elif number == "7":
-                        render_necrosis(data, sources, staging, options)
+                        render_necrosis(
+                            data, sources, staging, options, width_mm=width_mm
+                        )
                     elif number == "S1":
-                        render_convergence(data, sources, staging, options)
+                        render_convergence(
+                            data,
+                            sources,
+                            staging,
+                            options,
+                            comparison_time=comparison_time,
+                            width_mm=width_mm,
+                        )
                     else:
                         datasets = [data.summary(source) for source in sources]
                         try:
@@ -256,12 +331,21 @@ def create_publication(
                                 stem,
                                 PlotOptions(formats=formats, dpi=dpi),
                                 SUMMARY_FIELDS,
-                                decorate=annotate_timecourses,
+                                decorate=partial(
+                                    annotate_timecourses, width_mm=width_mm
+                                ),
                             )
                         finally:
                             for dataset in datasets:
                                 dataset.close()
-                description = caption(number, sources, dose)
+                if stem != rendered_stem and number != "6":
+                    for extension in formats:
+                        (staging / f"{rendered_stem}.{extension}").rename(
+                            staging / f"{stem}.{extension}"
+                        )
+                description = caption(number, sources, dose, comparison_time)
+                if width_mm is not None:
+                    description += f" Compact export: nominal canvas width {width_mm:g} mm at {dpi} DPI."
                 atomic_text(staging / "caption.md", description + "\n")
                 atomic_json(
                     staging / "provenance.json",
@@ -301,6 +385,22 @@ def main(argv: list[str] | None = None) -> int:
         default=["svg", "pdf", "png"],
     )
     parser.add_argument("--dpi", type=int, default=300)
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Create additional compact exports at 180 mm nominal width",
+    )
+    parser.add_argument(
+        "--width-mm",
+        type=float,
+        help="Set nominal compact canvas width in millimetres (implies --compact)",
+    )
+    parser.add_argument(
+        "--comparison-time",
+        type=float,
+        default=CONVERGENCE_TIME,
+        help="Common convergence map time in seconds (default: 5400, or 1.5 h)",
+    )
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -310,6 +410,12 @@ def main(argv: list[str] | None = None) -> int:
             dose=args.dose,
             formats=tuple(args.formats),
             dpi=args.dpi,
+            width_mm=args.width_mm
+            if args.width_mm is not None
+            else 180.0
+            if args.compact
+            else None,
+            comparison_time=args.comparison_time,
             force=args.force,
         )
         atomic_json(

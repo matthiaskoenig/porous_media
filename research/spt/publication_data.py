@@ -21,10 +21,12 @@ from research.spt.cache import _current_generation, open_processed_cells
 from research.spt.catalog import RunSource, Study
 from research.spt.conditions import SimulationCondition
 from research.spt.fields import SUMMARY_FIELDS
+from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.plot_data import SAMPLE_VERSION, PlotSource
 from research.spt.plot_render import Samples
 
 SIMULATION_TIMES = (0.0, 21600.0, 43200.0, 64800.0, 86400.0)
+CONVERGENCE_TIME = 5400.0
 PATTERN_NAMES = (
     "constant",
     "linear increase",
@@ -168,6 +170,41 @@ class PublicationData:
     def summary(self, source: PlotSource, *, native: bool = False) -> xr.Dataset:
         """Load only compact volume-weighted summaries, retaining actual native ends."""
         return load_analysis(source, self.root, "native" if native else "aligned")
+
+    def mixed_snapshot(self, time: float) -> Samples:
+        """Assemble mixed sixths from native local frames at one common time.
+
+        Composition preserves cell order within each sector. Validate its source
+        order and cell counts before transferring scalar values from sector zero
+        of each homogeneous lobule. Never interpolate already sampled plot frames.
+        """
+        study, run_id = "convergence_combinations", "convergence_mixed"
+        _, manifest = self.mesh_manifest(study, run_id)
+        configuration = cast(dict[str, object], manifest["configuration"])
+        descriptor = Path(str(configuration["descriptor"]))
+        if not descriptor.resolve().is_relative_to(self.root):
+            raise ValueError("Mixed comparison geometry must be local")
+        composition = json.loads(
+            (descriptor.parent.parent / "manifest.json").read_text()
+        )
+        recorded = [Path(path).stem for path in composition["configuration"]["sources"]]
+        expected = [f"convergence_{mesh}" for mesh in CONVERGENCE_MESHES]
+        if recorded != expected:
+            raise ValueError("Mixed convergence sector source order differs")
+        mixed = self.mesh(study, run_id)
+        if set(np.unique(mixed.sectors)) != set(range(6)):
+            raise ValueError("Mixed convergence requires exactly six sectors")
+        values = np.empty((1, len(SUMMARY_FIELDS), len(mixed.sectors)))
+        for sector, name in enumerate(expected):
+            source = self.source("convergence_lobulus", name)
+            samples = self.snapshots(source, (time,))
+            selected, target = samples.sectors == 0, mixed.sectors == sector
+            if np.count_nonzero(selected) != np.count_nonzero(target):
+                raise ValueError(f"Mixed convergence cell identities differ: {name}")
+            values[0][:, target] = samples.values[0][:, selected]
+        return Samples(
+            mixed.faces, mixed.cell_ids, values, mixed.sectors, np.array([time])
+        )
 
     def ranges(self, sources: list[PlotSource]) -> dict[str, tuple[float, float]]:
         """Reuse full-history cell limits so changing snapshots does not change colors."""
