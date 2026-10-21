@@ -696,8 +696,8 @@ exports are repaired; `--force` regenerates selected publication figures.
 
 | Figure | Data and layout | Restored annotations |
 | --- | --- | --- |
-| 4 | `sim014`, linear increase, D6; five fields by five times | Pattern/dose heading, field headers, time labels and arrow; one bottom colorbar per field |
-| 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046` at D6; two columns by three pattern blocks | Consistent A-F pattern labels, field headers, time labels and arrows; one shared set of five bottom colorbars |
+| 4 | `sim014`, linear increase, D6; five field rows by five time columns | Pattern/dose heading, field labels, horizontal time arrow and column labels; one vertical colorbar per field row |
+| 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046` at D6; two columns by three pattern blocks | Each block has protein, toxic compound and necrosis rows, five time columns, A-F labels and icons; three shared bottom colorbars |
 | 6 | All 48 homogeneous lobules; six pattern rows and five fields | Consistent A-F pattern labels, field headers and D1-D8 legend |
 | 7 | Necrosis at 24 h; six pattern rows by eight doses | Consistent A-F pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right |
 | S1 | Six source-sector meshes, five common-time mixed-sixth readouts and one row of native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-C panels, exact map time, linear axes, common-window boundary and truncated-history markers |
@@ -712,8 +712,10 @@ opacity. Figure 6 reuses the existing volume-weighted means, population SD,
 markers and pattern/dose colors. SD represents spatial heterogeneity, rather than
 uncertainty across replicate simulations.
 
-Figures 4 and 5 use five shared horizontal colorbars, one per field. In Figure 5,
-that single bottom set serves all six pattern blocks. Figure 7 uses two swatches
+Time runs left to right in Figures 4 and 5, with columns for 0, 6, 12, 18 and 24 h.
+Figure 4 retains all five fields as rows, each with one vertical colorbar on the
+right. Figure 5 shows only protein, toxic compound and necrosis. Its three bottom
+colorbars serve all six pattern blocks. Figure 7 uses two swatches
 beside the complete grid: black means **necrosis** and white means **no necrosis**.
 Its binary legend has no intermediate values. Individual map panels have no
 colorbars. The field palettes and

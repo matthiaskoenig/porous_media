@@ -264,8 +264,9 @@ def scalar_bar(
     layer: Layer,
     *,
     cax: Axes | None = None,
+    vertical: bool = False,
 ) -> None:
-    """Preserve the horizontal five-label scalar bars used in manuscript panels.
+    """Preserve canonical five-label scalar bars, horizontally by default.
 
     An explicit ``cax`` places a shared bar without shrinking the map panel.
     """
@@ -282,7 +283,7 @@ def scalar_bar(
         collection,
         ax=axis,
         cax=cax,
-        location="bottom",
+        location="right" if vertical else "bottom",
         shrink=0.6,
         aspect=20,
         pad=0.02,
@@ -290,8 +291,11 @@ def scalar_bar(
     )
     if layer.scale == "linear":
         bar.set_ticks(ticks)
-    bar.ax.set_title(layer.title, fontsize=12, fontweight="bold", pad=8)
-    for label in bar.ax.get_xticklabels():
+    if vertical:
+        bar.set_label(layer.title, fontsize=12, fontweight="bold")
+    else:
+        bar.ax.set_title(layer.title, fontsize=12, fontweight="bold", pad=8)
+    for label in bar.ax.get_yticklabels() if vertical else bar.ax.get_xticklabels():
         label.set_fontweight("bold")
         label.set_fontsize(10)
 

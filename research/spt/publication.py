@@ -166,20 +166,22 @@ def caption(
     if number == "4":
         return (
             f"Figure 4. SPT metabolism for the linear increasing zonation pattern, "
-            f"D{dose} ({sources[0].run.run_id}). Columns show extracellular "
+            f"D{dose} ({sources[0].run.run_id}). Rows show extracellular "
             "substrate, extracellular product, protein, toxic compound and necrosis. "
-            "Rows are the actual 0, 6, 12, 18 and 24 h snapshots. Continuous cell "
+            "Columns show the actual 0, 6, 12, 18 and 24 h snapshots from left to "
+            "right. Continuous cell "
             "values are interpolated between native frames; discrete necrosis holds "
-            "the preceding frame. One shared colorbar per field uses scalar limits "
+            "the preceding frame. One shared vertical colorbar beside each field row uses scalar limits "
             "from full histories of all 48 runs."
         )
     if number == "5":
         return (
             f"Figure 5. SPT metabolism at D{dose} for A: constant, B: linear "
             "increase, C: sharp perivenous, D: linear decrease, E: sharp periportal "
-            "and F: random zonation. Each block has the same five fields and actual "
-            "0, 6, 12, 18 and 24 h snapshots as Figure 4. All blocks share full-cohort "
-            "scalar limits and a single bottom set of five field colorbars. Runs: "
+            "and F: random zonation. Each block has three rows for protein, toxic "
+            "compound and necrosis. Columns show 0, 6, 12, 18 and 24 h from left to "
+            "right. All blocks share full-cohort scalar limits and a single bottom "
+            "set of three field colorbars. Runs: "
             + ", ".join(source.run.run_id for source in sources)
             + "."
         )
@@ -317,11 +319,21 @@ def create_publication(
                 dose_labels=[f"D{index}" for index in range(1, 9)],
                 pattern_labels=[pattern_label(index) for index in range(6)],
                 pattern_icons=PATTERN_ICON_DESCRIPTION,
-                colorbars="five shared horizontal field bars"
-                if number in {"4", "5"}
+                colorbars="five shared vertical field bars"
+                if number == "4"
+                else "three shared horizontal field bars"
+                if number == "5"
                 else "one shared binary necrosis legend"
                 if number == "7"
                 else "none",
+            )
+        if number in {"4", "5"}:
+            configuration.update(
+                time_grid_version=2,
+                time_axis="columns",
+                map_fields=list(
+                    SUMMARY_FIELDS if number == "4" else SUMMARY_FIELDS[2:]
+                ),
             )
         if number == "S1":
             configuration.update(

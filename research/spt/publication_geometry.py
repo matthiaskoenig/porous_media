@@ -60,9 +60,10 @@ def shared_colorbar(
     layer: Layer,
     *,
     scale: float,
+    vertical: bool = False,
 ) -> None:
-    """Reuse canonical normalization and scalar labels in one shared bottom bar."""
-    scalar_bar(parent, axis, collection, layer, cax=axis)
+    """Reuse canonical normalization and scalar labels in one shared field bar."""
+    scalar_bar(parent, axis, collection, layer, cax=axis, vertical=vertical)
     original_locator = axis.get_axes_locator()
 
     def inset_bar(_target: object, renderer: RendererBase) -> Bbox:
@@ -71,12 +72,28 @@ def shared_colorbar(
             if original_locator is not None
             else axis.get_position(original=True)
         )
-        return bounds.shrunk(0.8, 1).anchored("C", bounds)
+        return (
+            bounds.shrunk(1, 0.8).anchored("C", bounds)
+            if vertical
+            else bounds.shrunk(0.8, 1).anchored("C", bounds)
+        )
 
     axis.set_axes_locator(inset_bar)
-    axis.set_title(layer.title, fontsize=12 * scale, fontweight="bold", pad=6 * scale)
-    axis.tick_params(labelsize=10 * scale, length=2 * scale, pad=2 * scale)
-    axis.xaxis.get_offset_text().set_fontsize(10 * scale)
+    if vertical:
+        axis.set_ylabel(layer.title, fontsize=max(10, 12 * scale), fontweight="bold")
+    else:
+        axis.set_title(
+            layer.title, fontsize=12 * scale, fontweight="bold", pad=6 * scale
+        )
+    axis.tick_params(
+        labelsize=max(9, 10 * scale) if vertical else 10 * scale,
+        length=2 * scale,
+        pad=2 * scale,
+    )
+    dimension = axis.yaxis if vertical else axis.xaxis
+    dimension.get_offset_text().set_fontsize(
+        max(9, 10 * scale) if vertical else 10 * scale
+    )
     for item in axis.collections:
         item.set_rasterized(False)
         item.set_edgecolor("face")
@@ -196,82 +213,87 @@ def time_grid(
     scale: float,
     dpi: int,
     colorbars: bool = True,
+    layers: tuple[Layer, ...] = LAYERS,
 ) -> tuple[ScalarMappable, ...]:
-    """Draw a tight time grid and return mappables for shared field colorbars."""
+    """Draw field rows and time columns with optional shared bars on the right."""
     grid = parent.add_gridspec(
+        len(layers) + 1,
         len(samples.times) + int(colorbars),
-        len(LAYERS),
-        height_ratios=[1] * len(samples.times) + ([0.045] if colorbars else []),
+        height_ratios=[0.13] + [1] * len(layers),
+        width_ratios=[1] * len(samples.times) + ([0.045] if colorbars else []),
         hspace=0.02,
         wspace=0.02,
     )
-    axes = np.empty((len(samples.times), len(LAYERS)), dtype=object)
+    header = parent.add_subplot(grid[0, : len(samples.times)])
+    header.set_axis_off()
+    font_size = max(12, 16 * scale)
+    header.text(
+        0.02,
+        0.5,
+        "Time",
+        transform=header.transAxes,
+        ha="left",
+        va="center",
+        fontsize=font_size,
+        fontweight="bold",
+    )
+    header.annotate(
+        "",
+        xy=(0.98, 0.5),
+        xytext=(0.15, 0.5),
+        xycoords="axes fraction",
+        arrowprops={"arrowstyle": "-|>", "color": "black", "lw": 2 * scale},
+    )
     collections = []
-    for row, time in enumerate(samples.times):
-        values = samples.frame(float(time))
-        for column, layer in enumerate(LAYERS):
-            axis = axes[row, column] = parent.add_subplot(grid[row, column])
+    frames = tuple(samples.frame(float(time)) for time in samples.times)
+    for row, layer in enumerate(layers):
+        field = LAYERS.index(layer)
+        for column, (time, values) in enumerate(
+            zip(samples.times, frames, strict=True)
+        ):
+            axis = parent.add_subplot(grid[row + 1, column])
             collection = map_panel(
                 parent,
                 axis,
                 samples,
                 layer,
-                values[column],
+                values[field],
                 ranges,
                 scale,
                 dpi,
                 colorbar=False,
                 tight=True,
             )
-            if row == 0:
-                collections.append(collection)
-                axis.set_title(
-                    FIELD_TITLES[column],
-                    fontsize=18 * scale,
-                    fontweight="bold",
-                    pad=12 * scale,
-                )
             if column == 0:
-                axis.text(
-                    -0.05,
-                    0.5,
-                    f"{time / 3600:g} h",
-                    transform=axis.transAxes,
-                    ha="right",
+                collections.append(collection)
+                axis.annotate(
+                    FIELD_TITLES[field].replace("\n", " "),
+                    xy=(0, 0.5),
+                    xycoords="axes fraction",
+                    xytext=(-10, 0),
+                    textcoords="offset points",
+                    rotation=90,
+                    ha="center",
                     va="center",
-                    fontsize=16 * scale,
+                    fontsize=font_size,
                     fontweight="bold",
+                    annotation_clip=False,
                 )
-    middle = axes[len(samples.times) // 2, 0]
-    middle.annotate(
-        "",
-        xy=(-0.42, -1),
-        xytext=(-0.42, 1),
-        xycoords="axes fraction",
-        arrowprops={"arrowstyle": "-|>", "color": "black", "lw": 2 * scale},
-        annotation_clip=False,
-    )
-    middle.text(
-        -0.53,
-        0.0,
-        "Time",
-        transform=middle.transAxes,
-        rotation=90,
-        ha="center",
-        va="center",
-        fontsize=16 * scale,
-        fontweight="bold",
-    )
-    if colorbars:
-        for column, (layer, collection) in enumerate(
-            zip(LAYERS, collections, strict=True)
-        ):
+            if row == 0:
+                axis.set_title(
+                    f"{time / 3600:g} h",
+                    fontsize=font_size,
+                    fontweight="bold",
+                    pad=6 * scale,
+                )
+        if colorbars:
             shared_colorbar(
                 parent,
-                parent.add_subplot(grid[-1, column]),
-                collection,
+                parent.add_subplot(grid[row + 1, -1]),
+                collections[-1],
                 layer,
                 scale=scale,
+                vertical=True,
             )
     return tuple(collections)
 
@@ -316,18 +338,18 @@ def render_patterns(
     *,
     width_mm: float | None = None,
 ) -> None:
-    """Compare A-F pattern blocks with one common bottom row of field colorbars."""
-    art = figure((14, 22))
+    """Compare protein, toxic compound and necrosis with time running left to right."""
+    art = figure((14, 16))
     try:
         assert sources[0].dose is not None
         art.suptitle(f"D{sources[0].dose + 1}", fontsize=16, fontweight="bold")
         outer = art.add_gridspec(
-            4, 10, height_ratios=(1, 1, 1, 0.025), hspace=0.025, wspace=0.025
+            4, 6, height_ratios=(1, 1, 1, 0.025), hspace=0.025, wspace=0.025
         )
         collections = ()
         for pattern, source in enumerate(sources):
-            column = 5 * (pattern % 2)
-            parent = art.add_subfigure(outer[pattern // 2, column : column + 5])
+            column = 3 * (pattern % 2)
+            parent = art.add_subfigure(outer[pattern // 2, column : column + 3])
             heading = parent.suptitle(
                 pattern_label(pattern),
                 fontsize=16,
@@ -341,16 +363,17 @@ def render_patterns(
                 scale=0.37,
                 dpi=options.dpi,
                 colorbars=False,
+                layers=LAYERS[2:],
             )
         for column, (layer, collection) in enumerate(
-            zip(LAYERS, collections, strict=True)
+            zip(LAYERS[2:], collections, strict=True)
         ):
             shared_colorbar(
                 art,
                 art.add_subplot(outer[-1, 2 * column : 2 * column + 2]),
                 collection,
                 layer,
-                scale=0.8,
+                scale=1,
             )
         save_publication(art, directory / "figure-05", options, width_mm=width_mm)
     finally:

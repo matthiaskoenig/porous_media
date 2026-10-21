@@ -9,14 +9,18 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 import xarray as xr
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize
+from matplotlib.figure import Figure, SubFigure
 from matplotlib.patches import Patch
 from PIL import Image
 
 from research.spt.analysis_data import AnalysisOptions, prepare_analysis
 from research.spt.conditions import simulation_conditions
 from research.spt.data_processing import process_studies
+from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.plot_data import PlotSource, plot_sources, prepare_samples
 from research.spt.plot_render import RenderOptions, Samples
@@ -38,6 +42,7 @@ from research.spt.publication_geometry import (
     render_necrosis,
     render_patterns,
     save_publication,
+    time_grid,
 )
 from research.spt.publication_patterns import (
     PatternIcon,
@@ -167,8 +172,7 @@ def test_map_headers_time_arrow_and_vector_annotations(
 def test_map_tiles_do_not_keep_full_composite_raster_buffers(
     publication_data: PublicationData,
 ) -> None:
-    """Each PDF image owns only one tile, even within the 150-panel composite."""
-    from research.spt.fields import LAYERS
+    """Each PDF image owns only one tile within a large composite."""
     from research.spt.plot_render import figure
 
     data = publication_data
@@ -236,7 +240,10 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
     assert all(f"D{dose}" in necrosis for dose in range(1, 9))
     assert "Dose " not in necrosis
     assert "Substrate / drug inflow" in necrosis
-    assert patterns.count("Substrate S plasma [mM]") == 1
+    assert "Substrate" not in patterns and "Product" not in patterns
+    assert patterns.count("Toxic compound T [mM]") == 1
+    tree = ET.fromstring(patterns)
+    assert len(list(tree.iter("{http://www.w3.org/2000/svg}image"))) == 90
     assert "D6" in patterns
     assert all(pattern_label(pattern) in necrosis for pattern in range(6))
     assert necrosis.count(">necrosis<") == 1
@@ -301,8 +308,17 @@ def test_shared_bars_and_tight_geometry_panels(
                 axis.get_window_extent().x1 for axis in maps
             )
         else:
-            assert len(maps) == (25 if destination.name == "figure-04" else 150)
-            assert len(bars) == 5
+            example = destination.name == "figure-04"
+            assert len(maps) == (25 if example else 90)
+            assert len(bars) == (5 if example else 3)
+            art.canvas.draw()
+            for bar in bars:
+                bounds = bar.get_position()
+                assert (
+                    (bounds.height > bounds.width)
+                    if example
+                    else (bounds.width > bounds.height)
+                )
         for axis in maps:
             extent = axis.images[0].get_extent()
             np.testing.assert_allclose(axis.get_xlim(), extent[:2])
@@ -316,6 +332,69 @@ def test_shared_bars_and_tight_geometry_panels(
         data, [s for s in all_sources if s.dose == 5], ranges, tmp_path, options
     )
     render_necrosis(data, all_sources, tmp_path, options)
+
+
+@pytest.mark.parametrize("layers", [LAYERS, LAYERS[2:]])
+def test_time_columns_preserve_selected_native_fields(
+    publication_data: PublicationData,
+    monkeypatch: pytest.MonkeyPatch,
+    layers: tuple[Layer, ...],
+) -> None:
+    """Time increases horizontally, and omitted fields never shift scalar identities."""
+    from research.spt.plot_render import figure
+
+    data = publication_data
+    source = data.source("simulations_lobulus", "sim014")
+    samples = data.snapshots(source, SIMULATION_TIMES)
+    ranges = data.ranges([source])
+    records: list[tuple[Axes, str, np.ndarray]] = []
+
+    def capture(
+        parent: Figure | SubFigure,
+        axis: Axes,
+        samples: Samples,
+        layer: Layer,
+        values: np.ndarray,
+        ranges: dict[str, tuple[float, float]],
+        scale: float,
+        dpi: int,
+        *,
+        colorbar: bool,
+        tight: bool,
+    ) -> ScalarMappable:
+        assert not colorbar and tight
+        records.append((axis, layer.sid, values.copy()))
+        axis.set_axis_off()
+        return ScalarMappable(norm=Normalize(*ranges[layer.sid]), cmap=layer.colormap)
+
+    monkeypatch.setattr("research.spt.publication_geometry.map_panel", capture)
+    art = figure((12, 12))
+    try:
+        time_grid(
+            art, samples, ranges, scale=0.5, dpi=30, colorbars=False, layers=layers
+        )
+        art.canvas.draw()
+        assert len(records) == len(layers) * len(SIMULATION_TIMES)
+        previous_y = float("inf")
+        for row, layer in enumerate(layers):
+            panels = records[row * 5 : (row + 1) * 5]
+            positions = [axis.get_position().x0 for axis, _, _ in panels]
+            assert np.all(np.diff(positions) > 0)
+            y = panels[0][0].get_position().y0
+            assert y < previous_y
+            previous_y = y
+            for column, (axis, field, values) in enumerate(panels):
+                assert field == layer.sid
+                np.testing.assert_array_equal(
+                    values,
+                    samples.frame(SIMULATION_TIMES[column])[
+                        SUMMARY_FIELDS.index(field)
+                    ],
+                )
+                if row == 0:
+                    assert axis.get_title() == f"{SIMULATION_TIMES[column] / 3600:g} h"
+    finally:
+        art.clear()
 
 
 def test_timecourse_pattern_and_dose_labels_are_consistent() -> None:
