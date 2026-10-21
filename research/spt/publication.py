@@ -42,6 +42,7 @@ from research.spt.publication_geometry import (
     render_patterns,
     save_publication,
 )
+from research.spt.publication_patterns import PATTERN_ICON_DESCRIPTION
 from research.spt.publication_timecourses import (
     CONVERGENCE_COLORS,
     annotate_timecourses,
@@ -195,9 +196,9 @@ def caption(
     if number == "7":
         return (
             "Figure 7. Necrosis at 24 h by protein zonation pattern (rows A-F) and "
-            "increasing substrate inflow (D1-D8, columns). White is alive and black "
-            "is necrotic. One large vertical colorbar on the right serves all panels "
-            "on the same fixed fraction scale 0-1."
+            "increasing substrate inflow (D1-D8, columns). The shared binary legend "
+            "on the right labels black as necrosis and white as no necrosis. "
+            "Cell states retain the fixed 0-1 scale."
         )
     common_end = min(source.end for source in sources)
     return (
@@ -313,12 +314,13 @@ def create_publication(
         rendered_stem = stem
         if number in {"4", "5", "6", "7"}:
             configuration.update(
-                manuscript_layout_version=1,
+                manuscript_layout_version=2,
                 dose_labels=[f"D{index}" for index in range(1, 9)],
                 pattern_labels=[pattern_label(index) for index in range(6)],
+                pattern_icons=PATTERN_ICON_DESCRIPTION,
                 colorbars="five shared horizontal field bars"
                 if number in {"4", "5"}
-                else "one shared vertical necrosis bar"
+                else "one shared binary necrosis legend"
                 if number == "7"
                 else "none",
             )
@@ -402,6 +404,8 @@ def create_publication(
                             staging / f"{stem}.{extension}"
                         )
                 description = caption(number, sources, dose, comparison_time)
+                if number in {"4", "5", "6", "7"}:
+                    description += " " + PATTERN_ICON_DESCRIPTION
                 if width_mm is not None:
                     description += f" Compact export: nominal canvas width {width_mm:g} mm at {dpi} DPI."
                 atomic_text(staging / "caption.md", description + "\n")

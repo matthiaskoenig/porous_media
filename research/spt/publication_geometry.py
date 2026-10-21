@@ -11,6 +11,7 @@ from matplotlib.backend_bases import RendererBase
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.cm import ScalarMappable
 from matplotlib.figure import Figure, SubFigure
+from matplotlib.patches import Patch
 from matplotlib.transforms import Bbox
 
 from research.spt.fields import LAYERS, Layer
@@ -29,13 +30,14 @@ from research.spt.publication_data import (
     pattern_label,
 )
 from research.spt.publication_layout import publication_bounds, resize_publication
+from research.spt.publication_patterns import add_pattern_icon
 
 FIELD_TITLES = ("Substrate", "Product", "Protein", "Toxic\ncompound", "Necrosis")
 
 
 def label_pattern_row(axis: Axes, pattern: int, *, offset: float = 65) -> None:
     """Label one pattern row with the shared A-F name and typography."""
-    axis.annotate(
+    label = axis.annotate(
         pattern_label(pattern),
         xy=(0, 0.5),
         xycoords="axes fraction",
@@ -48,6 +50,7 @@ def label_pattern_row(axis: Axes, pattern: int, *, offset: float = 65) -> None:
         fontweight="bold",
         annotation_clip=False,
     )
+    add_pattern_icon(label, pattern)
 
 
 def shared_colorbar(
@@ -286,11 +289,12 @@ def render_example(
     art = figure((12, 13))
     try:
         assert source.run.condition is not None and source.dose is not None
-        art.suptitle(
+        heading = art.suptitle(
             f"{pattern_label(source.run.condition.pattern_key)} | D{source.dose + 1}",
             fontsize=16,
             fontweight="bold",
         )
+        add_pattern_icon(heading, source.run.condition.pattern_key, size=24)
         time_grid(
             art,
             data.snapshots(source, SIMULATION_TIMES),
@@ -324,11 +328,12 @@ def render_patterns(
         for pattern, source in enumerate(sources):
             column = 5 * (pattern % 2)
             parent = art.add_subfigure(outer[pattern // 2, column : column + 5])
-            parent.suptitle(
+            heading = parent.suptitle(
                 pattern_label(pattern),
                 fontsize=16,
                 fontweight="bold",
             )
+            add_pattern_icon(heading, pattern, size=24)
             collections = time_grid(
                 parent,
                 data.snapshots(source, SIMULATION_TIMES),
@@ -358,7 +363,7 @@ def render_necrosis(
     directory: Path,
     options: RenderOptions,
 ) -> None:
-    """Compare A-F rows and D1-D8 columns with one large necrosis colorbar."""
+    """Compare A-F rows and D1-D8 columns with one shared binary state legend."""
     art = figure((16, 12))
     outer = art.add_gridspec(
         2, 2, height_ratios=(0.45, 12), width_ratios=(24, 0.6), wspace=0.02
@@ -384,8 +389,6 @@ def render_necrosis(
     )
     grid = outer[1, 0].subgridspec(6, 8, hspace=0.02, wspace=0.02)
     layer = replace(LAYERS[-1], limits=(0, 1))
-    mappable = ScalarMappable(cmap=layer.colormap)
-    mappable.set_clim(0, 1)
     try:
         for source in sources:
             condition = source.run.condition
@@ -409,18 +412,23 @@ def render_necrosis(
                 axis.set_title(f"D{column + 1}", fontsize=12, fontweight="bold")
             if column == 0:
                 label_pattern_row(axis, row, offset=14)
-        bar = art.colorbar(
-            mappable,
-            cax=art.add_subplot(outer[1, 1]),
-            orientation="vertical",
-            ticks=[0, 0.25, 0.5, 0.75, 1],
+        legend_axis = art.add_subplot(outer[1, 1])
+        legend_axis.set_axis_off()
+        art.legend(
+            handles=[
+                Patch(facecolor="black", edgecolor="black", label="necrosis"),
+                Patch(facecolor="white", edgecolor="black", label="no necrosis"),
+            ],
+            loc="center left",
+            bbox_to_anchor=(0, 0.5),
+            bbox_transform=legend_axis.transAxes,
+            frameon=False,
+            fontsize=14,
+            handlelength=1.2,
+            handleheight=1.2,
+            labelspacing=1.1,
+            borderaxespad=0,
         )
-        bar.set_label("Necrosis", fontsize=16, fontweight="bold")
-        bar.set_ticklabels(["0 (alive)", "0.25", "0.50", "0.75", "1 (death)"])
-        bar.ax.tick_params(labelsize=12)
-        for item in bar.ax.collections:
-            item.set_rasterized(False)
-            item.set_edgecolor("face")
         save_publication(art, directory / "figure-07", options)
     finally:
         art.clear()

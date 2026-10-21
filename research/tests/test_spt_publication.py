@@ -9,7 +9,9 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 import xarray as xr
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.patches import Patch
 from PIL import Image
 
 from research.spt.analysis_data import AnalysisOptions, prepare_analysis
@@ -36,6 +38,11 @@ from research.spt.publication_geometry import (
     render_necrosis,
     render_patterns,
     save_publication,
+)
+from research.spt.publication_patterns import (
+    PatternIcon,
+    add_pattern_icon,
+    pattern_profile,
 )
 from research.spt.publication_timecourses import (
     CONVERGENCE_COLORS,
@@ -151,6 +158,10 @@ def test_map_headers_time_arrow_and_vector_annotations(
     ]
     assert labels.count("Substrate S plasma [mM]") == 1
     assert any("B  Linear increase | D6" in label for label in labels)
+    assert len(list(tree.iter("{http://www.w3.org/2000/svg}image"))) == 25
+    assert (
+        len([node for node in tree.iter() if node.get("id") == "pattern-icon-b"]) == 1
+    )
 
 
 def test_map_tiles_do_not_keep_full_composite_raster_buffers(
@@ -228,8 +239,12 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
     assert patterns.count("Substrate S plasma [mM]") == 1
     assert "D6" in patterns
     assert all(pattern_label(pattern) in necrosis for pattern in range(6))
-    assert necrosis.count(">Necrosis<") == 1
-    assert "0 (alive)" in necrosis and "1 (death)" in necrosis
+    assert necrosis.count(">necrosis<") == 1
+    assert necrosis.count(">no necrosis<") == 1
+    assert "0 (alive)" not in necrosis and "1 (death)" not in necrosis
+    for figure in (patterns, necrosis):
+        for pattern in range(6):
+            assert figure.count(f'id="pattern-icon-{chr(97 + pattern)}"') == 1
 
 
 def test_shared_bars_and_tight_geometry_panels(
@@ -267,13 +282,23 @@ def test_shared_bars_and_tight_geometry_panels(
         maps = [axis for axis in art.axes if axis.images]
         bars = [axis for axis in art.axes if axis.axison]
         if destination.name == "figure-07":
-            assert len(maps) == 48 and len(bars) == 1
-            assert bars[0].get_ylabel() == "Necrosis"
-            assert bars[0].get_ylim() == (0, 1)
+            assert len(maps) == 48 and not bars
+            legend = art.legends[0]
+            assert [text.get_text() for text in legend.get_texts()] == [
+                "necrosis",
+                "no necrosis",
+            ]
+            assert [
+                handle.get_facecolor()
+                for handle in legend.legend_handles
+                if isinstance(handle, Patch)
+            ] == [
+                (0, 0, 0, 1),
+                (1, 1, 1, 1),
+            ]
             art.canvas.draw()
-            assert bars[0].get_position().height > 0.7
-            assert bars[0].get_position().x0 > max(
-                axis.get_position().x1 for axis in maps
+            assert legend.get_window_extent().x0 > max(
+                axis.get_window_extent().x1 for axis in maps
             )
         else:
             assert len(maps) == (25 if destination.name == "figure-04" else 150)
@@ -314,6 +339,57 @@ def test_timecourse_pattern_and_dose_labels_are_consistent() -> None:
         ]
         for row in range(6):
             assert [text.get_text() for text in axes[row, 0].texts] == [expected[row]]
+            assert len(axes[row, 0].findobj(match=PatternIcon)) == 1
+    finally:
+        art.clear()
+
+
+def test_pattern_icons_show_zonation_and_scale_as_vector_art(tmp_path: Path) -> None:
+    """Monochrome profiles distinguish patterns and survive compact vector exports."""
+    from research.spt.plot_render import figure
+
+    profiles = []
+    for pattern in range(6):
+        position, values = pattern_profile(pattern)
+        profiles.append((values[0], values[-1]))
+        np.testing.assert_array_equal(pattern_profile(pattern)[1], values)
+        assert np.isfinite(position).all() and np.isfinite(values).all()
+        assert position[0] == 0 and position[-1] == 1
+        assert np.all(np.diff(position) >= 0)
+    assert profiles[:5] == [(0.5, 0.5), (0, 1), (0, 1), (1, 0), (1, 0)]
+    for pattern in (2, 4):
+        position, values = pattern_profile(pattern)
+        assert position[1] == position[2] and values[1] != values[2]
+    assert np.var(pattern_profile(5)[1]) > 0.02
+    with pytest.raises(ValueError, match="Unknown zonation pattern"):
+        pattern_profile(6)
+    art = figure((8, 2))
+    try:
+        icons = []
+        for pattern, axis in enumerate(art.subplots(1, 6)):
+            axis.set_axis_off()
+            label = axis.text(0.7, 0.5, chr(65 + pattern))
+            icon = add_pattern_icon(label, pattern, size=30)
+            assert icon.profile.get_color() == "black"
+            assert icon.panel.get_facecolor() == (1, 1, 1, 1)
+            assert icon.panel.get_edgecolor() == (0, 0, 0, 1)
+            icons.append(icon)
+        options = RenderOptions(formats=("svg", "png"), dpi=100)
+        save_publication(art, tmp_path / "patterns", options)
+        canvas = art.canvas
+        assert isinstance(canvas, FigureCanvasAgg)
+        before = icons[0].get_window_extent(canvas.get_renderer())
+        save_publication(art, tmp_path / "patterns-compact", options, width_mm=101.6)
+        after = icons[0].get_window_extent(canvas.get_renderer())
+        assert after.width == pytest.approx(before.width / 2)
+        for stem in ("patterns", "patterns-compact"):
+            tree = ET.parse(tmp_path / f"{stem}.svg")
+            assert not list(tree.iter("{http://www.w3.org/2000/svg}image"))
+            for pattern in range(6):
+                assert any(
+                    node.get("id") == f"pattern-icon-{chr(97 + pattern)}"
+                    for node in tree.iter()
+                )
     finally:
         art.clear()
 

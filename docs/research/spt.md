@@ -699,7 +699,7 @@ exports are repaired; `--force` regenerates selected publication figures.
 | 4 | `sim014`, linear increase, D6; five fields by five times | Pattern/dose heading, field headers, time labels and arrow; one bottom colorbar per field |
 | 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046` at D6; two columns by three pattern blocks | Consistent A-F pattern labels, field headers, time labels and arrows; one shared set of five bottom colorbars |
 | 6 | All 48 homogeneous lobules; six pattern rows and five fields | Consistent A-F pattern labels, field headers and D1-D8 legend |
-| 7 | Necrosis at 24 h; six pattern rows by eight doses | Consistent A-F pattern labels, D1-D8 columns, inflow arrow and one large vertical necrosis colorbar on the right |
+| 7 | Necrosis at 24 h; six pattern rows by eight doses | Consistent A-F pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right |
 | S1 | Six source-sector meshes, five common-time mixed-sixth readouts and native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-D panels, exact map time, linear/symlog labels, common-window boundary and truncated-history markers |
 
 Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
@@ -713,9 +713,10 @@ markers and pattern/dose colors. SD represents spatial heterogeneity, rather tha
 uncertainty across replicate simulations.
 
 Figures 4 and 5 use five shared horizontal colorbars, one per field. In Figure 5,
-that single bottom set serves all six pattern blocks. Figure 7 uses one large
-vertical necrosis colorbar beside the complete grid, with 0 marked alive and 1
-marked death. Individual map panels have no colorbars. The field palettes and
+that single bottom set serves all six pattern blocks. Figure 7 uses two swatches
+beside the complete grid: black means **necrosis** and white means **no necrosis**.
+Its binary legend has no intermediate values. Individual map panels have no
+colorbars. The field palettes and
 full-cohort limits remain unchanged. Geometry axes use their cropped domain
 extents, including white living tissue; smaller canvases and closely packed grids
 reduce whitespace around the meshes.
@@ -725,6 +726,12 @@ Figures 4 and 5 is **D6**. Pattern names and lettering match across Figures 4-7:
 **A Constant**, **B Linear increase**, **C Sharp perivenous**, **D Linear decrease**,
 **E Sharp periportal** and **F Random**. Figures 6 and 7 share the same row-label
 format and typography; Figure 5 uses those labels as its pattern-block headings.
+Every pattern label also carries the same small black-and-white vector profile
+panel, including the Figure 4 heading and both compact exports. The horizontal
+direction runs from periportal (left) to perivenous (right); the vertical
+direction shows relative initial protein abundance. Flat, rising, falling,
+sharp-step and random profiles distinguish all six patterns. These schematics
+explain pattern identity; the random profile is illustrative.
 
 The convergence supplement retains every available native time point and actual
 end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is

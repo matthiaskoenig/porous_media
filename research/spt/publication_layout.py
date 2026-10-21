@@ -15,6 +15,8 @@ from matplotlib.text import Annotation, Text
 from matplotlib.transforms import Bbox
 from PIL import Image
 
+from research.spt.publication_patterns import PatternIcon
+
 
 def publication_bounds(art: Figure) -> Bbox:
     """Crop to displayed panels and annotations, with a one-point safety border.
@@ -68,6 +70,11 @@ def publication_bounds(art: Figure) -> Bbox:
                     bounds.append(artist.get_window_extent(renderer))
     if not bounds:
         raise ValueError("Publication figure contains no visible content")
+    bounds.extend(
+        icon.get_window_extent(renderer)
+        for icon in art.findobj(match=PatternIcon)
+        if icon.get_visible()
+    )
     # Freeze the computed positions across backends so vector font metrics cannot
     # move panels outside the crop calculated by the Agg renderer.
     art.set_layout_engine("none")
@@ -86,7 +93,9 @@ def resize_publication(art: Figure, width_mm: float | None) -> None:
     scale = width_mm / (25.4 * art.get_figwidth())
     art.set_size_inches(*(art.get_size_inches() * scale))
     for artist in art.findobj():
-        if isinstance(artist, Text):
+        if isinstance(artist, PatternIcon):
+            artist.scale(scale)
+        elif isinstance(artist, Text):
             artist.set_fontsize(
                 artist.get_fontproperties().get_size_in_points() * scale
             )
