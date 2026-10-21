@@ -313,19 +313,27 @@ def test_cached_publication_skips_arrays_and_repairs_missing_exports(
 
 def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
     """Expose publication figures in their own report section with small previews."""
-    _publish(
-        tmp_path,
-        "publication/figure-04",
-        ("figure-04.png", "figure-04.pdf", "provenance.json"),
-        {
-            "study": "simulations_lobulus",
-            "title": "Figure 4 | SPT metabolism",
-            "runs": ["sim014"],
-        },
+    (tmp_path / "catalog.tsv").write_text(
+        "run_id\tpattern_name\tboundary_flow_key\n"
+        "sim001\tconstant\t0\nsim014\tlinear increase\t5\n"
     )
+    for number in (7, 6, 5, 4):
+        stem = f"figure-{number:02}"
+        _publish(
+            tmp_path,
+            f"publication/{stem}",
+            (f"{stem}.png", f"{stem}.pdf", "provenance.json"),
+            {
+                "study": "simulations_lobulus",
+                "title": f"Figure {number}",
+                "runs": ["sim014"] if number == 4 else ["sim001", "sim014"],
+            },
+        )
     report = ReportParser(build_report(tmp_path).read_text())
-    assert len(report.cards) == 1
-    assert report.cards[0]["data-section"] == "publication"
+    assert [card["data-title"] for card in report.cards] == [
+        f"Figure {n}" for n in (4, 5, 6, 7)
+    ]
+    assert all(card["data-section"] == "publication" for card in report.cards)
     assert report.images[0]["src"] and str(report.images[0]["src"]).endswith(".webp")
 
 

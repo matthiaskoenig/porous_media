@@ -152,6 +152,9 @@ def _description(stem: str, spatial_times: list[object]) -> str:
 def _figure_order(stem: str) -> int:
     """Keep time courses and spatial snapshots in their natural reading order."""
     name = stem.removesuffix("-symlog")
+    if name.startswith("figure-"):
+        token = name.removeprefix("figure-")
+        return int(token) if token.isdigit() else 1000
     if name.startswith("spatial-") and name[8:].isdigit():
         return 10 + int(name[8:])
     return {
@@ -393,6 +396,7 @@ def _collect(
     figures.sort(
         key=lambda figure: (
             order.index(figure.section),
+            figure.order if figure.section == "publication" else 0,
             figure.family != "Simulations",
             figure.geometry,
             figure.caption,
