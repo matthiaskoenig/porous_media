@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import json
+import shutil
 import sys
 import tempfile
 from dataclasses import asdict
-from functools import partial
 from pathlib import Path
 
 import matplotlib as mpl
@@ -29,7 +30,6 @@ from research.spt.fields import SUMMARY_FIELDS
 from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions
-from research.spt.plot_style import CONVERGENCE_ORDER
 from research.spt.publication_data import (
     CONVERGENCE_TIME,
     SIMULATION_TIMES,
@@ -39,16 +39,19 @@ from research.spt.publication_geometry import (
     render_example,
     render_necrosis,
     render_patterns,
+    save_publication,
 )
 from research.spt.publication_timecourses import (
+    CONVERGENCE_COLORS,
     annotate_timecourses,
     render_convergence,
 )
 from research.spt.report import build_report
 
-PUBLICATION_VERSION = 2
+PUBLICATION_VERSION = 3
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
+COMPACT_FIGURES = ("4", "5")
 TITLES = {
     "4": "Figure 4 | SPT metabolism over time",
     "5": "Figure 5 | Zonation pattern comparison",
@@ -111,6 +114,46 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
     )
 
 
+def remove_obsolete_compact(root: Path) -> None:
+    """Retire only generated compact variants superseded by the manuscript selection."""
+    for number, stem in (
+        ("6", "figure-06-compact"),
+        ("7", "figure-07-compact"),
+        ("S1", "figure-s1-convergence-compact"),
+    ):
+        directory = root / "publication" / stem
+        pointer = directory / "manifest.json"
+        if not pointer.is_file():
+            continue
+        with run_lock(directory):
+            manifest = json.loads(pointer.read_text())
+            configuration = manifest["configuration"]
+            if (
+                configuration.get("variant") != "compact"
+                or configuration.get("figure") != number
+            ):
+                raise ValueError(
+                    f"Refusing to remove unrelated publication output: {stem}"
+                )
+            generation = generation_path(directory, manifest)
+            targets = [
+                root / "publication/exports" / f"{stem}{suffix}"
+                for suffix in (
+                    ".svg",
+                    ".pdf",
+                    ".png",
+                    ".caption.md",
+                    ".provenance.json",
+                )
+            ]
+            for target in targets:
+                validate_output(target)
+            pointer.unlink()
+            for target in targets:
+                target.unlink(missing_ok=True)
+            shutil.rmtree(generation)
+
+
 def caption(
     number: str,
     sources: list[PlotSource],
@@ -155,8 +198,10 @@ def caption(
         )
     common_end = min(source.end for source in sources)
     return (
-        "Convergence supplement. A: source-sector meshes ordered coarse to fine, "
+        "Convergence supplement. A: source-sector meshes ordered fine to coarse, "
         "plus the six-mesh mixed lobule (06250, 09375, 12500, 18750, 25000, 37250). "
+        "Mesh boundaries and native time courses share one distinct color per "
+        "resolution. The 50000 mesh is excluded from this figure. "
         f"B: mixed-sixth substrate, product, protein, toxic compound and necrosis "
         f"at the common output time {comparison_time:g} s ({comparison_time / 3600:g} h). "
         "Canonical field palettes and full-history limits shared across the six "
@@ -174,7 +219,7 @@ def caption(
 def create_publication(
     data_root: Path,
     *,
-    figures: tuple[str, ...] = FIGURES,
+    figures: tuple[str, ...] | None = None,
     dose: int = 6,
     formats: tuple[str, ...] = ("svg", "pdf", "png"),
     dpi: int = 300,
@@ -190,12 +235,16 @@ def create_publication(
     """
     options = RenderOptions(formats=formats, dpi=dpi)
     options.validate()
+    if figures is None:
+        figures = COMPACT_FIGURES if width_mm is not None else FIGURES
     if not figures or len(set(figures)) != len(figures) or set(figures) - set(FIGURES):
         raise ValueError("Select unique figure identifiers: 4, 5, 6, 7, S1")
     if not 1 <= dose <= 8:
         raise ValueError("Dose index must be between 1 and 8")
     if width_mm is not None and (not np.isfinite(width_mm) or width_mm <= 0):
         raise ValueError("Publication width must be finite and positive")
+    if width_mm is not None and set(figures) - set(COMPACT_FIGURES):
+        raise ValueError("Compact exports are available only for Figures 4 and 5")
     if not np.isfinite(comparison_time) or comparison_time < 0:
         raise ValueError("Comparison time must be finite and nonnegative")
     data = PublicationData(data_root)
@@ -207,7 +256,7 @@ def create_publication(
         if number == "S1":
             sources = [
                 data.source("convergence_lobulus", f"convergence_{mesh}")
-                for mesh in CONVERGENCE_ORDER
+                for mesh in CONVERGENCE_MESHES
             ]
             if (
                 not max(source.start for source in sources)
@@ -250,6 +299,7 @@ def create_publication(
             else [],
             "formats": list(formats),
             "dpi": dpi,
+            "crop": "visible content with a one-point safety border",
             "scalar_ranges": {key: list(value) for key, value in ranges.items()}
             if number in {"4", "5"}
             else {},
@@ -262,15 +312,10 @@ def create_publication(
                 convergence_readouts_version=1,
                 snapshot_times_s=[comparison_time],
                 mixed_sector_meshes=list(CONVERGENCE_MESHES),
+                mesh_colors=CONVERGENCE_COLORS,
                 scalar_ranges={
                     field: list(limits)
-                    for field, limits in data.ranges(
-                        [
-                            source
-                            for source in sources
-                            if not source.run.run_id.endswith("50000")
-                        ]
-                    ).items()
+                    for field, limits in data.ranges(sources).items()
                 },
             )
         if width_mm is not None:
@@ -309,9 +354,7 @@ def create_publication(
                             data, sources, ranges, staging, options, width_mm=width_mm
                         )
                     elif number == "7":
-                        render_necrosis(
-                            data, sources, staging, options, width_mm=width_mm
-                        )
+                        render_necrosis(data, sources, staging, options)
                     elif number == "S1":
                         render_convergence(
                             data,
@@ -319,7 +362,6 @@ def create_publication(
                             staging,
                             options,
                             comparison_time=comparison_time,
-                            width_mm=width_mm,
                         )
                     else:
                         datasets = [data.summary(source) for source in sources]
@@ -331,9 +373,8 @@ def create_publication(
                                 stem,
                                 PlotOptions(formats=formats, dpi=dpi),
                                 SUMMARY_FIELDS,
-                                decorate=partial(
-                                    annotate_timecourses, width_mm=width_mm
-                                ),
+                                decorate=annotate_timecourses,
+                                export=save_publication,
                             )
                         finally:
                             for dataset in datasets:
@@ -376,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
     """Create selected publication figures from a completed local SPT pipeline."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=RESULTS_DIR / "spt")
-    parser.add_argument("--figures", choices=FIGURES, nargs="+", default=list(FIGURES))
+    parser.add_argument("--figures", choices=FIGURES, nargs="+")
     parser.add_argument("--dose", type=int, default=6)
     parser.add_argument(
         "--formats",
@@ -388,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--compact",
         action="store_true",
-        help="Create additional compact exports at 180 mm nominal width",
+        help="Create compact Figures 4 and 5 at 180 mm nominal width",
     )
     parser.add_argument(
         "--width-mm",
@@ -406,7 +447,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         outputs = create_publication(
             args.data_root,
-            figures=tuple(args.figures),
+            figures=tuple(args.figures) if args.figures is not None else None,
             dose=args.dose,
             formats=tuple(args.formats),
             dpi=args.dpi,
@@ -418,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
             comparison_time=args.comparison_time,
             force=args.force,
         )
+        remove_obsolete_compact(args.data_root.expanduser().resolve())
         atomic_json(
             args.data_root / "publication-report.json",
             {

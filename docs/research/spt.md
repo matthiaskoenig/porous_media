@@ -700,7 +700,7 @@ exports are repaired; `--force` regenerates selected publication figures.
 | 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046`; two columns by three pattern blocks | A-F labels, pattern names, field headers, time labels and arrows |
 | 6 | All 48 homogeneous lobules; six pattern rows and five fields | A-F labels, pattern names, field headers and ordered dose-shade legend |
 | 7 | Necrosis at 24 h; six pattern rows by eight doses | Pattern labels, dose indices and increasing substrate-inflow arrow |
-| S1 | Seven source-sector meshes, five common-time mixed-sixth readouts and native lobule time courses | Mesh IDs and cell counts, A-D panels, exact map time, linear/symlog labels, common-window boundary and truncated-history markers |
+| S1 | Six source-sector meshes, five common-time mixed-sixth readouts and native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-D panels, exact map time, linear/symlog labels, common-window boundary and truncated-history markers |
 
 Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
 historical overview snapshot selection. Labels are derived from the actual times;
@@ -715,10 +715,12 @@ uncertainty across replicate simulations.
 The convergence supplement retains every available native time point and actual
 end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is
 extended to 24 h. The common comparison window ends at 10.16 h. Both linear and
-symlog views expose the coarse-mesh concentration outlier. Necrosis axes stay
-linear. Source sixths are selected from local lobule meshes, so producing this
-figure does not reopen the original network meshes. The mixed view contains the
-six approved meshes `06250` through `37250`, excluding `50000`.
+symlog views use only the six approved meshes `06250`, `09375`, `12500`, `18750`,
+`25000` and `37250`, ordered fine to coarse. Necrosis axes stay linear. Each
+resolution has a distinct qualitative color, shared by its time courses,
+source-mesh boundary and mixed-sector boundaries. Source sixths are selected from
+local lobule meshes, so producing this figure does not reopen the original network
+meshes. The mixed view uses those same six resolutions.
 Panel B compares substrate S, product P, protein, toxic compound T and necrosis
 at **5400 s (1.5 h)**, the existing convergence reference time. All six sectors
 use exactly this time, native-frame continuous interpolation and preceding-frame
@@ -726,7 +728,7 @@ necrosis states. The scalar values come from local homogeneous-lobule cell cache
 with composition order and cell counts checked before assembly. These maps show
 sector outlines without internal mesh edges. Each field uses the canonical palette
 and full-history limits shared by the six meshes; necrosis uses the fixed range
-0-1. The coarse `50000` outlier remains in the time courses. Use
+0-1. Use
 `--comparison-time SECONDS` to select another time within every native history;
 times outside the common interval are rejected. Dashed time-course lines mark
 the map time; dotted lines mark the common interval end.
@@ -742,6 +744,11 @@ Dense map panels are rasterized at the chosen export DPI to keep the composite
 files practical; annotations and time-course curves stay vector in SVG/PDF.
 Each map is rendered as an independent small tile so PDF export never retains
 one full-composite raster buffer per panel.
+All publication formats are cropped to displayed content with a one-point safety
+border. Cropping retains labels, arrows, legends and white living tissue, and
+preserves the spacing between panels. Hidden map-axis rectangles do not add
+empty margins; embedded map tiles are cropped geometrically, independently of
+their scalar colors. SVG/PDF text and time courses remain vector.
 The default is 300 DPI. Select `--dpi 600` when higher-resolution maps are needed.
 For example, regenerate only Figures 4 and 7 as PDF and PNG:
 
@@ -750,7 +757,7 @@ uv run --no-sync python -m research.spt.publication \
   --data-root results/spt --figures 4 7 --formats pdf png --dpi 300
 ```
 
-Create additional, smaller publication exports at **300 DPI** with:
+Create additional, smaller versions of **Figures 4 and 5 only** at **300 DPI** with:
 
 ```bash
 uv run --no-sync python -m research.spt.publication \
@@ -763,8 +770,11 @@ tiles scale with the canvas. PNG resolution remains 300 DPI; SVG/PDF annotations
 and curves remain vector. Tight cropping can slightly change the exported width.
 Use `--width-mm 200` for another nominal width. Compact exports have independent
 caches and stable names such as `figure-04-compact.pdf` and
-`figure-s1-convergence-compact.png`; full-size exports remain available. Width and
-variant are recorded in their provenance. Both variants appear together in the
+`figure-05-compact.png`; full-size exports remain available. Figures 6, 7 and S1
+use their full-size exports. The publication command retires previously generated
+compact versions of those three figures from the export directory and report.
+Explicitly requesting them with `--compact` is rejected. Width and variant are
+recorded in the provenance. Both sizes of Figures 4 and 5 appear together in the
 inspection report, using its small cached previews.
 
 The default representative dose is index 6, matching the original manuscript.

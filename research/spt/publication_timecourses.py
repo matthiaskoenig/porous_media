@@ -2,23 +2,30 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from numpy.typing import ArrayLike
 
 from research.spt.analysis_plots import LABELS, _scale
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
+from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.plot_data import PlotSource
+from research.spt.plot_mesh import boundary_segments
 from research.spt.plot_render import (
     RenderOptions,
     Samples,
     figure,
     label_sectors,
 )
-from research.spt.plot_style import convergence_color, simulation_color
+from research.spt.plot_style import simulation_color
 from research.spt.publication_data import (
     CONVERGENCE_TIME,
     PATTERN_NAMES,
@@ -30,12 +37,31 @@ from research.spt.publication_geometry import (
     raster_panel,
     save_publication,
 )
-from research.spt.publication_layout import resize_publication
+
+CONVERGENCE_COLORS = dict(
+    zip(
+        CONVERGENCE_MESHES,
+        ("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9"),
+        strict=True,
+    )
+)
 
 
-def annotate_timecourses(
-    art: Figure, axes: np.ndarray, *, width_mm: float | None = None
-) -> None:
+def outline_mesh(axis: Axes, samples: Samples, meshes: tuple[str, ...]) -> None:
+    """Match independent sector boundaries to their native time-course colors."""
+    sectors = samples.sectors[samples.cell_ids]
+    for sector, mesh in enumerate(meshes):
+        boundary = boundary_segments(samples.faces[sectors == sector])
+        axis.add_collection(
+            LineCollection(
+                cast(Sequence[ArrayLike], boundary),
+                colors=CONVERGENCE_COLORS[mesh],
+                linewidths=1.2,
+            )
+        )
+
+
+def annotate_timecourses(art: Figure, axes: np.ndarray) -> None:
     """Add the manuscript's field headers, pattern names and dose-shade legend."""
     for column, title in enumerate(FIELD_TITLES):
         axes[0, column].set_title(title, fontsize=14, fontweight="bold", pad=12)
@@ -82,7 +108,6 @@ def annotate_timecourses(
         ncol=8,
         frameon=False,
     )
-    resize_publication(art, width_mm)
 
 
 def render_convergence(
@@ -92,14 +117,10 @@ def render_convergence(
     options: RenderOptions,
     *,
     comparison_time: float = CONVERGENCE_TIME,
-    width_mm: float | None = None,
 ) -> None:
     """Compare meshes, common-time mixed fields and full native lobule curves."""
     mixed_samples = data.mixed_snapshot(comparison_time)
-    mixed_sources = [
-        source for source in sources if not source.run.run_id.endswith("50000")
-    ]
-    ranges = data.ranges(mixed_sources)
+    ranges = data.ranges(sources)
     art = figure((19, 15))
     outer = art.add_gridspec(4, 1, height_ratios=(2.4, 4.3, 3, 3), hspace=0.12)
     mesh_grid = outer[0].subgridspec(1, len(sources) + 1)
@@ -132,7 +153,9 @@ def render_convergence(
                 f"{mesh}\n{np.count_nonzero(lobulus.sectors == 0):,} sixth cells",
                 fontsize=10,
                 fontweight="bold",
+                color=CONVERGENCE_COLORS[mesh],
             )
+            outline_mesh(axis, samples, (mesh,))
             if index == 0:
                 axis.text(
                     -0.2,
@@ -156,13 +179,14 @@ def render_convergence(
             mesh=True,
         )
         label_sectors(axis, mixed)
+        outline_mesh(axis, mixed, CONVERGENCE_MESHES)
         axis.set_title("Mixed sixths\n06250 to 37250", fontsize=10, fontweight="bold")
         maps = outer[1].subgridspec(1, len(LAYERS))
         for column, original in enumerate(LAYERS):
             layer = replace(
                 original,
                 show_edges=False,
-                outline=True,
+                outline=False,
                 limits=(0, 1) if original.sid == "rr_necrosis" else None,
             )
             axis = art.add_subplot(maps[0, column])
@@ -177,6 +201,7 @@ def render_convergence(
                 options.dpi,
                 sectors=True,
             )
+            outline_mesh(axis, mixed_samples, CONVERGENCE_MESHES)
             axis.set_title(
                 f"{FIELD_TITLES[column].replace(chr(10), ' ')} at {comparison_time / 3600:g} h",
                 fontsize=12,
@@ -197,11 +222,9 @@ def render_convergence(
             grid = outer[row].subgridspec(1, len(SUMMARY_FIELDS))
             for column, field in enumerate(SUMMARY_FIELDS):
                 axis = art.add_subplot(grid[0, column])
-                for index, (source, dataset) in enumerate(
-                    zip(sources, datasets, strict=True)
-                ):
+                for source, dataset in zip(sources, datasets, strict=True):
                     mesh = source.run.run_id.removeprefix("convergence_")
-                    color = convergence_color(mesh, index, len(sources))
+                    color = CONVERGENCE_COLORS[mesh]
                     time = dataset.time.values / 3600
                     values = dataset[f"{field}_mean"].values * (
                         100 if field == "rr_necrosis" else 1
@@ -246,7 +269,7 @@ def render_convergence(
             handles=handles,
             loc="outside upper center",
             ncol=len(handles),
-            title="Convergence mesh identifier (coarse to fine)",
+            title="Convergence mesh identifier (fine to coarse)",
             frameon=False,
         )
         short = "; ".join(
@@ -262,9 +285,7 @@ def render_convergence(
             "Mixed sectors 1-6: 06250, 09375, 12500, 18750, 25000, 37250.",
             fontsize=10,
         )
-        save_publication(
-            art, directory / "figure-s1-convergence", options, width_mm=width_mm
-        )
+        save_publication(art, directory / "figure-s1-convergence", options)
     finally:
         for dataset in datasets:
             dataset.close()

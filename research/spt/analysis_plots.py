@@ -194,6 +194,7 @@ def _curves(
     spatial_time: float | None = None,
     symlog: bool = False,
     decorate: Callable[[Figure, np.ndarray], None] | None = None,
+    export: Callable[[Figure, Path, RenderOptions], None] | None = None,
 ) -> None:
     """Keep manuscript panels, matched-time error bars and individual cell scatters."""
     simulation = sources[0].family == "simulations"
@@ -312,7 +313,7 @@ def _curves(
             )
         if decorate is not None:
             decorate(art, axes)
-        save_figure(
+        (export or save_figure)(
             art,
             directory / name,
             RenderOptions(formats=options.formats, dpi=options.dpi),

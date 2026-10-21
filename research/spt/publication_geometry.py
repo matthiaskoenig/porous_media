@@ -26,7 +26,7 @@ from research.spt.publication_data import (
     SIMULATION_TIMES,
     PublicationData,
 )
-from research.spt.publication_layout import resize_publication
+from research.spt.publication_layout import publication_bounds, resize_publication
 
 FIELD_TITLES = ("Substrate", "Product", "Protein", "Toxic\ncompound", "Necrosis")
 
@@ -40,11 +40,14 @@ def save_publication(
 ) -> None:
     """Keep annotations as vector text and bound dense map exports at the chosen DPI."""
     resize_publication(art, width_mm)
+    art.set_dpi(options.dpi)
+    bounds = publication_bounds(art)
     for extension in options.formats:
         art.savefig(
             destination.with_suffix(f".{extension}"),
             dpi=options.dpi,
-            bbox_inches="tight",
+            bbox_inches=bounds,
+            pad_inches=0,
         )
 
 
@@ -100,11 +103,28 @@ def raster_panel(
         )
         mappable = ScalarMappable(norm=collection.norm, cmap=collection.cmap)
         canvas.draw()
-        pixels = np.asarray(canvas.buffer_rgba()).copy()
-        extent = (*tile_axis.get_xlim(), *tile_axis.get_ylim())
+        # Crop the tile to the domain, including white living tissue. Its scalar
+        # colors must not determine whether a scientific region is kept.
+        low, high = samples.faces.min(axis=(0, 1)), samples.faces.max(axis=(0, 1))
+        projected = tile_axis.transData.transform(np.stack((low, high)))
+        buffer = np.asarray(canvas.buffer_rgba())
+        height, width = buffer.shape[:2]
+        padding = max(1, int(np.ceil(layer.line_width * dpi / 72)))
+        left, bottom = np.maximum(0, np.floor(projected[0]).astype(int) - padding)
+        right, top = np.minimum(
+            (width, height), np.ceil(projected[1]).astype(int) + padding
+        )
+        pixels = buffer[height - top : height - bottom, left:right].copy()
+        corners = tile_axis.transData.inverted().transform(
+            ((left, bottom), (right, top))
+        )
+        extent = (corners[0, 0], corners[1, 0], corners[0, 1], corners[1, 1])
+        xlim, ylim = tile_axis.get_xlim(), tile_axis.get_ylim()
     finally:
         tile.clear()
     axis.imshow(pixels, extent=extent, origin="upper", interpolation="none")
+    axis.set_xlim(*xlim)
+    axis.set_ylim(*ylim)
     axis.set_aspect("equal")
     axis.set_axis_off()
     return mappable
@@ -228,8 +248,6 @@ def render_necrosis(
     sources: list[PlotSource],
     directory: Path,
     options: RenderOptions,
-    *,
-    width_mm: float | None = None,
 ) -> None:
     """Update Figure 7 with named rows, ordered doses and the inflow direction."""
     art = figure((18, 14))
@@ -286,6 +304,6 @@ def render_necrosis(
                     fontsize=12,
                     fontweight="bold",
                 )
-        save_publication(art, directory / "figure-07", options, width_mm=width_mm)
+        save_publication(art, directory / "figure-07", options)
     finally:
         art.clear()

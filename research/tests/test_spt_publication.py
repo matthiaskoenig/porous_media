@@ -18,16 +18,20 @@ from research.spt.data_processing import process_studies
 from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.plot_data import PlotSource, plot_sources, prepare_samples
 from research.spt.plot_render import RenderOptions, Samples
-from research.spt.plot_style import CONVERGENCE_ORDER
-from research.spt.publication import create_publication, simulation_cohort
+from research.spt.publication import (
+    create_publication,
+    remove_obsolete_compact,
+    simulation_cohort,
+)
 from research.spt.publication_data import SIMULATION_TIMES, PublicationData
 from research.spt.publication_geometry import (
     raster_panel,
     render_example,
     render_necrosis,
     render_patterns,
+    save_publication,
 )
-from research.spt.publication_timecourses import render_convergence
+from research.spt.publication_timecourses import CONVERGENCE_COLORS, render_convergence
 from research.spt.report import build_report
 from research.tests.test_spt_analysis import _input
 from research.tests.test_spt_report import ReportParser, _publish
@@ -149,8 +153,9 @@ def test_map_tiles_do_not_keep_full_composite_raster_buffers(
         )
         pixels = axis.images[0].get_array()
         assert pixels is not None
-        assert pixels.shape == (150, 150, 4)
-        assert pixels.nbytes == 150 * 150 * 4
+        assert 0 < pixels.shape[0] <= 150 and 0 < pixels.shape[1] <= 150
+        assert pixels.shape[:2] != (150, 150)
+        assert pixels.nbytes < 150 * 150 * 4
         assert not axis.collections
         assert mappable.cmap.name == "magma"
         assert mappable.get_clim() == (0, 10)
@@ -231,7 +236,7 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
             ),
             end={"06250": 36590.0, "09375": 77687.6}.get(mesh, 86400.0),
         )
-        for mesh in CONVERGENCE_ORDER
+        for mesh in CONVERGENCE_MESHES
     ]
     monkeypatch.setattr(data, "mesh", lambda study, run_id: samples)
     snapshot = data.snapshots(prototype, (5400.0,))
@@ -255,28 +260,46 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
         art: Figure,
         destination: Path,
         options: RenderOptions,
-        *,
-        width_mm: float | None,
     ) -> None:
         assert destination.name == "figure-s1-convergence"
-        assert len(art.axes) == 28
+        assert len(art.axes) == 27
         assert len(art.axes[0].images) == 1
         for column in range(5):
-            axis = art.axes[8 + 2 * column]
+            axis = art.axes[7 + 2 * column]
             assert "at 1.5 h" in axis.get_title()
             assert len(axis.images) == 1
-        for row in (18, 23):
+            assert len(axis.collections) == 6
+        for row in (17, 22):
             curves = {
-                line.get_label(): line
+                str(line.get_label()): line
                 for line in art.axes[row].lines
-                if line.get_label() in CONVERGENCE_ORDER
+                if line.get_label() in CONVERGENCE_MESHES
             }
-            assert len(curves) == 7
+            assert len(curves) == 6
             assert np.asarray(curves["06250"].get_xdata())[-1] == 36590 / 3600
             assert np.asarray(curves["09375"].get_xdata())[-1] == 77687.6 / 3600
-            assert np.asarray(curves["50000"].get_xdata())[-1] == 24
-        assert art.axes[18].get_yscale() == "linear"
-        assert art.axes[23].get_yscale() == "symlog"
+            assert np.asarray(curves["37250"].get_xdata())[-1] == 24
+            for mesh, curve in curves.items():
+                assert curve.get_color() == CONVERGENCE_COLORS[mesh]
+        for index, mesh in enumerate(CONVERGENCE_MESHES):
+            np.testing.assert_allclose(
+                np.asarray(art.axes[index].collections[0].get_edgecolor(), dtype=float)[
+                    0
+                ],
+                mpl.colors.to_rgba(CONVERGENCE_COLORS[mesh]),
+            )
+            assert mesh in art.axes[index].get_title()
+        for index, mesh in enumerate(CONVERGENCE_MESHES):
+            np.testing.assert_allclose(
+                np.asarray(art.axes[6].collections[index].get_edgecolor(), dtype=float)[
+                    0
+                ],
+                mpl.colors.to_rgba(CONVERGENCE_COLORS[mesh]),
+            )
+        assert len(set(CONVERGENCE_COLORS.values())) == 6
+        assert all("50000" not in axis.get_title() for axis in art.axes)
+        assert art.axes[17].get_yscale() == "linear"
+        assert art.axes[22].get_yscale() == "symlog"
         assert art.axes[-1].get_yscale() == "linear"
         assert any("no extrapolation" in text.get_text() for text in art.texts)
 
@@ -453,6 +476,113 @@ def test_invalid_selection_fails_before_output(
     """Reject invalid figure identifiers and doses before any output is created."""
     with pytest.raises(ValueError):
         create_publication(tmp_path, figures=figures, dose=dose)
+    assert not list(tmp_path.iterdir())
+
+
+def test_content_crop_keeps_white_tissue_and_annotations(
+    publication_data: PublicationData, tmp_path: Path
+) -> None:
+    """Crop empty axis slots while preserving white tissue, labels and vector text."""
+    from research.spt.fields import LAYERS
+    from research.spt.plot_render import figure
+
+    source = publication_data.source("simulations_lobulus", "sim014")
+    samples = publication_data.snapshots(source, (0.0,))
+    art = figure((8, 6))
+    art.set_layout_engine("none")
+    try:
+        axis = art.add_axes((0.3, 0.3, 0.4, 0.4))
+        raster_panel(
+            axis,
+            samples,
+            replace(LAYERS[-1], show_edges=False),
+            samples.values[0, -1],
+            (0, 1),
+            side=2,
+            dpi=100,
+        )
+        pixels = axis.images[0].get_array()
+        assert pixels is not None and np.all(pixels[..., :3] == 255)
+        axis.set_title("White living tissue")
+        axis.annotate(
+            "Retain this label",
+            xy=(0, 0.5),
+            xytext=(-0.4, 0.5),
+            xycoords="axes fraction",
+            annotation_clip=False,
+            arrowprops={"arrowstyle": "->"},
+        )
+        with mpl.rc_context({"svg.fonttype": "none"}):
+            save_publication(
+                art,
+                tmp_path / "cropped",
+                RenderOptions(formats=("png", "svg"), dpi=100),
+            )
+        with Image.open(tmp_path / "cropped.png") as exported:
+            assert exported.width < 600 and exported.height < 400
+            assert exported.height > 200
+            assert exported.info["dpi"] == pytest.approx((100, 100), abs=0.01)
+        svg = (tmp_path / "cropped.svg").read_text()
+        assert "Retain this label" in svg and "White living tissue" in svg
+        assert "<text" in svg
+    finally:
+        art.clear()
+
+
+def test_retire_only_obsolete_compact_exports(tmp_path: Path) -> None:
+    """Remove obsolete compact cards and exports without touching full-size figures."""
+    for stem, number, variant in (
+        ("figure-06-compact", "6", "compact"),
+        ("figure-04-compact", "4", "compact"),
+        ("figure-06", "6", "full"),
+    ):
+        generation = _publish(
+            tmp_path,
+            f"publication/{stem}",
+            (f"{stem}.png",),
+            {"figure": number, "variant": variant, "study": "simulations_lobulus"},
+        )
+        directory = tmp_path / "publication/exports"
+        directory.mkdir(exist_ok=True)
+        (directory / f"{stem}.png").hardlink_to(generation / f"{stem}.png")
+    remove_obsolete_compact(tmp_path)
+    assert not (tmp_path / "publication/figure-06-compact/manifest.json").exists()
+    assert not (tmp_path / "publication/exports/figure-06-compact.png").exists()
+    assert (tmp_path / "publication/exports/figure-06.png").is_file()
+    assert (tmp_path / "publication/exports/figure-04-compact.png").is_file()
+    remove_obsolete_compact(tmp_path)
+
+
+def test_crop_excludes_padding_of_frameless_legends(tmp_path: Path) -> None:
+    """The crop reaches the legend title rather than its invisible outer frame."""
+    from research.spt.plot_render import figure
+
+    art = figure((6, 4))
+    try:
+        axis = art.subplots()
+        (line,) = axis.plot([0, 1], [0, 1], label="06250")
+        art.legend(
+            handles=[line],
+            title="Resolution",
+            loc="outside upper center",
+            frameon=False,
+        )
+        save_publication(
+            art, tmp_path / "legend", RenderOptions(formats=("png",), dpi=100)
+        )
+        with Image.open(tmp_path / "legend.png") as image:
+            pixels = np.asarray(image.convert("RGB"))
+            occupied = np.flatnonzero((pixels < 255).any(axis=(1, 2)))
+            assert occupied[0] <= 5
+    finally:
+        art.clear()
+
+
+@pytest.mark.parametrize("figure", ["6", "7", "S1"])
+def test_compact_selection_rejects_other_figures(tmp_path: Path, figure: str) -> None:
+    """Only the large geometry composites need a compact publication variant."""
+    with pytest.raises(ValueError, match="only for Figures 4 and 5"):
+        create_publication(tmp_path, figures=(figure,), width_mm=180)
     assert not list(tmp_path.iterdir())
 
 
