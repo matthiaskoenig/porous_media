@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -13,6 +14,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 
 from research.spt.analysis_data import load_analysis, weighted_statistics
@@ -191,6 +193,7 @@ def _curves(
     *,
     spatial_time: float | None = None,
     symlog: bool = False,
+    decorate: Callable[[Figure, np.ndarray], None] | None = None,
 ) -> None:
     """Keep manuscript panels, matched-time error bars and individual cell scatters."""
     simulation = sources[0].family == "simulations"
@@ -307,6 +310,8 @@ def _curves(
                 ncol=len(legend),
                 frameon=True,
             )
+        if decorate is not None:
+            decorate(art, axes)
         save_figure(
             art,
             directory / name,

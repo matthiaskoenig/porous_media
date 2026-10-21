@@ -21,6 +21,7 @@ from research.spt.artifacts import atomic_text, generation_path, validate_output
 from research.spt.report_previews import preview_image
 
 SECTIONS = {
+    "publication": "Publication figures",
     "analysis": "Quantitative analysis",
     "overviews": "Geometry overviews",
     "meshes": "Meshes only",
@@ -172,6 +173,7 @@ def _collect(
     analysed: set[str] = set()
     conditions = {row["run_id"]: row for row in rows}
     patterns = (
+        "publication/*/manifest.json",
         "analysis/*/manifest.json",
         "overviews/*/manifest.json",
         "figures/*/*/manifest.json",
@@ -195,7 +197,7 @@ def _collect(
             kind = next(
                 part
                 for part in relative.parts
-                if part in {"analysis", "overviews", "figures", "xdmf"}
+                if part in {"analysis", "overviews", "figures", "xdmf", "publication"}
             )
             study = str(configuration.get("study", ""))
             if not study:
@@ -219,9 +221,11 @@ def _collect(
                 "overviews": "overviews",
                 "xdmf": "combinations",
                 "figures": "geometry",
+                "publication": "publication",
             }[kind]
             supplemental = (
-                relative.parts[0] not in {"analysis", "overviews", "figures"}
+                relative.parts[0]
+                not in {"analysis", "overviews", "figures", "publication"}
                 and kind != "xdmf"
             )
             if supplemental:
@@ -254,7 +258,7 @@ def _collect(
             keywords = " ".join(
                 str(_mapping(layer).get("title", "")) for layer in layers
             )
-            if kind == "analysis":
+            if kind in {"analysis", "publication"}:
                 keywords += (
                     " substrate product protein toxicant necrosis pressure volume"
                 )

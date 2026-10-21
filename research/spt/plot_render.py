@@ -17,9 +17,10 @@ import numpy as np
 from matplotlib.animation import FFMpegWriter
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.cm import ScalarMappable
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.colors import SymLogNorm
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 from matplotlib.ticker import FixedLocator, ScalarFormatter
 from numpy.typing import ArrayLike
 
@@ -257,7 +258,7 @@ def save_figure(art: Figure, destination: Path, options: RenderOptions) -> None:
 
 
 def scalar_bar(
-    art: Figure, axis: Axes, collection: PolyCollection, layer: Layer
+    art: Figure | SubFigure, axis: Axes, collection: ScalarMappable, layer: Layer
 ) -> None:
     """Preserve the horizontal five-label scalar bars used in manuscript panels."""
     if not layer.scalar_bar:

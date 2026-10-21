@@ -678,6 +678,73 @@ workflow. Historical plotting adapters still serve other research projects and
 delegate to the current renderer. These helpers remain repository-only research
 code, outside the public library and release artifacts.
 
+### Publication figures
+
+Create the updated Figures 4-7 of the
+[SPT manuscript](https://doi.org/10.1101/2024.03.26.586870) and a convergence
+supplement after the complete pipeline and geometry plotting have finished:
+
+```bash
+MPLBACKEND=Agg PYVISTA_OFF_SCREEN=true uv run --no-sync \
+  python -m research.spt.publication --data-root results/spt
+```
+
+This step reads validated local NetCDF summaries, selected cell frames and cached
+projected meshes. It does not require the raw network drive, rerun reductions or
+alter existing plots. Unchanged figures use metadata-only cache checks. Missing
+exports are repaired; `--force` regenerates selected publication figures.
+
+| Figure | Data and layout | Restored annotations |
+| --- | --- | --- |
+| 4 | `sim014`, linear increase, dose index 6; five fields by five times | Field headers, actual time labels and downward time arrow |
+| 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046`; two columns by three pattern blocks | A-F labels, pattern names, field headers, time labels and arrows |
+| 6 | All 48 homogeneous lobules; six pattern rows and five fields | A-F labels, pattern names, field headers and ordered dose-shade legend |
+| 7 | Necrosis at 24 h; six pattern rows by eight doses | Pattern labels, dose indices and increasing substrate-inflow arrow |
+| S1 | Seven source-sector meshes, mixed sixths and native lobule time courses | Mesh IDs and cell counts, A-C panels, linear/symlog labels, common-window boundary and truncated-history markers |
+
+Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
+historical overview snapshot selection. Labels are derived from the actual times;
+a nonzero overview frame is never relabeled as zero. Continuous cell fields are
+interpolated locally and necrosis holds its preceding native frame. Shared scalar
+limits use full histories of the entire simulation cohort, preserving the mesh
+palettes. Cell-edge widths scale with panel size while retaining their existing
+opacity. Figure 6 reuses the existing volume-weighted means, population SD,
+markers and pattern/dose colors. SD represents spatial heterogeneity, rather than
+uncertainty across replicate simulations.
+
+The convergence supplement retains every available native time point and actual
+end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is
+extended to 24 h. The common comparison window ends at 10.16 h. Both linear and
+symlog views expose the coarse-mesh concentration outlier. Necrosis axes stay
+linear. Source sixths are selected from local lobule meshes, so producing this
+figure does not reopen the original network meshes. The mixed view contains the
+six approved meshes `06250` through `37250`, excluding `50000`.
+
+Stable manuscript filenames are available under `publication/exports/`, for
+example `figure-04.pdf` through `figure-07.pdf` and `figure-s1-convergence.pdf`.
+These files share storage with validated generations. Regenerating a figure
+refreshes its stable exports, caption and provenance from the complete generation.
+Outputs live under `publication/<figure>/manifest.json` in complete generations.
+Each generation contains PNG, SVG and PDF exports, `caption.md` and
+`provenance.json`, including run conditions, snapshot times and native end times.
+Dense map panels are rasterized at the chosen export DPI to keep the composite
+files practical; annotations and time-course curves stay vector in SVG/PDF.
+Each map is rendered as an independent small tile so PDF export never retains
+one full-composite raster buffer per panel.
+The default is 300 DPI. Select `--dpi 600` when higher-resolution maps are needed.
+For example, regenerate only Figures 4 and 7 as PDF and PNG:
+
+```bash
+uv run --no-sync python -m research.spt.publication \
+  --data-root results/spt --figures 4 7 --formats pdf png --dpi 300
+```
+
+The default representative dose is index 6, matching the original manuscript.
+`--dose` changes that selection for Figures 4 and 5 and records the choice in
+their provenance and captions. Keep the default when reproducing the manuscript.
+The final inspection report includes published outputs in its **Publication
+figures** section and uses the same small, cached previews as other figures.
+
 ### Final inspection report
 
 Open `results/spt/report.html` or `results/spt/index.html` in a browser after the

@@ -1,0 +1,331 @@
+"""Create annotated SPT manuscript Figures 4-7 and a convergence supplement."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import tempfile
+from dataclasses import asdict
+from pathlib import Path
+
+import matplotlib as mpl
+
+from research import RESULTS_DIR
+from research.spt.analysis_plots import PlotOptions, _curves
+from research.spt.artifacts import (
+    atomic_json,
+    atomic_output,
+    atomic_text,
+    current_manifest,
+    fingerprint,
+    generation_path,
+    publish,
+    run_lock,
+    validate_output,
+)
+from research.spt.fields import SUMMARY_FIELDS
+from research.spt.plot_data import PlotSource
+from research.spt.plot_render import RenderOptions
+from research.spt.plot_style import CONVERGENCE_ORDER
+from research.spt.publication_data import SIMULATION_TIMES, PublicationData
+from research.spt.publication_geometry import (
+    render_example,
+    render_necrosis,
+    render_patterns,
+)
+from research.spt.publication_timecourses import (
+    annotate_timecourses,
+    render_convergence,
+)
+from research.spt.report import build_report
+
+PUBLICATION_VERSION = 2
+PAPER = "https://doi.org/10.1101/2024.03.26.586870"
+FIGURES = ("4", "5", "6", "7", "S1")
+TITLES = {
+    "4": "Figure 4 | SPT metabolism over time",
+    "5": "Figure 5 | Zonation pattern comparison",
+    "6": "Figure 6 | Mean and SD time courses",
+    "7": "Figure 7 | Necrosis by pattern and substrate inflow",
+    "S1": "Supplement | Convergence meshes and time courses",
+}
+
+
+def export_figure(generation: Path, root: Path, stem: str) -> None:
+    """Expose stable manuscript filenames without duplicating generation storage."""
+    directory = root / "publication/exports"
+    validate_output(directory / stem)
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in (
+        f"{stem}.svg",
+        f"{stem}.pdf",
+        f"{stem}.png",
+        "caption.md",
+        "provenance.json",
+    ):
+        source = generation / name
+        target = directory / (
+            f"{stem}.{name}" if name in {"caption.md", "provenance.json"} else name
+        )
+        validate_output(target)
+        if not source.is_file():
+            target.unlink(missing_ok=True)
+        elif not target.exists() or not target.samefile(source):
+            with atomic_output(target) as temporary:
+                temporary.unlink()
+                temporary.hardlink_to(source)
+
+
+def simulation_cohort(data: PublicationData) -> list[PlotSource]:
+    """Require all six patterns and eight doses, identified by recorded conditions."""
+    sources = [
+        data.source("simulations_lobulus", path.parent.name)
+        for path in sorted(
+            (data.root / "analysis-data/simulations_lobulus").glob("*/manifest.json")
+        )
+    ]
+    conditions = [
+        (source.run.condition.pattern_key, source.run.condition.boundary_flow_key)
+        for source in sources
+        if source.run.condition
+    ]
+    if len(sources) != 48 or set(conditions) != {
+        (p, d) for p in range(6) for d in range(8)
+    }:
+        raise ValueError(
+            "Publication figures require six patterns and eight doses; run the complete SPT pipeline"
+        )
+    return sorted(
+        sources,
+        key=lambda source: (
+            source.run.condition.pattern_key if source.run.condition else -1,
+            source.run.condition.boundary_flow_key if source.run.condition else -1,
+        ),
+    )
+
+
+def caption(number: str, sources: list[PlotSource], dose: int) -> str:
+    """Describe the actual run selection, timing, normalization and statistics."""
+    if number == "4":
+        return (
+            f"Figure 4. SPT metabolism for the linear increasing zonation pattern, "
+            f"dose index {dose} ({sources[0].run.run_id}). Columns show extracellular "
+            "substrate, extracellular product, protein, toxic compound and necrosis. "
+            "Rows are the actual 0, 6, 12, 18 and 24 h snapshots. Continuous cell "
+            "values are interpolated between native frames; discrete necrosis holds "
+            "the preceding frame. Scalar limits use full histories of all 48 runs."
+        )
+    if number == "5":
+        return (
+            f"Figure 5. SPT metabolism at dose index {dose} for A: constant, B: linear "
+            "increase, C: sharp perivenous, D: linear decrease, E: sharp periportal "
+            "and F: random zonation. Each block has the same five fields and actual "
+            "0, 6, 12, 18 and 24 h snapshots as Figure 4. All blocks share full-cohort "
+            "scalar limits. Runs: "
+            + ", ".join(source.run.run_id for source in sources)
+            + "."
+        )
+    if number == "6":
+        return (
+            "Figure 6. Volume-weighted mean and population SD over homogeneous "
+            "lobules for all 48 simulations. Rows A-F use the same pattern order as "
+            "Figure 5. Eight shades per pattern encode increasing dose indices 1-8. "
+            "Necrosis is expressed as percent tissue volume. Means and SD reuse "
+            "the existing matched-time analysis, which interpolates cell values and "
+            "volumes before reduction. SD describes spatial heterogeneity, not "
+            "uncertainty across independent simulations."
+        )
+    if number == "7":
+        return (
+            "Figure 7. Necrosis at 24 h by protein zonation pattern (rows A-F) and "
+            "increasing substrate inflow (dose indices 1-8, columns). White is alive "
+            "and black is necrotic. All panels use the same fixed fraction scale 0-1."
+        )
+    common_end = min(source.end for source in sources)
+    return (
+        "Convergence supplement. A: source-sector meshes ordered coarse to fine, "
+        "plus the six-mesh mixed lobule (06250, 09375, 12500, 18750, 25000, 37250). "
+        "B: native volume-weighted lobule time courses with linear axes. C: the "
+        "same data with symlog axes except for necrosis, which remains linear. Crosses "
+        "mark the actual ends of truncated histories, without extrapolation. The "
+        f"dotted line marks the shared interval ending at {common_end / 3600:.4f} h. "
+        "Mesh identifiers are the archived file labels; cell counts refer to sixths."
+    )
+
+
+def create_publication(
+    data_root: Path,
+    *,
+    figures: tuple[str, ...] = FIGURES,
+    dose: int = 6,
+    formats: tuple[str, ...] = ("svg", "pdf", "png"),
+    dpi: int = 300,
+    force: bool = False,
+) -> dict[str, Path]:
+    """Publish figures atomically from local caches and reuse unchanged exports.
+
+    The original manuscript's representative dose is index 6. Snapshot labels
+    are generated from actual seconds, independently of the overview selections.
+    Existing analyses, geometry caches and general-purpose figures are not changed.
+    """
+    options = RenderOptions(formats=formats, dpi=dpi)
+    options.validate()
+    if not figures or len(set(figures)) != len(figures) or set(figures) - set(FIGURES):
+        raise ValueError("Select unique figure identifiers: 4, 5, 6, 7, S1")
+    if not 1 <= dose <= 8:
+        raise ValueError("Dose index must be between 1 and 8")
+    data = PublicationData(data_root)
+    simulations = simulation_cohort(data) if set(figures) - {"S1"} else []
+    chosen = [source for source in simulations if source.dose == dose - 1]
+    ranges = data.ranges(simulations) if simulations else {}
+    output = {}
+    for number in figures:
+        if number == "S1":
+            sources = [
+                data.source("convergence_lobulus", f"convergence_{mesh}")
+                for mesh in CONVERGENCE_ORDER
+            ]
+        elif number == "4":
+            sources = [
+                source
+                for source in chosen
+                if source.run.condition and source.run.condition.pattern_key == 1
+            ]
+        else:
+            sources = chosen if number == "5" else simulations
+        mesh_sources = (
+            []
+            if number == "6"
+            else [(source.run.study, source.run.run_id) for source in sources]
+        )
+        if number == "S1":
+            mesh_sources.append(("convergence_combinations", "convergence_mixed"))
+        inputs = data.dependencies(
+            simulations if number in {"4", "5"} else sources, mesh_sources
+        )
+        configuration: dict[str, object] = {
+            "version": PUBLICATION_VERSION,
+            "figure": number,
+            "title": TITLES[number],
+            "study": sources[0].run.study,
+            "runs": [source.run.run_id for source in sources],
+            "paper": PAPER,
+            "dose_index": dose if number in {"4", "5"} else None,
+            "snapshot_times_s": list(SIMULATION_TIMES)
+            if number in {"4", "5"}
+            else [86400.0]
+            if number == "7"
+            else [],
+            "formats": list(formats),
+            "dpi": dpi,
+            "scalar_ranges": {key: list(value) for key, value in ranges.items()}
+            if number in {"4", "5"}
+            else {},
+            "mesh_rendering": "raster at export DPI; editable vector annotations and curves",
+        }
+        stem = f"figure-{int(number):02}" if number != "S1" else "figure-s1-convergence"
+        directory = data.root / "publication" / stem
+        with run_lock(directory):
+            cached = current_manifest(directory, configuration, data.root)
+            if cached and not force:
+                output[number] = generation_path(directory, cached)
+                export_figure(output[number], data.root, stem)
+                print(f"Publication {number}: cached", flush=True)
+                continue
+            records = [fingerprint(path) for path in inputs]
+            with tempfile.TemporaryDirectory(
+                prefix=".partial-", dir=directory
+            ) as temporary:
+                staging = Path(temporary)
+                with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
+                    if number == "4":
+                        render_example(data, sources[0], ranges, staging, options)
+                    elif number == "5":
+                        render_patterns(data, sources, ranges, staging, options)
+                    elif number == "7":
+                        render_necrosis(data, sources, staging, options)
+                    elif number == "S1":
+                        render_convergence(data, sources, staging, options)
+                    else:
+                        datasets = [data.summary(source) for source in sources]
+                        try:
+                            _curves(
+                                sources,
+                                datasets,
+                                staging,
+                                stem,
+                                PlotOptions(formats=formats, dpi=dpi),
+                                SUMMARY_FIELDS,
+                                decorate=annotate_timecourses,
+                            )
+                        finally:
+                            for dataset in datasets:
+                                dataset.close()
+                description = caption(number, sources, dose)
+                atomic_text(staging / "caption.md", description + "\n")
+                atomic_json(
+                    staging / "provenance.json",
+                    {
+                        **configuration,
+                        "caption": description,
+                        "conditions": [
+                            asdict(source.run.condition)
+                            if source.run.condition
+                            else None
+                            for source in sources
+                        ],
+                        "native_end_s": {
+                            source.run.run_id: source.end for source in sources
+                        },
+                        "raw_hdf_reads": 0,
+                    },
+                )
+                output[number] = publish(
+                    directory, staging, configuration, inputs, records
+                )
+            export_figure(output[number], data.root, stem)
+            print(f"Publication {number}: rendered", flush=True)
+    return output
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Create selected publication figures from a completed local SPT pipeline."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-root", type=Path, default=RESULTS_DIR / "spt")
+    parser.add_argument("--figures", choices=FIGURES, nargs="+", default=list(FIGURES))
+    parser.add_argument("--dose", type=int, default=6)
+    parser.add_argument(
+        "--formats",
+        choices=("svg", "pdf", "png"),
+        nargs="+",
+        default=["svg", "pdf", "png"],
+    )
+    parser.add_argument("--dpi", type=int, default=300)
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        outputs = create_publication(
+            args.data_root,
+            figures=tuple(args.figures),
+            dose=args.dose,
+            formats=tuple(args.formats),
+            dpi=args.dpi,
+            force=args.force,
+        )
+        atomic_json(
+            args.data_root / "publication-report.json",
+            {
+                "status": "passed",
+                "figures": {key: str(path) for key, path in outputs.items()},
+                "raw_hdf_reads": 0,
+            },
+        )
+        print(build_report(args.data_root))
+    except (OSError, ValueError, KeyError) as error:
+        print(f"Publication figures failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
