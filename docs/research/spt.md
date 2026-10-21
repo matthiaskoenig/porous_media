@@ -729,12 +729,14 @@ format and typography; Figure 5 uses those labels as its pattern-block headings.
 The convergence supplement retains every available native time point and actual
 end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is
 extended to 24 h. The common comparison window ends at 10.16 h. Both linear and
-symlog views use only the six approved meshes `06250`, `09375`, `12500`, `18750`,
-`25000` and `37250`, ordered fine to coarse. Necrosis axes stay linear. Each
+symlog views use only the six approved meshes `37250`, `25000`, `18750`, `12500`,
+`09375` and `06250`, ordered coarse to fine. Necrosis axes stay linear. Each
 resolution has a distinct qualitative color, shared by its time courses,
 source-mesh boundary and mixed-sector boundaries. Source sixths are selected from
 local lobule meshes, so producing this figure does not reopen the original network
-meshes. The mixed view uses those same six resolutions.
+meshes. The mixed view numbers those same six resolutions clockwise from upper
+left, coarse to fine. This display rotation preserves cell values and the
+archived composition; it applies to the mesh-only view and all five readouts.
 Panel B compares substrate S, product P, protein, toxic compound T and necrosis
 at **5400 s (1.5 h)**, the existing convergence reference time. All six sectors
 use exactly this time, native-frame continuous interpolation and preceding-frame

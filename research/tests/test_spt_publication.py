@@ -24,8 +24,10 @@ from research.spt.publication import (
     simulation_cohort,
 )
 from research.spt.publication_data import (
+    CONVERGENCE_DISPLAY_MESHES,
     SIMULATION_TIMES,
     PublicationData,
+    convergence_view,
     pattern_label,
 )
 from research.spt.publication_geometry import (
@@ -381,7 +383,10 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
             assert np.asarray(curves["37250"].get_xdata())[-1] == 24
             for mesh, curve in curves.items():
                 assert curve.get_color() == CONVERGENCE_COLORS[mesh]
-        for index, mesh in enumerate(CONVERGENCE_MESHES):
+        assert [text.get_text() for text in art.legends[0].get_texts()] == list(
+            CONVERGENCE_DISPLAY_MESHES
+        )
+        for index, mesh in enumerate(CONVERGENCE_DISPLAY_MESHES):
             np.testing.assert_allclose(
                 np.asarray(art.axes[index].collections[0].get_edgecolor(), dtype=float)[
                     0
@@ -389,7 +394,7 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
                 mpl.colors.to_rgba(CONVERGENCE_COLORS[mesh]),
             )
             assert mesh in art.axes[index].get_title()
-        for index, mesh in enumerate(CONVERGENCE_MESHES):
+        for index, mesh in enumerate(CONVERGENCE_DISPLAY_MESHES):
             np.testing.assert_allclose(
                 np.asarray(art.axes[6].collections[index].get_edgecolor(), dtype=float)[
                     0
@@ -515,6 +520,22 @@ def test_mixed_readouts_sample_native_cells_at_one_common_time(
             result.values[0, 2, selected], np.linspace(0.2, 0.8, sector + 1)
         )
         np.testing.assert_array_equal(result.values[0, -1, selected], 0)
+    displayed = convergence_view(result)
+    assert displayed.cell_ids is result.cell_ids
+    assert displayed.values is result.values
+    assert displayed.times is result.times
+    # Resolutions and their scalar values move together, without changing caches.
+    np.testing.assert_array_equal(data.mixed_snapshot(0.5).faces, result.faces)
+    for sector, mesh in enumerate(CONVERGENCE_DISPLAY_MESHES):
+        original = CONVERGENCE_MESHES.index(mesh)
+        selected = displayed.sectors == sector
+        assert np.count_nonzero(selected) == original + 1
+        np.testing.assert_allclose(displayed.values[0, 0, selected], original + 2)
+        centers = displayed.faces[displayed.sectors[displayed.cell_ids] == sector].mean(
+            axis=(0, 1)
+        )
+        angle = np.rad2deg(np.arctan2(centers[1], centers[0])) % 360
+        assert angle == pytest.approx((120 - 60 * sector) % 360)
     np.testing.assert_array_equal(data.mixed_snapshot(2).values[0, -1], 1)
     with pytest.raises(ValueError, match="outside native history"):
         data.mixed_snapshot(3)

@@ -27,8 +27,10 @@ from research.spt.plot_render import (
 )
 from research.spt.plot_style import simulation_color
 from research.spt.publication_data import (
+    CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
     PublicationData,
+    convergence_view,
 )
 from research.spt.publication_geometry import (
     FIELD_TITLES,
@@ -96,7 +98,13 @@ def render_convergence(
     comparison_time: float = CONVERGENCE_TIME,
 ) -> None:
     """Compare meshes, common-time mixed fields and full native lobule curves."""
-    mixed_samples = data.mixed_snapshot(comparison_time)
+    sources = sorted(
+        sources,
+        key=lambda source: CONVERGENCE_DISPLAY_MESHES.index(
+            source.run.run_id.removeprefix("convergence_")
+        ),
+    )
+    mixed_samples = convergence_view(data.mixed_snapshot(comparison_time))
     ranges = data.ranges(sources)
     art = figure((19, 15))
     outer = art.add_gridspec(4, 1, height_ratios=(2.4, 4.3, 3, 3), hspace=0.12)
@@ -143,7 +151,9 @@ def render_convergence(
                     fontweight="bold",
                 )
             datasets.append(data.summary(source, native=True))
-        mixed = data.mesh("convergence_combinations", "convergence_mixed")
+        mixed = convergence_view(
+            data.mesh("convergence_combinations", "convergence_mixed")
+        )
         axis = art.add_subplot(mesh_grid[0, -1])
         raster_panel(
             axis,
@@ -156,8 +166,10 @@ def render_convergence(
             mesh=True,
         )
         label_sectors(axis, mixed)
-        outline_mesh(axis, mixed, CONVERGENCE_MESHES)
-        axis.set_title("Mixed sixths\n06250 to 37250", fontsize=10, fontweight="bold")
+        outline_mesh(axis, mixed, CONVERGENCE_DISPLAY_MESHES)
+        axis.set_title(
+            "Mixed sixths\nCoarse to fine, clockwise", fontsize=10, fontweight="bold"
+        )
         maps = outer[1].subgridspec(1, len(LAYERS))
         for column, original in enumerate(LAYERS):
             layer = replace(
@@ -178,7 +190,7 @@ def render_convergence(
                 options.dpi,
                 sectors=True,
             )
-            outline_mesh(axis, mixed_samples, CONVERGENCE_MESHES)
+            outline_mesh(axis, mixed_samples, CONVERGENCE_DISPLAY_MESHES)
             axis.set_title(
                 f"{FIELD_TITLES[column].replace(chr(10), ' ')} at {comparison_time / 3600:g} h",
                 fontsize=12,
@@ -246,7 +258,7 @@ def render_convergence(
             handles=handles,
             loc="outside upper center",
             ncol=len(handles),
-            title="Convergence mesh identifier (fine to coarse)",
+            title="Convergence mesh identifier (coarse to fine)",
             frameon=False,
         )
         short = "; ".join(
@@ -259,7 +271,9 @@ def render_convergence(
             "C: linear; D: symlog axes (necrosis stays linear). "
             f"Dotted line: common interval ends at {common_end / 3600:.2f} h.\n"
             f"Crosses mark truncated native histories ({short}); no extrapolation. "
-            "Mixed sectors 1-6: 06250, 09375, 12500, 18750, 25000, 37250.",
+            "Mixed sectors 1-6 clockwise from upper left: "
+            + ", ".join(CONVERGENCE_DISPLAY_MESHES)
+            + ".",
             fontsize=10,
         )
         save_publication(art, directory / "figure-s1-convergence", options)

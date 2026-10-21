@@ -27,6 +27,7 @@ from research.spt.plot_render import Samples
 
 SIMULATION_TIMES = (0.0, 21600.0, 43200.0, 64800.0, 86400.0)
 CONVERGENCE_TIME = 5400.0
+CONVERGENCE_DISPLAY_MESHES = CONVERGENCE_MESHES[::-1]
 PATTERN_NAMES = (
     "constant",
     "linear increase",
@@ -40,6 +41,26 @@ PATTERN_NAMES = (
 def pattern_label(pattern: int) -> str:
     """Use the same A-F names in every manuscript figure."""
     return f"{chr(65 + pattern)}  {PATTERN_NAMES[pattern].capitalize()}"
+
+
+def convergence_view(samples: Samples) -> Samples:
+    """Place mixed resolutions coarse to fine clockwise, starting upper left.
+
+    Archived sectors run fine to coarse counterclockwise from upper left. Rotate
+    their geometry by 60 degrees and number them in reverse for publication.
+    Native cell identities, scalar arrays and cached source geometry stay intact.
+    """
+    angle = np.pi / 3
+    rotation = np.array(
+        [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+    )
+    return Samples(
+        samples.faces @ rotation.T,
+        samples.cell_ids,
+        samples.values,
+        len(CONVERGENCE_DISPLAY_MESHES) - 1 - samples.sectors,
+        samples.times,
+    )
 
 
 class PublicationData:

@@ -27,10 +27,10 @@ from research.spt.artifacts import (
     validate_output,
 )
 from research.spt.fields import SUMMARY_FIELDS
-from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions
 from research.spt.publication_data import (
+    CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
     SIMULATION_TIMES,
     PublicationData,
@@ -201,8 +201,9 @@ def caption(
         )
     common_end = min(source.end for source in sources)
     return (
-        "Convergence supplement. A: source-sector meshes ordered fine to coarse, "
-        "plus the six-mesh mixed lobule (06250, 09375, 12500, 18750, 25000, 37250). "
+        "Convergence supplement. A: source-sector meshes ordered coarse to fine, "
+        "plus the mixed lobule with sectors 1-6 clockwise from upper left "
+        "(37250, 25000, 18750, 12500, 09375, 06250). "
         "Mesh boundaries and native time courses share one distinct color per "
         "resolution. The 50000 mesh is excluded from this figure. "
         f"B: mixed-sixth substrate, product, protein, toxic compound and necrosis "
@@ -259,7 +260,7 @@ def create_publication(
         if number == "S1":
             sources = [
                 data.source("convergence_lobulus", f"convergence_{mesh}")
-                for mesh in CONVERGENCE_MESHES
+                for mesh in CONVERGENCE_DISPLAY_MESHES
             ]
             if (
                 not max(source.start for source in sources)
@@ -324,8 +325,10 @@ def create_publication(
         if number == "S1":
             configuration.update(
                 convergence_readouts_version=1,
+                convergence_layout_version=2,
                 snapshot_times_s=[comparison_time],
-                mixed_sector_meshes=list(CONVERGENCE_MESHES),
+                mixed_sector_meshes=list(CONVERGENCE_DISPLAY_MESHES),
+                mixed_sector_direction="clockwise from upper left",
                 mesh_colors=CONVERGENCE_COLORS,
                 scalar_ranges={
                     field: list(limits)
