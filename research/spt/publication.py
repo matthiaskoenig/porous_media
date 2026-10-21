@@ -314,7 +314,7 @@ def create_publication(
         rendered_stem = stem
         if number in {"4", "5", "6", "7"}:
             configuration.update(
-                manuscript_layout_version=2,
+                manuscript_layout_version=3,
                 dose_labels=[f"D{index}" for index in range(1, 9)],
                 pattern_labels=[pattern_label(index) for index in range(6)],
                 pattern_icons=PATTERN_ICON_DESCRIPTION,

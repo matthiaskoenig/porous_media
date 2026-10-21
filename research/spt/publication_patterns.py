@@ -11,7 +11,7 @@ from matplotlib.text import Text
 from matplotlib.transforms import Affine2D, Bbox
 
 PATTERN_ICON_DESCRIPTION = (
-    "Black-and-white icons show schematic one-dimensional profiles of relative "
+    "Square black-and-white icons show schematic one-dimensional profiles of relative "
     "initial protein abundance (vertical) against periportal-to-perivenous "
     "position (left to right). The random profile is illustrative."
 )
@@ -44,7 +44,7 @@ def pattern_profile(pattern: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 class PatternIcon(Artist):
-    """Place an upright black-and-white profile panel beside a pattern label."""
+    """Place a square black-and-white profile panel beside a pattern label."""
 
     def __init__(self, target: Text, pattern: int, *, size: float = 22) -> None:
         """Anchor to the label's left edge; panel height and gap are in points."""
@@ -60,7 +60,7 @@ class PatternIcon(Artist):
             0.12 + 0.76 * position,
             0.14 + 0.72 * values,
             color="black",
-            linewidth=1.2,
+            linewidth=2.0,
             solid_capstyle="butt",
         )
         self.set_gid(f"pattern-icon-{chr(97 + pattern)}")
@@ -73,7 +73,7 @@ class PatternIcon(Artist):
             raise ValueError("Pattern icon bounds require a renderer")
         text = self.target.get_window_extent(renderer)
         height = float(np.asarray(renderer.points_to_pixels(self.size)))
-        width = 1.5 * height
+        width = height
         gap = float(np.asarray(renderer.points_to_pixels(self.gap)))
         return Bbox.from_bounds(
             text.x0 - gap - width,

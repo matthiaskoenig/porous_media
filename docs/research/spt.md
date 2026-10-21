@@ -726,10 +726,11 @@ Figures 4 and 5 is **D6**. Pattern names and lettering match across Figures 4-7:
 **A Constant**, **B Linear increase**, **C Sharp perivenous**, **D Linear decrease**,
 **E Sharp periportal** and **F Random**. Figures 6 and 7 share the same row-label
 format and typography; Figure 5 uses those labels as its pattern-block headings.
-Every pattern label also carries the same small black-and-white vector profile
+Every pattern label also carries the same small square black-and-white vector profile
 panel, including the Figure 4 heading and both compact exports. The horizontal
 direction runs from periportal (left) to perivenous (right); the vertical
-direction shows relative initial protein abundance. Flat, rising, falling,
+direction shows relative initial protein abundance. Bold profile lines remain
+clear in compact exports. Flat, rising, falling,
 sharp-step and random profiles distinguish all six patterns. These schematics
 explain pattern identity; the random profile is illustrative.
 

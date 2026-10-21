@@ -379,9 +379,14 @@ def test_pattern_icons_show_zonation_and_scale_as_vector_art(tmp_path: Path) -> 
         canvas = art.canvas
         assert isinstance(canvas, FigureCanvasAgg)
         before = icons[0].get_window_extent(canvas.get_renderer())
+        assert before.width == pytest.approx(before.height)
+        stroke = icons[0].profile.get_linewidth()
+        assert stroke == 2.0
         save_publication(art, tmp_path / "patterns-compact", options, width_mm=101.6)
         after = icons[0].get_window_extent(canvas.get_renderer())
         assert after.width == pytest.approx(before.width / 2)
+        assert after.width == pytest.approx(after.height)
+        assert icons[0].profile.get_linewidth() == pytest.approx(stroke / 2)
         for stem in ("patterns", "patterns-compact"):
             tree = ET.parse(tmp_path / f"{stem}.svg")
             assert not list(tree.iter("{http://www.w3.org/2000/svg}image"))
