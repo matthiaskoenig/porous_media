@@ -290,9 +290,11 @@ def _collect(
                 scale = (
                     "Symlog" if symlog or stem.name.endswith("-symlog") else "Linear"
                 )
-                title = str(configuration.get("title", "")) or _description(
-                    stem.name, spatial_times
-                )
+                title = str(
+                    _mapping(configuration.get("artifact_titles")).get(
+                        stem.name, configuration.get("title", "")
+                    )
+                ) or _description(stem.name, spatial_times)
                 mesh_only = stem.name in {"mesh", "meshes"}
                 if mesh_only:
                     title = (
@@ -335,6 +337,9 @@ def _collect(
                     caption = f"{family} · homogeneous lobules · {len(runs)} runs"
                 if supplemental:
                     caption += f" · {relative.parts[0]}"
+                requested_order = _mapping(configuration.get("artifact_order")).get(
+                    stem.name
+                )
                 figures.append(
                     Figure(
                         title,
@@ -357,7 +362,9 @@ def _collect(
                                 *(f"dose {dose}" for dose in doses),
                             ]
                         ),
-                        order=_figure_order(stem.name),
+                        order=requested_order
+                        if isinstance(requested_order, int)
+                        else _figure_order(stem.name),
                     )
                 )
             if kind == "analysis":
