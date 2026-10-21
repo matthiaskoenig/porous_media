@@ -34,6 +34,7 @@ from research.spt.publication_data import (
     CONVERGENCE_TIME,
     SIMULATION_TIMES,
     PublicationData,
+    pattern_label,
 )
 from research.spt.publication_geometry import (
     render_example,
@@ -164,19 +165,20 @@ def caption(
     if number == "4":
         return (
             f"Figure 4. SPT metabolism for the linear increasing zonation pattern, "
-            f"dose index {dose} ({sources[0].run.run_id}). Columns show extracellular "
+            f"D{dose} ({sources[0].run.run_id}). Columns show extracellular "
             "substrate, extracellular product, protein, toxic compound and necrosis. "
             "Rows are the actual 0, 6, 12, 18 and 24 h snapshots. Continuous cell "
             "values are interpolated between native frames; discrete necrosis holds "
-            "the preceding frame. Scalar limits use full histories of all 48 runs."
+            "the preceding frame. One shared colorbar per field uses scalar limits "
+            "from full histories of all 48 runs."
         )
     if number == "5":
         return (
-            f"Figure 5. SPT metabolism at dose index {dose} for A: constant, B: linear "
+            f"Figure 5. SPT metabolism at D{dose} for A: constant, B: linear "
             "increase, C: sharp perivenous, D: linear decrease, E: sharp periportal "
             "and F: random zonation. Each block has the same five fields and actual "
             "0, 6, 12, 18 and 24 h snapshots as Figure 4. All blocks share full-cohort "
-            "scalar limits. Runs: "
+            "scalar limits and a single bottom set of five field colorbars. Runs: "
             + ", ".join(source.run.run_id for source in sources)
             + "."
         )
@@ -184,7 +186,7 @@ def caption(
         return (
             "Figure 6. Volume-weighted mean and population SD over homogeneous "
             "lobules for all 48 simulations. Rows A-F use the same pattern order as "
-            "Figure 5. Eight shades per pattern encode increasing dose indices 1-8. "
+            "Figure 5. Eight shades per pattern encode increasing doses D1-D8. "
             "Necrosis is expressed as percent tissue volume. Means and SD reuse "
             "the existing matched-time analysis, which interpolates cell values and "
             "volumes before reduction. SD describes spatial heterogeneity, not "
@@ -193,8 +195,9 @@ def caption(
     if number == "7":
         return (
             "Figure 7. Necrosis at 24 h by protein zonation pattern (rows A-F) and "
-            "increasing substrate inflow (dose indices 1-8, columns). White is alive "
-            "and black is necrotic. All panels use the same fixed fraction scale 0-1."
+            "increasing substrate inflow (D1-D8, columns). White is alive and black "
+            "is necrotic. One large vertical colorbar on the right serves all panels "
+            "on the same fixed fraction scale 0-1."
         )
     common_end = min(source.end for source in sources)
     return (
@@ -307,6 +310,17 @@ def create_publication(
         }
         stem = f"figure-{int(number):02}" if number != "S1" else "figure-s1-convergence"
         rendered_stem = stem
+        if number in {"4", "5", "6", "7"}:
+            configuration.update(
+                manuscript_layout_version=1,
+                dose_labels=[f"D{index}" for index in range(1, 9)],
+                pattern_labels=[pattern_label(index) for index in range(6)],
+                colorbars="five shared horizontal field bars"
+                if number in {"4", "5"}
+                else "one shared vertical necrosis bar"
+                if number == "7"
+                else "none",
+            )
         if number == "S1":
             configuration.update(
                 convergence_readouts_version=1,

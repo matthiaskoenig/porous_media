@@ -37,6 +37,11 @@ PATTERN_NAMES = (
 )
 
 
+def pattern_label(pattern: int) -> str:
+    """Use the same A-F names in every manuscript figure."""
+    return f"{chr(65 + pattern)}  {PATTERN_NAMES[pattern].capitalize()}"
+
+
 class PublicationData:
     """Share small summaries, geometry arrays and selected cell frames between figures."""
 

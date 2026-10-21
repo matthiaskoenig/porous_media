@@ -23,7 +23,11 @@ from research.spt.publication import (
     remove_obsolete_compact,
     simulation_cohort,
 )
-from research.spt.publication_data import SIMULATION_TIMES, PublicationData
+from research.spt.publication_data import (
+    SIMULATION_TIMES,
+    PublicationData,
+    pattern_label,
+)
 from research.spt.publication_geometry import (
     raster_panel,
     render_example,
@@ -31,10 +35,16 @@ from research.spt.publication_geometry import (
     render_patterns,
     save_publication,
 )
-from research.spt.publication_timecourses import CONVERGENCE_COLORS, render_convergence
+from research.spt.publication_timecourses import (
+    CONVERGENCE_COLORS,
+    annotate_timecourses,
+    render_convergence,
+)
 from research.spt.report import build_report
 from research.tests.test_spt_analysis import _input
 from research.tests.test_spt_report import ReportParser, _publish
+
+pytestmark = pytest.mark.filterwarnings("error:constrained_layout not applied")
 
 
 @pytest.fixture
@@ -133,6 +143,12 @@ def test_map_headers_time_arrow_and_vector_annotations(
     )
     assert list(tree.iter("{http://www.w3.org/2000/svg}image"))
     assert list(tree.iter("{http://www.w3.org/2000/svg}text"))
+    labels = [
+        "".join(node.itertext())
+        for node in tree.iter("{http://www.w3.org/2000/svg}text")
+    ]
+    assert labels.count("Substrate S plasma [mM]") == 1
+    assert any("B  Linear increase | D6" in label for label in labels)
 
 
 def test_map_tiles_do_not_keep_full_composite_raster_buffers(
@@ -201,19 +217,103 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
         render_necrosis(data, all_sources, tmp_path, options)
     patterns = (tmp_path / "figure-05.svg").read_text()
     assert all(
-        label in patterns
-        for label in [
-            "A  constant",
-            "B  linear increase",
-            "C  sharp perivenous",
-            "D  linear decrease",
-            "E  sharp periportal",
-            "F  random",
-        ]
+        label in patterns for label in [pattern_label(pattern) for pattern in range(6)]
     )
     necrosis = (tmp_path / "figure-07.svg").read_text()
-    assert all(f"Dose {dose}" in necrosis for dose in range(1, 9))
+    assert all(f"D{dose}" in necrosis for dose in range(1, 9))
+    assert "Dose " not in necrosis
     assert "Substrate / drug inflow" in necrosis
+    assert patterns.count("Substrate S plasma [mM]") == 1
+    assert "D6" in patterns
+    assert all(pattern_label(pattern) in necrosis for pattern in range(6))
+    assert necrosis.count(">Necrosis<") == 1
+    assert "0 (alive)" in necrosis and "1 (death)" in necrosis
+
+
+def test_shared_bars_and_tight_geometry_panels(
+    publication_data: PublicationData, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Shared scales replace panel bars and map axes reach the geometric tile bounds."""
+    data = publication_data
+    prototype = data.source("simulations_lobulus", "sim014")
+    all_sources = [
+        replace(
+            prototype,
+            run=replace(prototype.run, run_id=c.sim_id, condition=c),
+            dose=c.boundary_flow_key,
+        )
+        for c in simulation_conditions()
+    ]
+    original = data.snapshots(prototype, SIMULATION_TIMES)
+
+    def snapshots(source: PlotSource, times: tuple[float, ...]) -> Samples:
+        return replace(
+            original,
+            times=np.asarray(times),
+            values=original.values[-1:] if len(times) == 1 else original.values,
+        )
+
+    monkeypatch.setattr(data, "snapshots", snapshots)
+
+    def inspect(
+        art: Figure,
+        destination: Path,
+        options: RenderOptions,
+        *,
+        width_mm: float | None = None,
+    ) -> None:
+        maps = [axis for axis in art.axes if axis.images]
+        bars = [axis for axis in art.axes if axis.axison]
+        if destination.name == "figure-07":
+            assert len(maps) == 48 and len(bars) == 1
+            assert bars[0].get_ylabel() == "Necrosis"
+            assert bars[0].get_ylim() == (0, 1)
+            art.canvas.draw()
+            assert bars[0].get_position().height > 0.7
+            assert bars[0].get_position().x0 > max(
+                axis.get_position().x1 for axis in maps
+            )
+        else:
+            assert len(maps) == (25 if destination.name == "figure-04" else 150)
+            assert len(bars) == 5
+        for axis in maps:
+            extent = axis.images[0].get_extent()
+            np.testing.assert_allclose(axis.get_xlim(), extent[:2])
+            np.testing.assert_allclose(axis.get_ylim(), extent[2:])
+
+    monkeypatch.setattr("research.spt.publication_geometry.save_publication", inspect)
+    options = RenderOptions(formats=("png",), dpi=25)
+    ranges = data.ranges([prototype])
+    render_example(data, prototype, ranges, tmp_path, options)
+    render_patterns(
+        data, [s for s in all_sources if s.dose == 5], ranges, tmp_path, options
+    )
+    render_necrosis(data, all_sources, tmp_path, options)
+
+
+def test_timecourse_pattern_and_dose_labels_are_consistent() -> None:
+    """Time-course rows use the same pattern names and D1-D8 labels as map figures."""
+    from research.spt.plot_render import figure
+
+    art = figure((13.5, 15))
+    try:
+        axes = art.subplots(6, 5, squeeze=False)
+        annotate_timecourses(art, axes)
+        expected = [
+            "A  Constant",
+            "B  Linear increase",
+            "C  Sharp perivenous",
+            "D  Linear decrease",
+            "E  Sharp periportal",
+            "F  Random",
+        ]
+        assert [text.get_text() for text in art.legends[0].get_texts()] == [
+            f"D{dose}" for dose in range(1, 9)
+        ]
+        for row in range(6):
+            assert [text.get_text() for text in axes[row, 0].texts] == [expected[row]]
+    finally:
+        art.clear()
 
 
 def test_convergence_supplement_preserves_native_ends_and_shows_meshes(

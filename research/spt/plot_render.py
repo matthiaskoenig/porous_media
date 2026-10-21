@@ -258,9 +258,17 @@ def save_figure(art: Figure, destination: Path, options: RenderOptions) -> None:
 
 
 def scalar_bar(
-    art: Figure | SubFigure, axis: Axes, collection: ScalarMappable, layer: Layer
+    art: Figure | SubFigure,
+    axis: Axes,
+    collection: ScalarMappable,
+    layer: Layer,
+    *,
+    cax: Axes | None = None,
 ) -> None:
-    """Preserve the horizontal five-label scalar bars used in manuscript panels."""
+    """Preserve the horizontal five-label scalar bars used in manuscript panels.
+
+    An explicit ``cax`` places a shared bar without shrinking the map panel.
+    """
     if not layer.scalar_bar:
         return
     ticks = np.linspace(*collection.get_clim(), 5).tolist()
@@ -273,6 +281,7 @@ def scalar_bar(
     bar = art.colorbar(
         collection,
         ax=axis,
+        cax=cax,
         location="bottom",
         shrink=0.6,
         aspect=20,

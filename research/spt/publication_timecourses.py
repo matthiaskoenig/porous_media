@@ -28,11 +28,11 @@ from research.spt.plot_render import (
 from research.spt.plot_style import simulation_color
 from research.spt.publication_data import (
     CONVERGENCE_TIME,
-    PATTERN_NAMES,
     PublicationData,
 )
 from research.spt.publication_geometry import (
     FIELD_TITLES,
+    label_pattern_row,
     map_panel,
     raster_panel,
     save_publication,
@@ -65,31 +65,8 @@ def annotate_timecourses(art: Figure, axes: np.ndarray) -> None:
     """Add the manuscript's field headers, pattern names and dose-shade legend."""
     for column, title in enumerate(FIELD_TITLES):
         axes[0, column].set_title(title, fontsize=14, fontweight="bold", pad=12)
-    for row, name in enumerate(PATTERN_NAMES):
-        axis = axes[row, 0]
-        axis.annotate(
-            name.replace(" ", "\n", 1),
-            xy=(0, 0.5),
-            xycoords="axes fraction",
-            xytext=(-65, 0),
-            textcoords="offset points",
-            rotation=90,
-            ha="center",
-            va="center",
-            fontsize=12,
-            fontweight="bold",
-        )
-        axis.annotate(
-            chr(65 + row),
-            xy=(0, 1),
-            xycoords="axes fraction",
-            xytext=(-76, 0),
-            textcoords="offset points",
-            ha="right",
-            va="top",
-            fontsize=16,
-            fontweight="bold",
-        )
+    for row in range(6):
+        label_pattern_row(axes[row, 0], row)
     handles = [
         Line2D(
             [],
@@ -97,13 +74,13 @@ def annotate_timecourses(art: Figure, axes: np.ndarray) -> None:
             color=simulation_color(0, dose),
             marker="o",
             markeredgecolor="black",
-            label=str(dose),
+            label=f"D{dose}",
         )
         for dose in range(1, 9)
     ]
     art.legend(
         handles=handles,
-        title="Substrate inflow: dose index (low to high)",
+        title="Substrate inflow (low to high)",
         loc="outside upper center",
         ncol=8,
         frameon=False,

@@ -7,9 +7,11 @@ from pathlib import Path
 
 import numpy as np
 from matplotlib.axes import Axes
+from matplotlib.backend_bases import RendererBase
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.cm import ScalarMappable
 from matplotlib.figure import Figure, SubFigure
+from matplotlib.transforms import Bbox
 
 from research.spt.fields import LAYERS, Layer
 from research.spt.plot_data import PlotSource
@@ -22,13 +24,59 @@ from research.spt.plot_render import (
     scalar_bar,
 )
 from research.spt.publication_data import (
-    PATTERN_NAMES,
     SIMULATION_TIMES,
     PublicationData,
+    pattern_label,
 )
 from research.spt.publication_layout import publication_bounds, resize_publication
 
 FIELD_TITLES = ("Substrate", "Product", "Protein", "Toxic\ncompound", "Necrosis")
+
+
+def label_pattern_row(axis: Axes, pattern: int, *, offset: float = 65) -> None:
+    """Label one pattern row with the shared A-F name and typography."""
+    axis.annotate(
+        pattern_label(pattern),
+        xy=(0, 0.5),
+        xycoords="axes fraction",
+        xytext=(-offset, 0),
+        textcoords="offset points",
+        rotation=90,
+        ha="center",
+        va="center",
+        fontsize=12,
+        fontweight="bold",
+        annotation_clip=False,
+    )
+
+
+def shared_colorbar(
+    parent: Figure | SubFigure,
+    axis: Axes,
+    collection: ScalarMappable,
+    layer: Layer,
+    *,
+    scale: float,
+) -> None:
+    """Reuse canonical normalization and scalar labels in one shared bottom bar."""
+    scalar_bar(parent, axis, collection, layer, cax=axis)
+    original_locator = axis.get_axes_locator()
+
+    def inset_bar(_target: object, renderer: RendererBase) -> Bbox:
+        bounds = (
+            original_locator(axis, renderer)
+            if original_locator is not None
+            else axis.get_position(original=True)
+        )
+        return bounds.shrunk(0.8, 1).anchored("C", bounds)
+
+    axis.set_axes_locator(inset_bar)
+    axis.set_title(layer.title, fontsize=12 * scale, fontweight="bold", pad=6 * scale)
+    axis.tick_params(labelsize=10 * scale, length=2 * scale, pad=2 * scale)
+    axis.xaxis.get_offset_text().set_fontsize(10 * scale)
+    for item in axis.collections:
+        item.set_rasterized(False)
+        item.set_edgecolor("face")
 
 
 def save_publication(
@@ -62,8 +110,10 @@ def map_panel(
     dpi: int,
     *,
     sectors: bool = False,
-) -> None:
-    """Use the existing maps and five-label bars, scaling type with panel size."""
+    colorbar: bool = True,
+    tight: bool = False,
+) -> ScalarMappable:
+    """Draw a canonical map, optionally adding its own five-label scalar bar."""
     collection = raster_panel(
         axis,
         samples,
@@ -73,12 +123,16 @@ def map_panel(
         side=4 * scale,
         dpi=dpi,
         sectors=sectors,
+        tight=tight,
     )
+    if not colorbar:
+        return collection
     scalar_bar(parent, axis, collection, layer)
     bar = parent.axes[-1]
     bar.set_title(layer.title, fontsize=12 * scale, fontweight="bold", pad=8 * scale)
     bar.tick_params(labelsize=10 * scale, length=2 * scale, pad=2 * scale)
     bar.xaxis.get_offset_text().set_fontsize(10 * scale)
+    return collection
 
 
 def raster_panel(
@@ -92,6 +146,7 @@ def raster_panel(
     dpi: int,
     mesh: bool = False,
     sectors: bool = False,
+    tight: bool = False,
 ) -> ScalarMappable:
     """Render one bounded tile, avoiding full-figure raster buffers per PDF panel."""
     tile = Figure(figsize=(side, side), dpi=dpi)
@@ -123,8 +178,8 @@ def raster_panel(
     finally:
         tile.clear()
     axis.imshow(pixels, extent=extent, origin="upper", interpolation="none")
-    axis.set_xlim(*xlim)
-    axis.set_ylim(*ylim)
+    axis.set_xlim(*(extent[:2] if tight else xlim))
+    axis.set_ylim(*(extent[2:] if tight else ylim))
     axis.set_aspect("equal")
     axis.set_axis_off()
     return mappable
@@ -137,15 +192,36 @@ def time_grid(
     *,
     scale: float,
     dpi: int,
-) -> None:
-    """Restore field headers, exact snapshot labels and the original downward arrow."""
-    axes = parent.subplots(len(samples.times), len(LAYERS), squeeze=False)
+    colorbars: bool = True,
+) -> tuple[ScalarMappable, ...]:
+    """Draw a tight time grid and return mappables for shared field colorbars."""
+    grid = parent.add_gridspec(
+        len(samples.times) + int(colorbars),
+        len(LAYERS),
+        height_ratios=[1] * len(samples.times) + ([0.045] if colorbars else []),
+        hspace=0.02,
+        wspace=0.02,
+    )
+    axes = np.empty((len(samples.times), len(LAYERS)), dtype=object)
+    collections = []
     for row, time in enumerate(samples.times):
         values = samples.frame(float(time))
         for column, layer in enumerate(LAYERS):
-            axis = axes[row, column]
-            map_panel(parent, axis, samples, layer, values[column], ranges, scale, dpi)
+            axis = axes[row, column] = parent.add_subplot(grid[row, column])
+            collection = map_panel(
+                parent,
+                axis,
+                samples,
+                layer,
+                values[column],
+                ranges,
+                scale,
+                dpi,
+                colorbar=False,
+                tight=True,
+            )
             if row == 0:
+                collections.append(collection)
                 axis.set_title(
                     FIELD_TITLES[column],
                     fontsize=18 * scale,
@@ -183,6 +259,18 @@ def time_grid(
         fontsize=16 * scale,
         fontweight="bold",
     )
+    if colorbars:
+        for column, (layer, collection) in enumerate(
+            zip(LAYERS, collections, strict=True)
+        ):
+            shared_colorbar(
+                parent,
+                parent.add_subplot(grid[-1, column]),
+                collection,
+                layer,
+                scale=scale,
+            )
+    return tuple(collections)
 
 
 def render_example(
@@ -194,9 +282,15 @@ def render_example(
     *,
     width_mm: float | None = None,
 ) -> None:
-    """Update Figure 4's representative case at 0, 6, 12, 18 and 24 hours."""
-    art = figure((15, 15))
+    """Show the representative case at five true times with shared field colorbars."""
+    art = figure((12, 13))
     try:
+        assert source.run.condition is not None and source.dose is not None
+        art.suptitle(
+            f"{pattern_label(source.run.condition.pattern_key)} | D{source.dose + 1}",
+            fontsize=16,
+            fontweight="bold",
+        )
         time_grid(
             art,
             data.snapshots(source, SIMULATION_TIMES),
@@ -218,25 +312,40 @@ def render_patterns(
     *,
     width_mm: float | None = None,
 ) -> None:
-    """Update Figure 5's two-column, three-row comparison with A-F annotations."""
-    art = figure((18, 27))
+    """Compare A-F pattern blocks with one common bottom row of field colorbars."""
+    art = figure((14, 22))
     try:
-        parents = art.subfigures(3, 2, wspace=0.01, hspace=0.02)
-        assert isinstance(parents, np.ndarray)
-        for pattern, (parent, source) in enumerate(
-            zip(parents.flat, sources, strict=True)
-        ):
+        assert sources[0].dose is not None
+        art.suptitle(f"D{sources[0].dose + 1}", fontsize=16, fontweight="bold")
+        outer = art.add_gridspec(
+            4, 10, height_ratios=(1, 1, 1, 0.025), hspace=0.025, wspace=0.025
+        )
+        collections = ()
+        for pattern, source in enumerate(sources):
+            column = 5 * (pattern % 2)
+            parent = art.add_subfigure(outer[pattern // 2, column : column + 5])
             parent.suptitle(
-                f"{chr(65 + pattern)}  {PATTERN_NAMES[pattern]}",
-                fontsize=18,
+                pattern_label(pattern),
+                fontsize=16,
                 fontweight="bold",
             )
-            time_grid(
+            collections = time_grid(
                 parent,
                 data.snapshots(source, SIMULATION_TIMES),
                 ranges,
                 scale=0.37,
                 dpi=options.dpi,
+                colorbars=False,
+            )
+        for column, (layer, collection) in enumerate(
+            zip(LAYERS, collections, strict=True)
+        ):
+            shared_colorbar(
+                art,
+                art.add_subplot(outer[-1, 2 * column : 2 * column + 2]),
+                collection,
+                layer,
+                scale=0.8,
             )
         save_publication(art, directory / "figure-05", options, width_mm=width_mm)
     finally:
@@ -249,10 +358,12 @@ def render_necrosis(
     directory: Path,
     options: RenderOptions,
 ) -> None:
-    """Update Figure 7 with named rows, ordered doses and the inflow direction."""
-    art = figure((18, 14))
-    outer = art.add_gridspec(2, 1, height_ratios=(0.45, 12))
-    heading = art.add_subplot(outer[0])
+    """Compare A-F rows and D1-D8 columns with one large necrosis colorbar."""
+    art = figure((16, 12))
+    outer = art.add_gridspec(
+        2, 2, height_ratios=(0.45, 12), width_ratios=(24, 0.6), wspace=0.02
+    )
+    heading = art.add_subplot(outer[0, 0])
     heading.set_axis_off()
     heading.text(
         0.5,
@@ -271,8 +382,10 @@ def render_necrosis(
         xycoords="axes fraction",
         arrowprops={"arrowstyle": "-|>", "lw": 2, "color": "black"},
     )
-    grid = outer[1].subgridspec(6, 8)
+    grid = outer[1, 0].subgridspec(6, 8, hspace=0.02, wspace=0.02)
     layer = replace(LAYERS[-1], limits=(0, 1))
+    mappable = ScalarMappable(cmap=layer.colormap)
+    mappable.set_clim(0, 1)
     try:
         for source in sources:
             condition = source.run.condition
@@ -289,21 +402,25 @@ def render_necrosis(
                 {layer.sid: (0, 1)},
                 0.45,
                 options.dpi,
+                colorbar=False,
+                tight=True,
             )
             if row == 0:
-                axis.set_title(f"Dose {column + 1}", fontsize=12, fontweight="bold")
+                axis.set_title(f"D{column + 1}", fontsize=12, fontweight="bold")
             if column == 0:
-                axis.text(
-                    -0.1,
-                    0.5,
-                    f"{chr(65 + row)}  {PATTERN_NAMES[row].replace(' ', chr(10), 1)}",
-                    transform=axis.transAxes,
-                    rotation=90,
-                    ha="right",
-                    va="center",
-                    fontsize=12,
-                    fontweight="bold",
-                )
+                label_pattern_row(axis, row, offset=14)
+        bar = art.colorbar(
+            mappable,
+            cax=art.add_subplot(outer[1, 1]),
+            orientation="vertical",
+            ticks=[0, 0.25, 0.5, 0.75, 1],
+        )
+        bar.set_label("Necrosis", fontsize=16, fontweight="bold")
+        bar.set_ticklabels(["0 (alive)", "0.25", "0.50", "0.75", "1 (death)"])
+        bar.ax.tick_params(labelsize=12)
+        for item in bar.ax.collections:
+            item.set_rasterized(False)
+            item.set_edgecolor("face")
         save_publication(art, directory / "figure-07", options)
     finally:
         art.clear()
