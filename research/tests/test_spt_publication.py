@@ -404,7 +404,7 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Mesh-only panels and both axis scales use full, genuinely truncated histories."""
+    """Meshes, mixed fields and one linear curve row preserve native histories."""
     data = publication_data
     prototype = data.source("simulations_lobulus", "sim014")
     samples = data.mesh(prototype.run.study, prototype.run.run_id)
@@ -445,17 +445,17 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
         options: RenderOptions,
     ) -> None:
         assert destination.name == "figure-s1-convergence"
-        assert len(art.axes) == 27
+        assert len(art.axes) == 22
         assert len(art.axes[0].images) == 1
         for column in range(5):
             axis = art.axes[7 + 2 * column]
             assert "at 1.5 h" in axis.get_title()
             assert len(axis.images) == 1
             assert len(axis.collections) == 6
-        for row in (17, 22):
+        for axis in art.axes[17:]:
             curves = {
                 str(line.get_label()): line
-                for line in art.axes[row].lines
+                for line in axis.lines
                 if line.get_label() in CONVERGENCE_MESHES
             }
             assert len(curves) == 6
@@ -484,9 +484,10 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
             )
         assert len(set(CONVERGENCE_COLORS.values())) == 6
         assert all("50000" not in axis.get_title() for axis in art.axes)
-        assert art.axes[17].get_yscale() == "linear"
-        assert art.axes[22].get_yscale() == "symlog"
-        assert art.axes[-1].get_yscale() == "linear"
+        assert all(
+            axis.get_yscale() == axis.get_xscale() == "linear" for axis in art.axes
+        )
+        assert all("symlog" not in text.get_text() for text in art.texts)
         assert any("no extrapolation" in text.get_text() for text in art.texts)
 
     monkeypatch.setattr(

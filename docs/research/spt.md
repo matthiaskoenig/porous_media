@@ -700,7 +700,7 @@ exports are repaired; `--force` regenerates selected publication figures.
 | 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046` at D6; two columns by three pattern blocks | Consistent A-F pattern labels, field headers, time labels and arrows; one shared set of five bottom colorbars |
 | 6 | All 48 homogeneous lobules; six pattern rows and five fields | Consistent A-F pattern labels, field headers and D1-D8 legend |
 | 7 | Necrosis at 24 h; six pattern rows by eight doses | Consistent A-F pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right |
-| S1 | Six source-sector meshes, five common-time mixed-sixth readouts and native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-D panels, exact map time, linear/symlog labels, common-window boundary and truncated-history markers |
+| S1 | Six source-sector meshes, five common-time mixed-sixth readouts and one row of native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-C panels, exact map time, linear axes, common-window boundary and truncated-history markers |
 
 Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
 historical overview snapshot selection. Labels are derived from the actual times;
@@ -736,9 +736,9 @@ explain pattern identity; the random profile is illustrative.
 
 The convergence supplement retains every available native time point and actual
 end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is
-extended to 24 h. The common comparison window ends at 10.16 h. Both linear and
-symlog views use only the six approved meshes `37250`, `25000`, `18750`, `12500`,
-`09375` and `06250`, ordered coarse to fine. Necrosis axes stay linear. Each
+extended to 24 h. The common comparison window ends at 10.16 h. A single row of
+linear time courses uses the six approved meshes `37250`, `25000`, `18750`,
+`12500`, `09375` and `06250`, ordered coarse to fine. Each
 resolution has a distinct qualitative color, shared by its time courses,
 source-mesh boundary and mixed-sector boundaries. Source sixths are selected from
 local lobule meshes, so producing this figure does not reopen the original network

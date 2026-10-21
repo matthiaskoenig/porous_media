@@ -106,8 +106,8 @@ def render_convergence(
     )
     mixed_samples = convergence_view(data.mixed_snapshot(comparison_time))
     ranges = data.ranges(sources)
-    art = figure((19, 15))
-    outer = art.add_gridspec(4, 1, height_ratios=(2.4, 4.3, 3, 3), hspace=0.12)
+    art = figure((19, 11.5))
+    outer = art.add_gridspec(3, 1, height_ratios=(2.4, 4.3, 3), hspace=0.12)
     mesh_grid = outer[0].subgridspec(1, len(sources) + 1)
     common_end = min(source.end for source in sources)
     datasets = []
@@ -207,53 +207,51 @@ def render_convergence(
                     fontweight="bold",
                 )
         handles = []
-        for row, symlog in enumerate((False, True), start=2):
-            grid = outer[row].subgridspec(1, len(SUMMARY_FIELDS))
-            for column, field in enumerate(SUMMARY_FIELDS):
-                axis = art.add_subplot(grid[0, column])
-                for source, dataset in zip(sources, datasets, strict=True):
-                    mesh = source.run.run_id.removeprefix("convergence_")
-                    color = CONVERGENCE_COLORS[mesh]
-                    time = dataset.time.values / 3600
-                    values = dataset[f"{field}_mean"].values * (
-                        100 if field == "rr_necrosis" else 1
-                    )
-                    (line,) = axis.plot(
-                        time, values, color=color, linewidth=1.5, label=mesh
-                    )
-                    if row == 2 and column == 0:
-                        handles.append(line)
-                    if source.end < max(item.end for item in sources):
-                        axis.plot(time[-1], values[-1], "x", color=color, markersize=5)
-                _scale(axis, field, symlog)
-                axis.axvline(
-                    common_end / 3600, color="darkgray", linestyle=":", linewidth=0.8
+        grid = outer[2].subgridspec(1, len(SUMMARY_FIELDS))
+        for column, field in enumerate(SUMMARY_FIELDS):
+            axis = art.add_subplot(grid[0, column])
+            for source, dataset in zip(sources, datasets, strict=True):
+                mesh = source.run.run_id.removeprefix("convergence_")
+                color = CONVERGENCE_COLORS[mesh]
+                time = dataset.time.values / 3600
+                values = dataset[f"{field}_mean"].values * (
+                    100 if field == "rr_necrosis" else 1
                 )
-                axis.axvline(
-                    comparison_time / 3600,
-                    color="darkgray",
-                    linestyle="--",
-                    linewidth=0.8,
-                )
-                axis.set_xlim(0, max(source.end for source in sources) / 3600)
-                axis.set_xticks([0, 6, 12, 18, 24])
-                axis.set_xlabel("Time [hr]", fontsize=11, fontweight="bold")
-                axis.set_ylabel(LABELS[field], fontsize=11, fontweight="bold")
-                axis.set_title(
-                    FIELD_TITLES[column].replace("\n", " ")
-                    + (" (symlog)" if symlog and field != "rr_necrosis" else ""),
-                    fontsize=12,
-                    fontweight="bold",
+                (line,) = axis.plot(
+                    time, values, color=color, linewidth=1.5, label=mesh
                 )
                 if column == 0:
-                    axis.text(
-                        -0.23,
-                        1.15,
-                        "C" if row == 2 else "D",
-                        transform=axis.transAxes,
-                        fontsize=18,
-                        fontweight="bold",
-                    )
+                    handles.append(line)
+                if source.end < max(item.end for item in sources):
+                    axis.plot(time[-1], values[-1], "x", color=color, markersize=5)
+            _scale(axis, field, False)
+            axis.axvline(
+                common_end / 3600, color="darkgray", linestyle=":", linewidth=0.8
+            )
+            axis.axvline(
+                comparison_time / 3600,
+                color="darkgray",
+                linestyle="--",
+                linewidth=0.8,
+            )
+            axis.set_xlim(0, max(source.end for source in sources) / 3600)
+            axis.set_xticks([0, 6, 12, 18, 24])
+            axis.set_xlabel("Time [hr]", fontsize=11, fontweight="bold")
+            axis.set_ylabel(LABELS[field], fontsize=11, fontweight="bold")
+            axis.set_title(
+                FIELD_TITLES[column].replace("\n", " "),
+                fontsize=12,
+                fontweight="bold",
+            )
+            if column == 0:
+                axis.text(
+                    -0.23,
+                    1.15,
+                    "C",
+                    transform=axis.transAxes,
+                    fontsize=18,
+                    fontweight="bold",
+                )
         art.legend(
             handles=handles,
             loc="outside upper center",
@@ -268,7 +266,7 @@ def render_convergence(
         )
         art.supxlabel(
             f"A: meshes; B: mixed readouts at {comparison_time / 3600:g} h (dashed line); "
-            "C: linear; D: symlog axes (necrosis stays linear). "
+            "C: linear time courses. "
             f"Dotted line: common interval ends at {common_end / 3600:.2f} h.\n"
             f"Crosses mark truncated native histories ({short}); no extrapolation. "
             "Mixed sectors 1-6 clockwise from upper left: "

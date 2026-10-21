@@ -213,8 +213,7 @@ def caption(
         "meshes permit direct sector comparisons. Only sector outlines are shown. "
         "Continuous values use native-frame interpolation; necrosis holds its "
         "preceding native state. C: native volume-weighted lobule time courses "
-        "with linear axes. D: the "
-        "same data with symlog axes except for necrosis, which remains linear. Crosses "
+        "with linear axes. Crosses "
         "mark the actual ends of truncated histories, without extrapolation. The "
         f"dotted line marks the shared interval ending at {common_end / 3600:.4f} h. "
         "Mesh identifiers are the archived file labels; cell counts refer to sixths."
@@ -327,7 +326,8 @@ def create_publication(
         if number == "S1":
             configuration.update(
                 convergence_readouts_version=1,
-                convergence_layout_version=2,
+                convergence_layout_version=3,
+                timecourse_scale="linear",
                 snapshot_times_s=[comparison_time],
                 mixed_sector_meshes=list(CONVERGENCE_DISPLAY_MESHES),
                 mixed_sector_direction="clockwise from upper left",
