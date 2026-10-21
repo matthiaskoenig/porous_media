@@ -18,7 +18,7 @@ from research.spt.analysis_plots import LABELS, _scale
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.plot_data import PlotSource
-from research.spt.plot_mesh import boundary_segments
+from research.spt.plot_mesh import boundary_edges, boundary_segments
 from research.spt.plot_render import (
     RenderOptions,
     Samples,
@@ -26,6 +26,7 @@ from research.spt.plot_render import (
     label_sectors,
 )
 from research.spt.plot_style import simulation_color
+from research.spt.plot_view import project
 from research.spt.publication_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
@@ -53,7 +54,17 @@ def outline_mesh(axis: Axes, samples: Samples, meshes: tuple[str, ...]) -> None:
     """Match independent sector boundaries to their native time-course colors."""
     sectors = samples.sectors[samples.cell_ids]
     for sector, mesh in enumerate(meshes):
-        boundary = boundary_segments(samples.faces[sectors == sector])
+        selected = sectors == sector
+        surface = samples.surface
+        # Roof contours follow the shared camera; only actual exterior walls
+        # contribute side silhouettes, including on the mixed whole lobule.
+        edges, owners = boundary_edges(samples.faces[selected])
+        roof = project(edges, surface.heights[selected][owners, 1, None])
+        walls, wall_owners = surface.walls
+        walls = walls[selected[wall_owners]]
+        boundary = (
+            np.concatenate((roof, boundary_segments(walls))) if len(walls) else roof
+        )
         axis.add_collection(
             LineCollection(
                 cast(Sequence[ArrayLike], boundary),
@@ -122,6 +133,7 @@ def render_convergence(
                 lobulus.values,
                 lobulus.sectors,
                 lobulus.times,
+                lobulus.heights[selected] if lobulus.heights is not None else None,
             )
             axis = art.add_subplot(mesh_grid[0, index])
             raster_panel(

@@ -180,7 +180,7 @@ def raster_panel(
         canvas.draw()
         # Crop the tile to the domain, including white living tissue. Its scalar
         # colors must not determine whether a scientific region is kept.
-        low, high = samples.faces.min(axis=(0, 1)), samples.faces.max(axis=(0, 1))
+        low, high = samples.surface.bounds
         projected = tile_axis.transData.transform(np.stack((low, high)))
         buffer = np.asarray(canvas.buffer_rgba())
         height, width = buffer.shape[:2]

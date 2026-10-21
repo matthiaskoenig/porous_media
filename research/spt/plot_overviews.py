@@ -21,7 +21,7 @@ from research.spt.artifacts import (
 )
 from research.spt.conditions import pattern_idx2name
 from research.spt.fields import Layer
-from research.spt.plot_data import PlotSource
+from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_render import (
     RENDER_VERSION,
@@ -34,6 +34,7 @@ from research.spt.plot_render import (
     save_figure,
     scalar_bar,
 )
+from research.spt.plot_view import GEOMETRY_VIEW
 
 OVERVIEW_VERSION = 4
 
@@ -212,6 +213,7 @@ def overview_figures(
     )
     configuration: dict[str, object] = {
         "version": RENDER_VERSION,
+        "geometry_view": GEOMETRY_VIEW,
         "overview_version": OVERVIEW_VERSION,
         "sources": [item.title for item in sources],
         "labels": list(source.sector_labels),
@@ -231,7 +233,18 @@ def overview_figures(
             generation = generation_path(directory, cached)
         else:
             before = [fingerprint(path) for path in paths]
-            samples = [Samples.load(path) for path in paths]
+            samples = [
+                Samples.load(
+                    path,
+                    heights=load_heights(
+                        item.directory(output_root, "plot-depth"),
+                        manifest,
+                        item.run.root,
+                        sample_path=path,
+                    ),
+                )
+                for path, item, manifest in zip(paths, sources, prepared, strict=True)
+            ]
             with tempfile.TemporaryDirectory(
                 prefix=".partial-", dir=directory
             ) as temporary:
