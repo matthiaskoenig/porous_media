@@ -848,11 +848,16 @@ field. Continuous fields use native-time interpolation; necrosis retains the
 preceding native state. The new workflow reads local processed cells and cached
 XY geometry, without reopening raw HDF histories.
 
-The square measures **2.5 native flat-to-flat lobule widths per side**. Seventeen
-translated lobule copies intersect this cutout. The hexagonal lattice covers the
-entire square and its corners, with no exterior margins. Border cells are clipped
-exactly; they keep their original cell values. Native central and portal vessel
-openings remain visible. Copies repeat the same simulation; this is a tissue
+Each panel measures **2 native flat-to-flat lobule widths per side** and samples
+an independent random XY position within a **4 by 4 lobule-width tissue square**.
+Crop centers are sampled uniformly wherever the complete cutout fits. Each
+field/time panel shows its own tissue location, including in the composite.
+The default `--seed 0` reproduces the crop positions; change `--seed` to sample
+another set. Exact centers and the PCG64 generator are recorded in provenance.
+The hexagonal lattice covers the entire square and its corners, with no exterior
+margins. The number of intersecting lobules depends on the crop. Border cells are
+clipped exactly; they keep their original cell values. Native central and portal
+vessel openings remain visible. Copies repeat the same simulation; this is a tissue
 visualization rather than a new multi-lobule transport solve.
 
 These panels use a direct XY projection with **zero tilt and no visible thickness**,
@@ -872,9 +877,10 @@ uv run --no-sync python -m research.spt.tissue_panels \
   --data-root results/spt --dose 6 --times-hours 24 --width-lobules 2.5
 ```
 
-Widths smaller than 2.5, invalid dose indices and times outside the source history
-are rejected. `--formats`, `--dpi`, `--mesh` and `--vessel-color` control only these
-new outputs. Existing manuscript figures and numerical results are preserved.
+Widths smaller than 2, negative seeds, invalid dose indices and times outside the
+source history are rejected. `--formats`, `--dpi`, `--mesh` and `--vessel-color`
+control only these new outputs. Existing manuscript figures and numerical
+results are preserved.
 The default stable exports include `linear-increase-tissue-d6.pdf` and individual
 files such as `linear-increase-tissue-d6-necrosis-t86400s.png`, under
 `publication/exports/`. Exact fractional seconds use `p` instead of a decimal point

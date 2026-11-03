@@ -38,9 +38,9 @@ from research.spt.publication_data import SIMULATION_TIMES, PublicationData
 from research.spt.publication_geometry import save_publication, shared_colorbar
 from research.spt.publication_patterns import add_pattern_icon
 from research.spt.report import build_report
-from research.spt.tissue_geometry import TissuePatch, tile_lobules
+from research.spt.tissue_geometry import TissuePatch, crop_tissue, tile_lobules
 
-TISSUE_VERSION = 2
+TISSUE_VERSION = 3
 TISSUE_LAYERS = (
     replace(LAYERS[2], title="CYP2E1"),
     LAYERS[3],
@@ -59,19 +59,22 @@ class TissueOptions:
 
     dose: int = 6
     times: tuple[float, ...] = SIMULATION_TIMES
-    width: float = 2.5
+    width: float = 2.0
     dpi: int = 300
     formats: tuple[str, ...] = ("svg", "pdf", "png")
     vessel_color: str = "white"
     mesh: bool = False
+    seed: int = 0
 
     def validate(self) -> None:
         """Reject unsupported choices before writing any output."""
         RenderOptions(formats=self.formats, dpi=self.dpi).validate()
         if not 1 <= self.dose <= 8:
             raise ValueError("Dose index must be between 1 and 8")
-        if not np.isfinite(self.width) or self.width < 2.5:
-            raise ValueError("Square width must be finite and at least 2.5 lobules")
+        if not np.isfinite(self.width) or self.width < 2:
+            raise ValueError("Square width must be finite and at least 2 lobules")
+        if not isinstance(self.seed, int) or self.seed < 0:
+            raise ValueError("Random seed must be a nonnegative integer")
         if (
             not self.times
             or not np.isfinite(self.times).all()
@@ -149,10 +152,12 @@ def render_tissue(
     stem: str,
     options: TissueOptions,
 ) -> dict[str, object]:
-    """Write standalone map panels and one annotated three-field time grid."""
+    """Write independent random tissue crops and a matching three-field time grid."""
     source = data.source(source_study, source_run)
     samples = data.snapshots(source, options.times)
-    patch = tile_lobules(samples.faces, samples.cell_ids, options.width)
+    tissue = tile_lobules(samples.faces, samples.cell_ids, 2 * options.width)
+    random = np.random.Generator(np.random.PCG64(options.seed))
+    layouts: dict[str, object] = {}
     art = figure((2.5 * len(options.times) + 1.1, 8.5))
     grid = art.add_gridspec(
         4,
@@ -196,10 +201,26 @@ def render_tissue(
             field = SUMMARY_FIELDS.index(layer.sid)
             limits = display_limits(layer, ranges)
             for column, time in enumerate(options.times):
+                center = random.uniform(-options.width / 2, options.width / 2, 2)
+                patch = crop_tissue(
+                    tissue, options.width, (float(center[0]), float(center[1]))
+                )
+                name = panel_stem(stem, layer, time)
+                layouts[name] = {
+                    "crop_center_in_lobule_widths": center.tolist(),
+                    "lobule_count": len(patch.centers),
+                    "lobule_centers_in_lobule_widths": patch.centers.tolist(),
+                    "square_area_in_lobule_widths_squared": patch.nominal_area,
+                    "native_tissue_area_in_lobule_widths_squared": patch.tissue_area,
+                    "native_vessel_void_fraction": max(
+                        0.0, 1 - patch.tissue_area / patch.nominal_area
+                    ),
+                    "clipped_triangles": len(patch.faces),
+                }
                 pixels = patch_image(
                     patch, samples.frame(time)[field], layer, limits, options
                 )
-                save_panel(pixels, directory / panel_stem(stem, layer, time), options)
+                save_panel(pixels, directory / name, options)
                 axis = art.add_subplot(grid[row + 1, column])
                 half = patch.width / 2
                 axis.imshow(
@@ -260,16 +281,13 @@ def render_tissue(
     finally:
         art.clear()
     return {
-        "lobule_count": len(patch.centers),
-        "lobule_centers_in_lobule_widths": patch.centers.tolist(),
-        "source_lobule_width": patch.source_width,
+        "tissue_width_in_lobule_widths": tissue.width,
+        "tiled_lobule_count": len(tissue.centers),
+        "source_lobule_width": tissue.source_width,
         "source_coordinate_units": "unchanged; no independent length-unit metadata",
-        "square_area_in_lobule_widths_squared": patch.nominal_area,
-        "native_tissue_area_in_lobule_widths_squared": patch.tissue_area,
-        "native_vessel_void_fraction": max(
-            0.0, 1 - patch.tissue_area / patch.nominal_area
-        ),
-        "clipped_triangles": len(patch.faces),
+        "random_generator": "PCG64",
+        "panel_coordinates": "relative to each crop center",
+        "panels": layouts,
     }
 
 
@@ -341,6 +359,7 @@ def create_tissue_panels(
             "thickness": "not displayed",
         },
         "width_definition": "native flat-to-flat lobule width",
+        "crop_selection": "independent uniform XY crop center per field/time panel from tissue twice the output width",
         "protein_field": "rr_protein displayed as CYP2E1",
         "scalar_ranges": {
             layer.sid: list(display_limits(layer, ranges)) for layer in TISSUE_LAYERS
@@ -374,6 +393,8 @@ def create_tissue_panels(
                 description = (
                     f"Linear-increase tissue panels, D{options.dose} ({source.run.run_id}). "
                     f"A square {options.width:g} native flat-to-flat lobule widths per side is completely covered by a hexagonal lattice. "
+                    f"Each field/time panel uses an independent random crop from a {2 * options.width:g} by {2 * options.width:g} tissue square, with PCG64 seed {options.seed}. "
+                    "Exact crop centers are recorded in provenance; each panel shows its own tissue location. "
                     f"Native vessel lumens remain {options.vessel_color} and carry no scalar data. "
                     "CYP2E1 displays the model's rr_protein field; toxic compound T and necrosis use their original fields. "
                     "Continuous native cell values are interpolated in time; necrosis holds its preceding native state. "
@@ -404,7 +425,10 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         default=[time / 3600 for time in SIMULATION_TIMES],
     )
-    parser.add_argument("--width-lobules", type=float, default=2.5)
+    parser.add_argument("--width-lobules", type=float, default=2.0)
+    parser.add_argument(
+        "--seed", type=int, default=0, help="Seed for independent random panel crops"
+    )
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument(
         "--formats",
@@ -427,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
             formats=tuple(args.formats),
             vessel_color=args.vessel_color,
             mesh=args.mesh,
+            seed=args.seed,
         )
         generation = create_tissue_panels(args.data_root, options, force=args.force)
         atomic_json(

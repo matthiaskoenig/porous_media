@@ -104,7 +104,7 @@ class TissuePatch:
 
 
 def tile_lobules(
-    faces: np.ndarray, cell_ids: np.ndarray, width: float = 2.5
+    faces: np.ndarray, cell_ids: np.ndarray, width: float = 2.0
 ) -> TissuePatch:
     """Cover a square with repeated lobules and clip every intersecting native cell.
 
@@ -112,8 +112,8 @@ def tile_lobules(
     lattice covers the whole square, including its corners. Native vessel lumens
     remain empty; no scalar values are invented or interpolated between lobules.
     """
-    if not np.isfinite(width) or width < 2.5:
-        raise ValueError("Square width must be finite and at least 2.5 lobules")
+    if not np.isfinite(width) or width < 2:
+        raise ValueError("Square width must be finite and at least 2 lobules")
     source_width = lobule_width(faces)
     if (
         cell_ids.shape != (len(faces),)
@@ -167,4 +167,47 @@ def tile_lobules(
         width,
         source_width,
         nominal_area,
+    )
+
+
+def crop_tissue(
+    tissue: TissuePatch, width: float, center: tuple[float, float]
+) -> TissuePatch:
+    """Clip an offset square from tiled tissue, retaining native cell identities.
+
+    The center uses the parent's normalized XY coordinates. Returned faces and
+    lobule centers are relative to the crop center, with unchanged scalar IDs.
+    """
+    if not np.isfinite(width) or width < 2:
+        raise ValueError("Square width must be finite and at least 2 lobules")
+    offset = np.asarray(center, dtype=float)
+    if offset.shape != (2,) or not np.isfinite(offset).all():
+        raise ValueError("Crop center must contain two finite XY coordinates")
+    half = width / 2
+    if np.any(np.abs(offset) + half > tissue.width / 2):
+        raise ValueError("Crop must fit entirely inside the tiled tissue square")
+    translated = tissue.faces - offset
+    low, high = translated.min(axis=1), translated.max(axis=1)
+    intersects = ((low < half) & (high > -half)).all(axis=1)
+    inside = ((low >= -half) & (high <= half)).all(axis=1)
+    pieces = list(translated[inside])
+    ids = list(tissue.cell_ids[inside])
+    owners = list(tissue.lobule_ids[inside])
+    for index in np.flatnonzero(intersects & ~inside):
+        clipped = clip_square(translated[index], half)
+        for vertex in range(1, len(clipped) - 1):
+            triangle = clipped[[0, vertex, vertex + 1]]
+            if polygon_area(triangle) > 1e-14:
+                pieces.append(triangle)
+                ids.append(tissue.cell_ids[index])
+                owners.append(tissue.lobule_ids[index])
+    lobules, local_ids = np.unique(owners, return_inverse=True)
+    return TissuePatch(
+        np.asarray(pieces),
+        np.asarray(ids, dtype=np.int64),
+        local_ids,
+        tissue.centers[lobules] - offset,
+        width,
+        tissue.source_width,
+        width**2,
     )
