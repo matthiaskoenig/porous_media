@@ -23,6 +23,7 @@ from research.spt.catalog import RunSource, Study
 from research.spt.conditions import SimulationCondition
 from research.spt.fields import SUMMARY_FIELDS
 from research.spt.geometry import CONVERGENCE_MESHES
+from research.spt.layout import artifact_directory
 from research.spt.plot_data import SAMPLE_VERSION, PlotSource, load_heights
 from research.spt.plot_render import Samples
 
@@ -84,7 +85,7 @@ class PublicationData:
             raise ValueError(
                 f"Publication analysis requires homogeneous lobules: {study}"
             )
-        directory = self.root / "analysis-data" / study / run_id
+        directory = artifact_directory(self.root, "analysis-data", study, run_id)
         manifest = json.loads((directory / "manifest.json").read_text())
         configuration, metadata = manifest["configuration"], manifest["metadata"]
         if (
@@ -133,7 +134,7 @@ class PublicationData:
 
     def mesh_manifest(self, study: str, run_id: str) -> tuple[Path, dict[str, object]]:
         """Check cached plotting geometry without opening a mesh or numerical array."""
-        directory = self.root / "plot-data" / study / run_id
+        directory = artifact_directory(self.root, "plot-data", study, run_id)
         manifest = json.loads((directory / "manifest.json").read_text())
         configuration = manifest["configuration"]
         if (
@@ -150,7 +151,7 @@ class PublicationData:
         directory, manifest = self.mesh_manifest(study, run_id)
         metadata = cast(dict[str, object], manifest["metadata"])
         heights = load_heights(
-            self.root / "plot-depth" / study / run_id,
+            artifact_directory(self.root, "plot-depth", study, run_id),
             manifest,
             self.root,
             sample_path=generation_path(directory, manifest) / "samples.npz",

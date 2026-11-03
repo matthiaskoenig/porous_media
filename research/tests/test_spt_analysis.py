@@ -194,7 +194,7 @@ def test_unchanged_analysis_is_metadata_only(
         workers=2,
     )
     assert result[0].status == "cached"
-    report = json.loads((output / "analysis-report-simulations.json").read_text())
+    report = json.loads((output / "logs/analysis-simulations.json").read_text())
     assert report["native_frames_read"] == 0
 
 
@@ -287,8 +287,9 @@ def test_failure_recovery_and_missing_artifact(
 
 
 def test_full_pipeline_from_fresh_inputs(tmp_path: Path) -> None:
-    """Run every stage from raw sixths through mixed views, analysis and figures."""
-    root, output = tmp_path / "raw", tmp_path / "local"
+    """Run every stage from raw sixths into the default results subdirectory."""
+    root = tmp_path / "raw"
+    output = root / "results"
     for index, key in enumerate((*CONVERGENCE_MESHES, "50000")):
         _input(root, f"convergence_{key}", 8 - index, (0, 2) if index == 0 else (0, 4))
     before = {
@@ -316,13 +317,23 @@ def test_full_pipeline_from_fresh_inputs(tmp_path: Path) -> None:
         "analysis",
         "geometry-figures",
     ]
-    assert (output / "index.html").is_file()
-    assert (output / "report.html").read_bytes() == (output / "index.html").read_bytes()
-    assert 'class="figure-card"' in (output / "report.html").read_text()
-    assert (output / "analysis/index.html").is_file()
+    assert 'class="figure-card"' in (output / "index.html").read_text()
+    assert (output / "README.md").is_file()
+    assert {path.name for path in output.iterdir()} <= {
+        "index.html",
+        "README.md",
+        "analysis",
+        "cache",
+        "catalog",
+        "figures",
+        "logs",
+        "meshes",
+    }
     assert (
         len(
-            list((output / "analysis-data/convergence_lobulus").glob("*/manifest.json"))
+            list(
+                (output / "cache/analysis/convergence_lobulus").glob("*/manifest.json")
+            )
         )
         == 7
     )
@@ -341,6 +352,9 @@ def test_full_pipeline_from_fresh_inputs(tmp_path: Path) -> None:
     native = pd.read_csv(generation / "native-timecourses.tsv", sep="\t")
     assert native[native.run == "convergence_50000"].time.max() == 4
     assert {p: (p.stat().st_size, p.stat().st_mtime_ns) for p in before} == before
+    assert {
+        p for p in root.rglob("*") if p.is_file() and not p.is_relative_to(output)
+    } == set(before)
     assert (
         pipeline_main(
             [
@@ -397,6 +411,36 @@ def test_dry_run_and_invalid_selections(
     assert not (tmp_path / "empty").exists()
 
 
+def test_pipeline_creates_manuscript_only_for_complete_studies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run the manuscript stage last, and only for both complete studies."""
+    calls: list[tuple[Path, tuple[str, ...]]] = []
+    monkeypatch.setattr("research.spt.pipeline.information_main", lambda args: 0)
+    for name in (
+        "process_geometries",
+        "process_studies",
+        "process_analysis",
+        "process_plots",
+    ):
+        monkeypatch.setattr(f"research.spt.pipeline.{name}", lambda *a, **k: [])
+    monkeypatch.setattr(
+        "research.spt.pipeline.create_manuscript",
+        lambda root, formats: calls.append((root, formats)) or 0,
+    )
+    monkeypatch.setattr("research.spt.pipeline.build_report", lambda root: root)
+    root = tmp_path / "raw"
+    root.mkdir()
+    output = root / "results"
+    report = run_pipeline(root, output)
+    assert report["status"] == "passed"
+    assert report["stages"][-1]["name"] == "manuscript"
+    assert calls == [(output.resolve(), ("svg", "pdf", "png"))]
+    subset = run_pipeline(root, output, study="simulations")
+    assert "manuscript" not in [item["name"] for item in subset["stages"]]
+    assert len(calls) == 1
+
+
 def test_pipeline_stops_after_input_failure(tmp_path: Path) -> None:
     """Avoid downstream writes and record the failed stage clearly."""
     output = tmp_path / "out"
@@ -404,9 +448,7 @@ def test_pipeline_stops_after_input_failure(tmp_path: Path) -> None:
     assert report["status"] == "failed"
     assert len(report["stages"]) == 1
     assert not (output / "analysis").exists()
-    assert (
-        json.loads((output / "pipeline-report.json").read_text())["status"] == "failed"
-    )
+    assert json.loads((output / "logs/pipeline.json").read_text())["status"] == "failed"
 
 
 def test_later_spatial_times_keep_initial_diagnostics(

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import json
 import sys
 import time
@@ -11,17 +10,17 @@ from dataclasses import asdict, dataclass, replace
 from functools import partial
 from pathlib import Path
 from typing import cast
-from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
 
-from research import RESULTS_DIR
-from research.spt.artifacts import atomic_json, atomic_text
+from research.spt import results_spt_dir
+from research.spt.artifacts import atomic_json
 from research.spt.cache import ProcessingResult, _current_generation, validate_roots
 from research.spt.cli import selection_parser, write_catalog
 from research.spt.execution import execute_jobs, print_result
 from research.spt.fields import LAYERS, SPT_LAYERS, Layer
+from research.spt.layout import log_path
 from research.spt.plot_data import (
     PlotSource,
     plot_sources,
@@ -30,7 +29,6 @@ from research.spt.plot_data import (
 )
 from research.spt.plot_overviews import overview_figures
 from research.spt.plot_render import RenderOptions, render_source
-from research.spt.report_previews import preview_image
 
 
 @dataclass
@@ -118,54 +116,6 @@ def shared_ranges(
     return result
 
 
-def write_gallery(rows: list[dict[str, object]], output_root: Path, study: str) -> Path:
-    """Write a local lazy-loading index with escaped titles and artifact links."""
-    directory = output_root / "figures"
-    if directory.resolve() != directory.absolute():
-        raise ValueError("Gallery directory must not traverse symbolic links")
-    directory.mkdir(parents=True, exist_ok=True)
-    items = []
-    for row in rows:
-        title = f"{row['study']} / {row['run_id']}"
-        links = []
-        preview = ""
-        for name in (
-            "svg",
-            "pdf",
-            "png",
-            "video",
-            "gif",
-            "mesh_svg",
-            "mesh_pdf",
-            "mesh_png",
-        ):
-            value = row.get(name)
-            if not isinstance(value, str):
-                continue
-            path = Path(value)
-            if not path.is_relative_to(output_root):
-                raise ValueError(
-                    "Gallery artifacts must stay inside the local output root"
-                )
-            relative = Path("..") / path.relative_to(output_root)
-            url = quote(relative.as_posix(), safe="/")
-            links.append(f'<a href="{url}">{name.replace("_", " ").upper()}</a>')
-            if name == "png":
-                small = preview_image(path, output_root)
-                small_url = quote(
-                    (Path("..") / small.path.relative_to(output_root)).as_posix(),
-                    safe="/",
-                )
-                preview = f'<a href="{url}"><img loading="lazy" decoding="async" src="{small_url}" width="{small.width}" height="{small.height}" alt="{html.escape(title, quote=True)}"></a>'
-        items.append(
-            f"<article><h2>{html.escape(title)}</h2>{preview}<p>{' | '.join(links)}</p></article>"
-        )
-    page = f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SPT geometry figures</title><style>body{{font:16px system-ui;margin:2rem;background:#f5f6f8;color:#17212b}}main{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem}}article{{background:white;padding:1rem;border-radius:8px}}h2{{font-size:1rem}}img{{width:100%;height:320px;object-fit:contain}}a{{color:#075ca8}}</style><h1>SPT geometry figures</h1><p>Shared time windows and color scales within each study. SVG and PDF preserve vector cell geometry. Videos and separate panels are opt-in.</p><main>{"".join(items)}</main></html>"""
-    path = directory / f"index-{study}.html"
-    atomic_text(path, page)
-    return path
-
-
 def process_plots(
     input_root: Path,
     data_root: Path,
@@ -214,12 +164,6 @@ def process_plots(
             options,
             snapshots=values[0],
             video_times=values[1],
-            layers=tuple(
-                replace(layer, show_edges=False, outline=True)
-                for layer in options.layers
-            )
-            if family == "convergence"
-            else options.layers,
         )
         for family, values in timelines.items()
     }
@@ -358,15 +302,14 @@ def process_plots(
         dict(result.row) for result in results if result.row
     ]
     rows.extend(dict(row) for row in overview_rows)
-    write_catalog(pd.DataFrame(rows), output_root, name=f"plot-catalog-{study}")
-    gallery = write_gallery(rows, output_root, study)
+    write_catalog(pd.DataFrame(rows), log_path(output_root, f"plots-{study}.tsv"))
     reads = sum(
         cast(int, cast(dict[str, object], item.manifest["metadata"])["hdf_field_reads"])
         for item in prepared
         if item.created and item.manifest is not None
     )
     atomic_json(
-        output_root / f"plot-report-{study}.json",
+        log_path(output_root, f"plots-{study}.json"),
         {
             "elapsed_s": time.perf_counter() - started,
             "sampling": {
@@ -376,7 +319,6 @@ def process_plots(
             },
             "results": [asdict(result) for result in results],
             "overviews": overview_rows,
-            "gallery": str(gallery),
             "ranges": ranges,
         },
     )
@@ -390,7 +332,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
     parser.add_argument(
         "--data-root",
         type=Path,
-        default=RESULTS_DIR / "spt",
+        default=results_spt_dir,
         help="Root containing published lobulus and combination histories",
     )
     parser.add_argument(

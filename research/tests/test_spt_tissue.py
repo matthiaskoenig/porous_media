@@ -263,7 +263,7 @@ def test_local_tissue_workflow_exports_and_cached_reads(
     titles = [provenance["artifact_titles"][p.stem] for p in pngs]
     assert len(set(titles)) == 7
     target = (
-        data.root / "publication/exports/linear-increase-tissue-d6-cyp2e1-t86400s.png"
+        data.root / "manuscript/exports/linear-increase-tissue-d6-cyp2e1-t86400s.png"
     )
     target.unlink()
     with patch("numpy.load", forbidden), patch("xarray.open_dataset", forbidden):

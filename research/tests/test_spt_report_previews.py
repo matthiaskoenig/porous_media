@@ -14,7 +14,9 @@ from research.tests.test_spt_report import ReportParser, _publish
 def test_report_loads_small_previews_and_inspects_originals(tmp_path: Path) -> None:
     """Only small WebP files appear in gallery images; full exports stay on demand."""
     generation = _publish(
-        tmp_path, "figures/convergence_sixth/convergence_06250", ("timecourse.png",)
+        tmp_path,
+        "figures/runs/convergence_sixth/convergence_06250",
+        ("timecourse.png",),
     )
     source = generation / "timecourse.png"
     with Image.new("RGB", (3072, 2048), "navy") as image:
@@ -91,7 +93,8 @@ def test_preview_destinations_reject_symlinks(tmp_path: Path) -> None:
         image.save(source)
     external = tmp_path / "unrelated"
     external.mkdir()
-    (tmp_path / "report-previews").symlink_to(external, target_is_directory=True)
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache/previews").symlink_to(external, target_is_directory=True)
     with pytest.raises(ValueError, match="symbolic links"):
         preview_image(source, tmp_path)
     assert not list(external.iterdir())

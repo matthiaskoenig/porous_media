@@ -40,7 +40,7 @@ from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_view import GEOMETRY_VIEW, SurfaceProjection
 
-RENDER_VERSION = 7
+RENDER_VERSION = 8
 SOLID_CELL_STROKE = 0.2
 
 
@@ -405,38 +405,6 @@ def render_panels(
             art.clear()
 
 
-def render_mesh(
-    source: PlotSource, samples: Samples, directory: Path, options: RenderOptions
-) -> None:
-    """Publish a neutral mesh view independently of convergence scalar fields."""
-    art = figure((4.0, 4.0))
-    try:
-        axis = art.subplots()
-        panel(
-            axis,
-            samples,
-            Layer("mesh", "Mesh", edge_alpha=0.45),
-            np.zeros(len(samples.sectors)),
-            (0, 1),
-            mesh=True,
-        )
-        axis.set_title(
-            f"{source.run.run_id}\n{len(samples.sectors):,} cells", fontsize=11
-        )
-        if source.sector_labels:
-            label_sectors(axis, samples)
-            art.supxlabel(
-                " | ".join(
-                    f"{index + 1}: {name}"
-                    for index, name in enumerate(source.sector_labels)
-                ),
-                fontsize=9,
-            )
-        save_figure(art, directory / "mesh", options)
-    finally:
-        art.clear()
-
-
 def render_video(
     samples: Samples,
     directory: Path,
@@ -568,8 +536,6 @@ def render_source(
                 staging = Path(temporary)
                 with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
                     render_timecourse(source, samples, staging, options, ranges)
-                    if source.family == "convergence":
-                        render_mesh(source, samples, staging, options)
                     if options.panels:
                         render_panels(source, samples, staging, options, ranges)
                     if options.video_times:
@@ -631,8 +597,6 @@ def figure_row(
     }
     for extension in options.formats:
         row[extension] = str(generation / f"timecourse.{extension}")
-        if source.family == "convergence":
-            row[f"mesh_{extension}"] = str(generation / f"mesh.{extension}")
     if options.video_times:
         row["video"] = str(generation / "timecourse.mp4")
     if options.gif:

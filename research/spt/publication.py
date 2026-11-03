@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
 import sys
 import tempfile
 from dataclasses import asdict
@@ -13,7 +11,7 @@ from pathlib import Path
 import matplotlib as mpl
 import numpy as np
 
-from research import RESULTS_DIR
+from research.spt import results_spt_dir
 from research.spt.analysis_plots import PlotOptions, _curves
 from research.spt.artifacts import (
     atomic_json,
@@ -27,6 +25,12 @@ from research.spt.artifacts import (
     validate_output,
 )
 from research.spt.fields import SUMMARY_FIELDS
+from research.spt.layout import (
+    category_root,
+    exports_directory,
+    log_path,
+    manuscript_directory,
+)
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions
 from research.spt.plot_view import GEOMETRY_VIEW
@@ -51,7 +55,7 @@ from research.spt.publication_timecourses import (
 )
 from research.spt.report import build_report
 
-PUBLICATION_VERSION = 3
+PUBLICATION_VERSION = 4
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
 COMPACT_FIGURES = ("4", "5")
@@ -66,7 +70,7 @@ TITLES = {
 
 def export_figure(generation: Path, root: Path, stem: str) -> None:
     """Expose stable manuscript filenames without duplicating generation storage."""
-    directory = root / "publication/exports"
+    directory = exports_directory(root)
     validate_output(directory / stem)
     directory.mkdir(parents=True, exist_ok=True)
     for name in (
@@ -94,7 +98,9 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
     sources = [
         data.source("simulations_lobulus", path.parent.name)
         for path in sorted(
-            (data.root / "analysis-data/simulations_lobulus").glob("*/manifest.json")
+            (category_root(data.root, "analysis-data") / "simulations_lobulus").glob(
+                "*/manifest.json"
+            )
         )
     ]
     conditions = [
@@ -117,46 +123,6 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
     )
 
 
-def remove_obsolete_compact(root: Path) -> None:
-    """Retire only generated compact variants superseded by the manuscript selection."""
-    for number, stem in (
-        ("6", "figure-06-compact"),
-        ("7", "figure-07-compact"),
-        ("S1", "figure-s1-convergence-compact"),
-    ):
-        directory = root / "publication" / stem
-        pointer = directory / "manifest.json"
-        if not pointer.is_file():
-            continue
-        with run_lock(directory):
-            manifest = json.loads(pointer.read_text())
-            configuration = manifest["configuration"]
-            if (
-                configuration.get("variant") != "compact"
-                or configuration.get("figure") != number
-            ):
-                raise ValueError(
-                    f"Refusing to remove unrelated publication output: {stem}"
-                )
-            generation = generation_path(directory, manifest)
-            targets = [
-                root / "publication/exports" / f"{stem}{suffix}"
-                for suffix in (
-                    ".svg",
-                    ".pdf",
-                    ".png",
-                    ".caption.md",
-                    ".provenance.json",
-                )
-            ]
-            for target in targets:
-                validate_output(target)
-            pointer.unlink()
-            for target in targets:
-                target.unlink(missing_ok=True)
-            shutil.rmtree(generation)
-
-
 def caption(
     number: str,
     sources: list[PlotSource],
@@ -173,7 +139,8 @@ def caption(
             "right. Continuous cell "
             "values are interpolated between native frames; discrete necrosis holds "
             "the preceding frame. One shared vertical colorbar beside each field row uses scalar limits "
-            "from full histories of all 48 runs."
+            "from full histories of all 48 runs. Maps show the lobule outline "
+            "without internal mesh edges."
         )
     if number == "5":
         return (
@@ -182,7 +149,8 @@ def caption(
             "and F: random zonation. Each block has three rows for protein, toxic "
             "compound and necrosis. Columns show 0, 6, 12, 18 and 24 h from left to "
             "right. All blocks share full-cohort scalar limits and a single bottom "
-            "set of three field colorbars. Runs: "
+            "set of three field colorbars. Maps show lobule outlines without "
+            "internal mesh edges. Runs: "
             + ", ".join(source.run.run_id for source in sources)
             + "."
         )
@@ -201,11 +169,13 @@ def caption(
             "Figure 7. Necrosis at 24 h by protein zonation pattern (rows A-F) and "
             "increasing substrate inflow (D1-D8, columns). The shared binary legend "
             "on the right labels black as necrosis and white as no necrosis. "
-            "Cell states retain the fixed 0-1 scale."
+            "Cell states retain the fixed 0-1 scale. Maps show lobule outlines "
+            "without internal mesh edges."
         )
     common_end = min(source.end for source in sources)
     return (
-        "Convergence supplement. A: source-sector meshes ordered coarse to fine, "
+        "Convergence supplement. A: source-sector meshes with their triangles, "
+        "ordered coarse to fine, "
         "plus the mixed lobule with sectors 1-6 clockwise from upper left "
         "(37250, 25000, 18750, 12500, 09375, 06250). "
         "Mesh boundaries and native time courses share one distinct color per "
@@ -360,7 +330,7 @@ def create_publication(
                 title=f"{TITLES[number]} (compact)",
             )
             stem += "-compact"
-        directory = data.root / "publication" / stem
+        directory = manuscript_directory(data.root, stem)
         with run_lock(directory):
             cached = current_manifest(directory, configuration, data.root)
             if cached and not force:
@@ -459,7 +429,7 @@ def create_publication(
 def main(argv: list[str] | None = None) -> int:
     """Create selected publication figures from a completed local SPT pipeline."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=RESULTS_DIR / "spt")
+    parser.add_argument("--data-root", type=Path, default=results_spt_dir)
     parser.add_argument("--figures", choices=FIGURES, nargs="+")
     parser.add_argument("--dose", type=int, default=6)
     parser.add_argument(
@@ -502,9 +472,8 @@ def main(argv: list[str] | None = None) -> int:
             comparison_time=args.comparison_time,
             force=args.force,
         )
-        remove_obsolete_compact(args.data_root.expanduser().resolve())
         atomic_json(
-            args.data_root / "publication-report.json",
+            log_path(args.data_root, "manuscript.json"),
             {
                 "status": "passed",
                 "figures": {key: str(path) for key, path in outputs.items()},

@@ -26,7 +26,6 @@ from research.spt.plot_data import PlotSource, plot_sources, prepare_samples
 from research.spt.plot_render import RenderOptions, Samples
 from research.spt.publication import (
     create_publication,
-    remove_obsolete_compact,
     simulation_cohort,
 )
 from research.spt.publication_data import (
@@ -586,9 +585,9 @@ def test_cached_publication_skips_arrays_and_repairs_missing_exports(
         "research.spt.publication.simulation_cohort", lambda data: [source]
     )
     first = create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
-    pointer = data.root / "publication/figure-04/manifest.json"
+    pointer = data.root / "manuscript/figure-04/manifest.json"
     before = pointer.read_bytes()
-    exported = data.root / "publication/exports/figure-04.png"
+    exported = data.root / "manuscript/exports/figure-04.png"
     assert exported.samefile(first["4"] / "figure-04.png")
     exported.unlink()
     with monkeypatch.context() as cached:
@@ -625,12 +624,12 @@ def test_compact_exports_preserve_full_size_and_resolution(
         "research.spt.publication.simulation_cohort", lambda data: [source]
     )
     original = create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
-    pointer = data.root / "publication/figure-04/manifest.json"
+    pointer = data.root / "manuscript/figure-04/manifest.json"
     before = pointer.read_bytes()
     compact = create_publication(
         data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
     )
-    exported = data.root / "publication/exports/figure-04-compact.png"
+    exported = data.root / "manuscript/exports/figure-04-compact.png"
     assert exported.samefile(compact["4"] / exported.name)
     assert pointer.read_bytes() == before
     assert original["4"] != compact["4"]
@@ -719,7 +718,7 @@ def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
         stem = f"figure-{number:02}"
         _publish(
             tmp_path,
-            f"publication/{stem}",
+            f"manuscript/{stem}",
             (f"{stem}.png", f"{stem}.pdf", "provenance.json"),
             {
                 "study": "simulations_lobulus",
@@ -729,7 +728,7 @@ def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
         )
     _publish(
         tmp_path,
-        "publication/figure-04-compact",
+        "manuscript/figure-04-compact",
         ("figure-04-compact.png",),
         {
             "study": "simulations_lobulus",
@@ -745,7 +744,7 @@ def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
         "Figure 6",
         "Figure 7",
     ]
-    assert all(card["data-section"] == "publication" for card in report.cards)
+    assert all(card["data-section"] == "manuscript" for card in report.cards)
     assert report.images[0]["src"] and str(report.images[0]["src"]).endswith(".webp")
 
 
@@ -777,7 +776,7 @@ def test_content_crop_keeps_white_tissue_and_annotations(
         raster_panel(
             axis,
             samples,
-            replace(LAYERS[-1], show_edges=False),
+            replace(LAYERS[-1], show_edges=False, outline=False),
             samples.values[0, -1],
             (0, 1),
             side=2,
@@ -809,30 +808,6 @@ def test_content_crop_keeps_white_tissue_and_annotations(
         assert "<text" in svg
     finally:
         art.clear()
-
-
-def test_retire_only_obsolete_compact_exports(tmp_path: Path) -> None:
-    """Remove obsolete compact cards and exports without touching full-size figures."""
-    for stem, number, variant in (
-        ("figure-06-compact", "6", "compact"),
-        ("figure-04-compact", "4", "compact"),
-        ("figure-06", "6", "full"),
-    ):
-        generation = _publish(
-            tmp_path,
-            f"publication/{stem}",
-            (f"{stem}.png",),
-            {"figure": number, "variant": variant, "study": "simulations_lobulus"},
-        )
-        directory = tmp_path / "publication/exports"
-        directory.mkdir(exist_ok=True)
-        (directory / f"{stem}.png").hardlink_to(generation / f"{stem}.png")
-    remove_obsolete_compact(tmp_path)
-    assert not (tmp_path / "publication/figure-06-compact/manifest.json").exists()
-    assert not (tmp_path / "publication/exports/figure-06-compact.png").exists()
-    assert (tmp_path / "publication/exports/figure-06.png").is_file()
-    assert (tmp_path / "publication/exports/figure-04-compact.png").is_file()
-    remove_obsolete_compact(tmp_path)
 
 
 def test_crop_excludes_padding_of_frameless_legends(tmp_path: Path) -> None:
