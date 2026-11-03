@@ -15,6 +15,13 @@ from matplotlib.patches import Patch
 from matplotlib.transforms import Bbox
 
 from research.spt.fields import LAYERS, Layer
+from research.spt.manuscript_data import (
+    SIMULATION_TIMES,
+    ManuscriptData,
+    pattern_label,
+)
+from research.spt.manuscript_layout import manuscript_bounds, resize_manuscript_figure
+from research.spt.manuscript_patterns import add_pattern_icon
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import (
     RenderOptions,
@@ -24,13 +31,6 @@ from research.spt.plot_render import (
     panel,
     scalar_bar,
 )
-from research.spt.publication_data import (
-    SIMULATION_TIMES,
-    PublicationData,
-    pattern_label,
-)
-from research.spt.publication_layout import publication_bounds, resize_publication
-from research.spt.publication_patterns import add_pattern_icon
 
 FIELD_TITLES = ("Substrate", "Product", "Protein", "Toxic\ncompound", "Necrosis")
 
@@ -99,7 +99,7 @@ def shared_colorbar(
         item.set_edgecolor("face")
 
 
-def save_publication(
+def save_manuscript_figure(
     art: Figure,
     destination: Path,
     options: RenderOptions,
@@ -107,9 +107,9 @@ def save_publication(
     width_mm: float | None = None,
 ) -> None:
     """Keep annotations as vector text and bound dense map exports at the chosen DPI."""
-    resize_publication(art, width_mm)
+    resize_manuscript_figure(art, width_mm)
     art.set_dpi(options.dpi)
-    bounds = publication_bounds(art)
+    bounds = manuscript_bounds(art)
     for extension in options.formats:
         art.savefig(
             destination.with_suffix(f".{extension}"),
@@ -299,7 +299,7 @@ def time_grid(
 
 
 def render_example(
-    data: PublicationData,
+    data: ManuscriptData,
     source: PlotSource,
     ranges: dict[str, tuple[float, float]],
     directory: Path,
@@ -324,13 +324,13 @@ def render_example(
             scale=0.7,
             dpi=options.dpi,
         )
-        save_publication(art, directory / "figure-04", options, width_mm=width_mm)
+        save_manuscript_figure(art, directory / "figure-04", options, width_mm=width_mm)
     finally:
         art.clear()
 
 
 def render_patterns(
-    data: PublicationData,
+    data: ManuscriptData,
     sources: list[PlotSource],
     ranges: dict[str, tuple[float, float]],
     directory: Path,
@@ -375,13 +375,13 @@ def render_patterns(
                 layer,
                 scale=1,
             )
-        save_publication(art, directory / "figure-05", options, width_mm=width_mm)
+        save_manuscript_figure(art, directory / "figure-05", options, width_mm=width_mm)
     finally:
         art.clear()
 
 
 def render_necrosis(
-    data: PublicationData,
+    data: ManuscriptData,
     sources: list[PlotSource],
     directory: Path,
     options: RenderOptions,
@@ -452,6 +452,6 @@ def render_necrosis(
             labelspacing=1.1,
             borderaxespad=0,
         )
-        save_publication(art, directory / "figure-07", options)
+        save_manuscript_figure(art, directory / "figure-07", options)
     finally:
         art.clear()

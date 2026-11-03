@@ -12,7 +12,7 @@ from typing import TypedDict
 from research.spt.analysis import process_analysis
 from research.spt.analysis_data import AnalysisOptions
 from research.spt.analysis_plots import PlotOptions
-from research.spt.artifacts import atomic_json
+from research.spt.artifacts import atomic_json, sweep_leftovers
 from research.spt.cache import ProcessingResult, validate_roots
 from research.spt.cli import selection_parser
 from research.spt.data_processing import process_studies
@@ -40,11 +40,11 @@ class PipelineReport(TypedDict):
 
 def create_manuscript(output_root: Path, formats: tuple[str, ...]) -> int:
     """Create manuscript figures, compact variants and tissue panels from caches."""
-    from research.spt.publication import COMPACT_FIGURES, create_publication
+    from research.spt.manuscript import COMPACT_FIGURES, create_manuscript_figures
     from research.spt.tissue_panels import TissueOptions, create_tissue_panels
 
-    outputs = create_publication(output_root, formats=formats)
-    compact = create_publication(
+    outputs = create_manuscript_figures(output_root, formats=formats)
+    compact = create_manuscript_figures(
         output_root, figures=COMPACT_FIGURES, formats=formats, width_mm=180.0
     )
     tissue = create_tissue_panels(output_root, TissueOptions(formats=formats))
@@ -267,6 +267,7 @@ def run_pipeline(
         "scope": "existing solver results; homogeneous lobulus analysis; mixed sectors for visualization only",
     }
     if not dry_run:
+        sweep_leftovers(output_root)
         atomic_json(log_path(output_root, "pipeline.json"), report)
         build_report(output_root)
     return report

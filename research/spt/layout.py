@@ -91,6 +91,8 @@ lobule, `*_lobulus` the reconstructed homogeneous lobule and `*_combinations`
 six different sixths assembled for visual comparison.
 
 Each artifact directory holds a `manifest.json` that names its current
-`generation-<id>/` folder. Only the current generation is kept. Rerun the
-pipeline to update or repair results; unchanged results are reused.
+`generation-<id>/` folder. Only the current generation is kept; the empty
+`.lock` file lets concurrent runs coordinate. Rerun the pipeline to update or
+repair results: unchanged results are reused and leftovers of interrupted runs
+are removed.
 """

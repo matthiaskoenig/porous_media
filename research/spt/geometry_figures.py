@@ -24,7 +24,7 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
     """Save mesh/zonation and final-state panels beside a derived time series.
 
     Native cap and exterior wall faces share the same camera and unmodified
-    cell values as the geometry and publication figures.
+    cell values as the geometry and manuscript figures.
     """
     from research.spt.plot_data import projected_faces
 

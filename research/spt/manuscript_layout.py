@@ -15,10 +15,10 @@ from matplotlib.text import Annotation, Text
 from matplotlib.transforms import Bbox
 from PIL import Image
 
-from research.spt.publication_patterns import PatternIcon
+from research.spt.manuscript_patterns import PatternIcon
 
 
-def publication_bounds(art: Figure) -> Bbox:
+def manuscript_bounds(art: Figure) -> Bbox:
     """Crop to displayed panels and annotations, with a one-point safety border.
 
     Hidden map axes must not contribute their empty rectangular slots. Include
@@ -69,7 +69,7 @@ def publication_bounds(art: Figure) -> Bbox:
                 if artist is not None and artist.get_visible():
                     bounds.append(artist.get_window_extent(renderer))
     if not bounds:
-        raise ValueError("Publication figure contains no visible content")
+        raise ValueError("Manuscript figure contains no visible content")
     bounds.extend(
         icon.get_window_extent(renderer)
         for icon in art.findobj(match=PatternIcon)
@@ -81,7 +81,7 @@ def publication_bounds(art: Figure) -> Bbox:
     return Bbox.union(bounds).transformed(art.dpi_scale_trans.inverted()).padded(1 / 72)
 
 
-def resize_publication(art: Figure, width_mm: float | None) -> None:
+def resize_manuscript_figure(art: Figure, width_mm: float | None) -> None:
     """Scale physical dimensions, typography and raster tiles together before export.
 
     Width describes the nominal canvas before tight cropping. Scalar arrays and

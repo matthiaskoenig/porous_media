@@ -1,4 +1,4 @@
-"""Read publication inputs from validated local SPT caches without raw HDF reads."""
+"""Read manuscript inputs from validated local SPT caches without raw HDF reads."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def convergence_view(samples: Samples) -> Samples:
     """Place mixed resolutions coarse to fine clockwise, starting upper left.
 
     Archived sectors run fine to coarse counterclockwise from upper left. Rotate
-    their geometry by 60 degrees and number them in reverse for publication.
+    their geometry by 60 degrees and number them in reverse for the manuscript.
     Native cell identities, scalar arrays and cached source geometry stay intact.
     """
     angle = np.pi / 3
@@ -66,7 +66,7 @@ def convergence_view(samples: Samples) -> Samples:
     )
 
 
-class PublicationData:
+class ManuscriptData:
     """Share small summaries, geometry arrays and selected cell frames between figures."""
 
     def __init__(self, root: Path) -> None:
@@ -82,9 +82,7 @@ class PublicationData:
         if key in self._sources:
             return self._sources[key]
         if study not in {"simulations_lobulus", "convergence_lobulus"}:
-            raise ValueError(
-                f"Publication analysis requires homogeneous lobules: {study}"
-            )
+            raise ValueError(f"Manuscript figures require homogeneous lobules: {study}")
         directory = artifact_directory(self.root, "analysis-data", study, run_id)
         manifest = json.loads((directory / "manifest.json").read_text())
         configuration, metadata = manifest["configuration"], manifest["metadata"]
@@ -95,7 +93,7 @@ class PublicationData:
             raise ValueError(f"Analysis is stale; rerun the SPT pipeline: {run_id}")
         descriptor = Path(configuration["source"])
         if not descriptor.resolve().is_relative_to(self.root):
-            raise ValueError("Publication inputs must use local derived geometries")
+            raise ValueError("Manuscript inputs must use local derived geometries")
         condition = configuration.get("condition")
         selected = (
             SimulationCondition(
@@ -112,7 +110,7 @@ class PublicationData:
             or selected.pattern_key not in range(6)
             or selected.boundary_flow_key not in range(8)
         ):
-            raise ValueError(f"Invalid publication run condition: {run_id}")
+            raise ValueError(f"Invalid manuscript run condition: {run_id}")
         source = PlotSource(
             RunSource(
                 self.root,
@@ -265,7 +263,7 @@ class PublicationData:
                     max(high, float(values[field]["max"])),
                 )
         if not np.isfinite(list(ranges.values())).all():
-            raise ValueError("Publication scalar limits must be finite")
+            raise ValueError("Manuscript scalar limits must be finite")
         return ranges
 
     def dependencies(

@@ -31,31 +31,31 @@ from research.spt.layout import (
     log_path,
     manuscript_directory,
 )
-from research.spt.plot_data import PlotSource
-from research.spt.plot_render import RenderOptions
-from research.spt.plot_view import GEOMETRY_VIEW
-from research.spt.publication_data import (
+from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
     SIMULATION_TIMES,
-    PublicationData,
+    ManuscriptData,
     pattern_label,
 )
-from research.spt.publication_geometry import (
+from research.spt.manuscript_geometry import (
     render_example,
     render_necrosis,
     render_patterns,
-    save_publication,
+    save_manuscript_figure,
 )
-from research.spt.publication_patterns import PATTERN_ICON_DESCRIPTION
-from research.spt.publication_timecourses import (
+from research.spt.manuscript_patterns import PATTERN_ICON_DESCRIPTION
+from research.spt.manuscript_timecourses import (
     CONVERGENCE_COLORS,
     annotate_timecourses,
     render_convergence,
 )
+from research.spt.plot_data import PlotSource
+from research.spt.plot_render import RenderOptions
+from research.spt.plot_view import GEOMETRY_VIEW
 from research.spt.report import build_report
 
-PUBLICATION_VERSION = 4
+MANUSCRIPT_VERSION = 4
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
 COMPACT_FIGURES = ("4", "5")
@@ -93,7 +93,7 @@ def export_figure(generation: Path, root: Path, stem: str) -> None:
                 temporary.hardlink_to(source)
 
 
-def simulation_cohort(data: PublicationData) -> list[PlotSource]:
+def simulation_cohort(data: ManuscriptData) -> list[PlotSource]:
     """Require all six patterns and eight doses, identified by recorded conditions."""
     sources = [
         data.source("simulations_lobulus", path.parent.name)
@@ -112,7 +112,7 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
         (p, d) for p in range(6) for d in range(8)
     }:
         raise ValueError(
-            "Publication figures require six patterns and eight doses; run the complete SPT pipeline"
+            "Manuscript figures require six patterns and eight doses; run the complete SPT pipeline"
         )
     return sorted(
         sources,
@@ -193,7 +193,7 @@ def caption(
     )
 
 
-def create_publication(
+def create_manuscript_figures(
     data_root: Path,
     *,
     figures: tuple[str, ...] | None = None,
@@ -219,12 +219,12 @@ def create_publication(
     if not 1 <= dose <= 8:
         raise ValueError("Dose index must be between 1 and 8")
     if width_mm is not None and (not np.isfinite(width_mm) or width_mm <= 0):
-        raise ValueError("Publication width must be finite and positive")
+        raise ValueError("Manuscript figure width must be finite and positive")
     if width_mm is not None and set(figures) - set(COMPACT_FIGURES):
         raise ValueError("Compact exports are available only for Figures 4 and 5")
     if not np.isfinite(comparison_time) or comparison_time < 0:
         raise ValueError("Comparison time must be finite and nonnegative")
-    data = PublicationData(data_root)
+    data = ManuscriptData(data_root)
     simulations = simulation_cohort(data) if set(figures) - {"S1"} else []
     chosen = [source for source in simulations if source.dose == dose - 1]
     ranges = data.ranges(simulations) if simulations else {}
@@ -262,7 +262,7 @@ def create_publication(
             simulations if number in {"4", "5"} else sources, mesh_sources
         )
         configuration: dict[str, object] = {
-            "version": PUBLICATION_VERSION,
+            "version": MANUSCRIPT_VERSION,
             "figure": number,
             "title": TITLES[number],
             "study": sources[0].run.study,
@@ -336,7 +336,7 @@ def create_publication(
             if cached and not force:
                 output[number] = generation_path(directory, cached)
                 export_figure(output[number], data.root, stem)
-                print(f"Publication {number}: cached", flush=True)
+                print(f"Figure {number}: cached", flush=True)
                 continue
             records = [fingerprint(path) for path in inputs]
             with tempfile.TemporaryDirectory(
@@ -378,7 +378,7 @@ def create_publication(
                                 PlotOptions(formats=formats, dpi=dpi),
                                 SUMMARY_FIELDS,
                                 decorate=annotate_timecourses,
-                                export=save_publication,
+                                export=save_manuscript_figure,
                             )
                         finally:
                             for dataset in datasets:
@@ -422,12 +422,12 @@ def create_publication(
                     directory, staging, configuration, inputs, records
                 )
             export_figure(output[number], data.root, stem)
-            print(f"Publication {number}: rendered", flush=True)
+            print(f"Figure {number}: rendered", flush=True)
     return output
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Create selected publication figures from a completed local SPT pipeline."""
+    """Create selected manuscript figures from a completed local SPT pipeline."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=results_spt_dir)
     parser.add_argument("--figures", choices=FIGURES, nargs="+")
@@ -458,7 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     try:
-        outputs = create_publication(
+        outputs = create_manuscript_figures(
             args.data_root,
             figures=tuple(args.figures) if args.figures is not None else None,
             dose=args.dose,
@@ -482,7 +482,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(build_report(args.data_root))
     except (OSError, ValueError, KeyError) as error:
-        print(f"Publication figures failed: {error}", file=sys.stderr)
+        print(f"Manuscript figures failed: {error}", file=sys.stderr)
         return 1
     return 0
 

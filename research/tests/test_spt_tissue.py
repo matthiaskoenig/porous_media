@@ -11,7 +11,7 @@ import pytest
 from PIL import Image
 
 from research.spt.fields import LAYERS
-from research.spt.publication_data import PublicationData
+from research.spt.manuscript_data import ManuscriptData
 from research.spt.report import build_report
 from research.spt.tissue_geometry import clip_square, crop_tissue, tile_lobules
 from research.spt.tissue_panels import (
@@ -21,7 +21,7 @@ from research.spt.tissue_panels import (
     panel_stem,
     patch_image,
 )
-from research.tests.test_spt_publication import publication_data as publication_data
+from research.tests.test_spt_manuscript import manuscript_data as manuscript_data
 from research.tests.test_spt_report import ReportParser
 
 
@@ -203,12 +203,12 @@ def test_fractional_time_filenames_are_unique_and_keep_their_extension() -> None
 
 @pytest.mark.parametrize("vessel_color", ("white", "lightgray"))
 def test_local_tissue_workflow_exports_and_cached_reads(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
     monkeypatch: pytest.MonkeyPatch,
     vessel_color: str,
 ) -> None:
     """Export real synthetic native cells, exact square files and a reusable report."""
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     monkeypatch.setattr(
         "research.spt.tissue_panels.simulation_cohort", lambda data: [source]
@@ -272,10 +272,10 @@ def test_local_tissue_workflow_exports_and_cached_reads(
 
 
 def test_random_crop_seed_reproduces_positions_and_changes_exports(
-    publication_data: PublicationData, monkeypatch: pytest.MonkeyPatch
+    manuscript_data: ManuscriptData, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Reproduce random crops with the same seed and sample new crops with another."""
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     monkeypatch.setattr(
         "research.spt.tissue_panels.simulation_cohort", lambda data: [source]

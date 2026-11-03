@@ -1,4 +1,4 @@
-"""Check publication annotations, true sampling times, local reads and cache reuse."""
+"""Check manuscript annotations, true sampling times, local reads and cache reuse."""
 
 import json
 import xml.etree.ElementTree as ET
@@ -22,37 +22,37 @@ from research.spt.conditions import simulation_conditions
 from research.spt.data_processing import process_studies
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
-from research.spt.plot_data import PlotSource, plot_sources, prepare_samples
-from research.spt.plot_render import RenderOptions, Samples
-from research.spt.publication import (
-    create_publication,
+from research.spt.manuscript import (
+    create_manuscript_figures,
     simulation_cohort,
 )
-from research.spt.publication_data import (
+from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
     SIMULATION_TIMES,
-    PublicationData,
+    ManuscriptData,
     convergence_view,
     pattern_label,
 )
-from research.spt.publication_geometry import (
+from research.spt.manuscript_geometry import (
     raster_panel,
     render_example,
     render_necrosis,
     render_patterns,
-    save_publication,
+    save_manuscript_figure,
     time_grid,
 )
-from research.spt.publication_patterns import (
+from research.spt.manuscript_patterns import (
     PatternIcon,
     add_pattern_icon,
     pattern_profile,
 )
-from research.spt.publication_timecourses import (
+from research.spt.manuscript_timecourses import (
     CONVERGENCE_COLORS,
     annotate_timecourses,
     render_convergence,
 )
+from research.spt.plot_data import PlotSource, plot_sources, prepare_samples
+from research.spt.plot_render import RenderOptions, Samples
 from research.spt.report import build_report
 from research.tests.test_spt_analysis import _input
 from research.tests.test_spt_report import ReportParser, _publish
@@ -61,7 +61,7 @@ pytestmark = pytest.mark.filterwarnings("error:constrained_layout not applied")
 
 
 @pytest.fixture
-def publication_data(tmp_path: Path) -> PublicationData:
+def manuscript_data(tmp_path: Path) -> ManuscriptData:
     """Provide one real synthetic lobule with unequal, changing cell volumes."""
     raw, root = tmp_path / "raw", tmp_path / "results"
     _input(raw, "sim014", 2, (0, 86400), changing=True)
@@ -93,21 +93,21 @@ def publication_data(tmp_path: Path) -> PublicationData:
         (0, 86400),
     )
     assert prepare_samples(source, root, AnalysisOptions().fields, (0, 86400))
-    return PublicationData(root)
+    return ManuscriptData(root)
 
 
 def _no_hdf(*args: object, **kwargs: object) -> None:
-    pytest.fail("Publication figures must not open raw or derived HDF histories")
+    pytest.fail("Manuscript figures must not open raw or derived HDF histories")
 
 
 def test_true_times_and_discrete_necrosis_use_local_caches(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A 6 h label represents 6 h data, with discrete states held before native changes."""
     monkeypatch.setattr("h5py.File", _no_hdf)
     monkeypatch.setattr("meshio.xdmf.TimeSeriesReader", _no_hdf)
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     samples = data.snapshots(source, SIMULATION_TIMES)
     np.testing.assert_array_equal(samples.times / 3600, [0, 6, 12, 18, 24])
@@ -123,11 +123,11 @@ def test_true_times_and_discrete_necrosis_use_local_caches(
 
 
 def test_map_headers_time_arrow_and_vector_annotations(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
     tmp_path: Path,
 ) -> None:
-    """Publication maps retain editable SVG labels over dense, bounded raster fields."""
-    data = publication_data
+    """Manuscript maps retain editable SVG labels over dense, bounded raster fields."""
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     with mpl.rc_context({"svg.fonttype": "none"}):
         render_example(
@@ -169,12 +169,12 @@ def test_map_headers_time_arrow_and_vector_annotations(
 
 
 def test_map_tiles_do_not_keep_full_composite_raster_buffers(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
 ) -> None:
     """Each PDF image owns only one tile within a large composite."""
     from research.spt.plot_render import figure
 
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     samples = data.snapshots(source, (0,))
     art = figure((18, 27))
@@ -196,12 +196,12 @@ def test_map_tiles_do_not_keep_full_composite_raster_buffers(
 
 
 def test_pattern_panels_and_necrosis_doses_are_annotated(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A-F pattern order and the eight-dose necrosis grid follow recorded conditions."""
-    data = publication_data
+    data = manuscript_data
     prototype = data.source("simulations_lobulus", "sim014")
     all_sources = [
         replace(
@@ -254,10 +254,10 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
 
 
 def test_shared_bars_and_tight_geometry_panels(
-    publication_data: PublicationData, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    manuscript_data: ManuscriptData, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Shared scales replace panel bars and map axes reach the geometric tile bounds."""
-    data = publication_data
+    data = manuscript_data
     prototype = data.source("simulations_lobulus", "sim014")
     all_sources = [
         replace(
@@ -323,7 +323,9 @@ def test_shared_bars_and_tight_geometry_panels(
             np.testing.assert_allclose(axis.get_xlim(), extent[:2])
             np.testing.assert_allclose(axis.get_ylim(), extent[2:])
 
-    monkeypatch.setattr("research.spt.publication_geometry.save_publication", inspect)
+    monkeypatch.setattr(
+        "research.spt.manuscript_geometry.save_manuscript_figure", inspect
+    )
     options = RenderOptions(formats=("png",), dpi=25)
     ranges = data.ranges([prototype])
     render_example(data, prototype, ranges, tmp_path, options)
@@ -335,14 +337,14 @@ def test_shared_bars_and_tight_geometry_panels(
 
 @pytest.mark.parametrize("layers", [LAYERS, LAYERS[2:]])
 def test_time_columns_preserve_selected_native_fields(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
     monkeypatch: pytest.MonkeyPatch,
     layers: tuple[Layer, ...],
 ) -> None:
     """Time increases horizontally, and omitted fields never shift scalar identities."""
     from research.spt.plot_render import figure
 
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     samples = data.snapshots(source, SIMULATION_TIMES)
     ranges = data.ranges([source])
@@ -366,7 +368,7 @@ def test_time_columns_preserve_selected_native_fields(
         axis.set_axis_off()
         return ScalarMappable(norm=Normalize(*ranges[layer.sid]), cmap=layer.colormap)
 
-    monkeypatch.setattr("research.spt.publication_geometry.map_panel", capture)
+    monkeypatch.setattr("research.spt.manuscript_geometry.map_panel", capture)
     art = figure((12, 12))
     try:
         time_grid(
@@ -453,14 +455,16 @@ def test_pattern_icons_show_zonation_and_scale_as_vector_art(tmp_path: Path) -> 
             assert icon.panel.get_edgecolor() == (0, 0, 0, 1)
             icons.append(icon)
         options = RenderOptions(formats=("svg", "png"), dpi=100)
-        save_publication(art, tmp_path / "patterns", options)
+        save_manuscript_figure(art, tmp_path / "patterns", options)
         canvas = art.canvas
         assert isinstance(canvas, FigureCanvasAgg)
         before = icons[0].get_window_extent(canvas.get_renderer())
         assert before.width == pytest.approx(before.height)
         stroke = icons[0].profile.get_linewidth()
         assert stroke == 2.0
-        save_publication(art, tmp_path / "patterns-compact", options, width_mm=101.6)
+        save_manuscript_figure(
+            art, tmp_path / "patterns-compact", options, width_mm=101.6
+        )
         after = icons[0].get_window_extent(canvas.get_renderer())
         assert after.width == pytest.approx(before.width / 2)
         assert after.width == pytest.approx(after.height)
@@ -478,12 +482,12 @@ def test_pattern_icons_show_zonation_and_scale_as_vector_art(tmp_path: Path) -> 
 
 
 def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
-    publication_data: PublicationData,
+    manuscript_data: ManuscriptData,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Meshes, mixed fields and one linear curve row preserve native histories."""
-    data = publication_data
+    data = manuscript_data
     prototype = data.source("simulations_lobulus", "sim014")
     samples = data.mesh(prototype.run.study, prototype.run.run_id)
     sources = [
@@ -569,22 +573,24 @@ def test_convergence_supplement_preserves_native_ends_and_shows_meshes(
         assert any("no extrapolation" in text.get_text() for text in art.texts)
 
     monkeypatch.setattr(
-        "research.spt.publication_timecourses.save_publication", inspect
+        "research.spt.manuscript_timecourses.save_manuscript_figure", inspect
     )
     render_convergence(data, sources, tmp_path, RenderOptions(formats=("svg",), dpi=30))
 
 
-def test_cached_publication_skips_arrays_and_repairs_missing_exports(
-    publication_data: PublicationData,
+def test_cached_manuscript_skips_arrays_and_repairs_missing_exports(
+    manuscript_data: ManuscriptData,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Unchanged figure generation uses metadata only; missing PNGs are regenerated."""
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     monkeypatch.setattr(
-        "research.spt.publication.simulation_cohort", lambda data: [source]
+        "research.spt.manuscript.simulation_cohort", lambda data: [source]
     )
-    first = create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
+    first = create_manuscript_figures(
+        data.root, figures=("4",), formats=("png",), dpi=30
+    )
     pointer = data.root / "manuscript/figure-04/manifest.json"
     before = pointer.read_bytes()
     exported = data.root / "manuscript/exports/figure-04.png"
@@ -600,13 +606,17 @@ def test_cached_publication_skips_arrays_and_repairs_missing_exports(
             lambda *args, **kwargs: pytest.fail("Cache hit opened numerical arrays"),
         )
         assert (
-            create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
+            create_manuscript_figures(
+                data.root, figures=("4",), formats=("png",), dpi=30
+            )
             == first
         )
     assert pointer.read_bytes() == before
     assert exported.samefile(first["4"] / "figure-04.png")
     (first["4"] / "figure-04.png").unlink()
-    again = create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
+    again = create_manuscript_figures(
+        data.root, figures=("4",), formats=("png",), dpi=30
+    )
     assert (again["4"] / "figure-04.png").is_file()
     provenance = json.loads((again["4"] / "provenance.json").read_text())
     assert provenance["snapshot_times_s"] == list(SIMULATION_TIMES)
@@ -615,18 +625,20 @@ def test_cached_publication_skips_arrays_and_repairs_missing_exports(
 
 
 def test_compact_exports_preserve_full_size_and_resolution(
-    publication_data: PublicationData, monkeypatch: pytest.MonkeyPatch
+    manuscript_data: ManuscriptData, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Compact exports retain 300 DPI, original scalar styles and independent caches."""
-    data = publication_data
+    data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     monkeypatch.setattr(
-        "research.spt.publication.simulation_cohort", lambda data: [source]
+        "research.spt.manuscript.simulation_cohort", lambda data: [source]
     )
-    original = create_publication(data.root, figures=("4",), formats=("png",), dpi=30)
+    original = create_manuscript_figures(
+        data.root, figures=("4",), formats=("png",), dpi=30
+    )
     pointer = data.root / "manuscript/figure-04/manifest.json"
     before = pointer.read_bytes()
-    compact = create_publication(
+    compact = create_manuscript_figures(
         data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
     )
     exported = data.root / "manuscript/exports/figure-04-compact.png"
@@ -643,7 +655,7 @@ def test_compact_exports_preserve_full_size_and_resolution(
         cached.setattr("numpy.load", _no_hdf)
         cached.setattr("xarray.open_dataset", _no_hdf)
         assert (
-            create_publication(
+            create_manuscript_figures(
                 data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
             )
             == compact
@@ -667,7 +679,7 @@ def test_mixed_readouts_sample_native_cells_at_one_common_time(
         prepare_samples(source, root, AnalysisOptions().fields, (0, 2))
     mixed = plot_sources(raw, root, study="convergence", geometry="combined")[0]
     prepare_samples(mixed, root, AnalysisOptions().fields, (0, 2))
-    data = PublicationData(root)
+    data = ManuscriptData(root)
     monkeypatch.setattr("h5py.File", _no_hdf)
     monkeypatch.setattr("meshio.xdmf.TimeSeriesReader", _no_hdf)
     result = data.mixed_snapshot(0.5)
@@ -708,8 +720,8 @@ def test_mixed_readouts_sample_native_cells_at_one_common_time(
         data.mixed_snapshot(0.5)
 
 
-def test_publication_figures_appear_in_fast_report(tmp_path: Path) -> None:
-    """Expose publication figures in their own report section with small previews."""
+def test_manuscript_figures_appear_in_fast_report(tmp_path: Path) -> None:
+    """Expose manuscript figures in their own report section with small previews."""
     (tmp_path / "catalog.tsv").write_text(
         "run_id\tpattern_name\tboundary_flow_key\n"
         "sim001\tconstant\t0\nsim014\tlinear increase\t5\n"
@@ -756,19 +768,19 @@ def test_invalid_selection_fails_before_output(
 ) -> None:
     """Reject invalid figure identifiers and doses before any output is created."""
     with pytest.raises(ValueError):
-        create_publication(tmp_path, figures=figures, dose=dose)
+        create_manuscript_figures(tmp_path, figures=figures, dose=dose)
     assert not list(tmp_path.iterdir())
 
 
 def test_content_crop_keeps_white_tissue_and_annotations(
-    publication_data: PublicationData, tmp_path: Path
+    manuscript_data: ManuscriptData, tmp_path: Path
 ) -> None:
     """Crop empty axis slots while preserving white tissue, labels and vector text."""
     from research.spt.fields import LAYERS
     from research.spt.plot_render import figure
 
-    source = publication_data.source("simulations_lobulus", "sim014")
-    samples = publication_data.snapshots(source, (0.0,))
+    source = manuscript_data.source("simulations_lobulus", "sim014")
+    samples = manuscript_data.snapshots(source, (0.0,))
     art = figure((8, 6))
     art.set_layout_engine("none")
     try:
@@ -794,7 +806,7 @@ def test_content_crop_keeps_white_tissue_and_annotations(
             arrowprops={"arrowstyle": "->"},
         )
         with mpl.rc_context({"svg.fonttype": "none"}):
-            save_publication(
+            save_manuscript_figure(
                 art,
                 tmp_path / "cropped",
                 RenderOptions(formats=("png", "svg"), dpi=100),
@@ -824,7 +836,7 @@ def test_crop_excludes_padding_of_frameless_legends(tmp_path: Path) -> None:
             loc="outside upper center",
             frameon=False,
         )
-        save_publication(
+        save_manuscript_figure(
             art, tmp_path / "legend", RenderOptions(formats=("png",), dpi=100)
         )
         with Image.open(tmp_path / "legend.png") as image:
@@ -837,9 +849,9 @@ def test_crop_excludes_padding_of_frameless_legends(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("figure", ["6", "7", "S1"])
 def test_compact_selection_rejects_other_figures(tmp_path: Path, figure: str) -> None:
-    """Only the large geometry composites need a compact publication variant."""
+    """Only the large geometry composites need a compact manuscript variant."""
     with pytest.raises(ValueError, match="only for Figures 4 and 5"):
-        create_publication(tmp_path, figures=(figure,), width_mm=180)
+        create_manuscript_figures(tmp_path, figures=(figure,), width_mm=180)
     assert not list(tmp_path.iterdir())
 
 
@@ -852,5 +864,5 @@ def test_invalid_dimensions_or_common_time_fail_before_output(
 ) -> None:
     """Reject invalid physical dimensions and times without touching existing caches."""
     with pytest.raises(ValueError):
-        create_publication(tmp_path, width_mm=width, comparison_time=time)
+        create_manuscript_figures(tmp_path, width_mm=width, comparison_time=time)
     assert not list(tmp_path.iterdir())

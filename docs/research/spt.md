@@ -646,7 +646,7 @@ and native-end-time coordinates; native histories with differing time axes are
 preserved in the native TSV table and per-run files. No pickle files are used.
 The study tables and NetCDF files can be moved and read without the raw share.
 
-Each study generation's `index.html` is a self-contained gallery of its figures.
+The figures appear in the analysis section of the offline report.
 `logs/analysis-<study>.tsv` supplies current result paths, and
 `logs/analysis-<study>.json` records errors, common windows, elapsed time, and
 the number of native frames read. These describe the latest selection. Unchanged
@@ -733,7 +733,7 @@ only the manuscript figures after the pipeline has finished with:
 
 ```bash
 MPLBACKEND=Agg PYVISTA_OFF_SCREEN=true uv run --no-sync \
-  python -m research.spt.publication
+  python -m research.spt.manuscript
 ```
 
 This step reads validated local NetCDF summaries, selected cell frames and cached
@@ -833,14 +833,14 @@ The default is 300 DPI. Select `--dpi 600` when higher-resolution maps are neede
 For example, regenerate only Figures 4 and 7 as PDF and PNG:
 
 ```bash
-uv run --no-sync python -m research.spt.publication \
+uv run --no-sync python -m research.spt.manuscript \
   --figures 4 7 --formats pdf png --dpi 300
 ```
 
 Create additional, smaller versions of **Figures 4 and 5 only** at **300 DPI** with:
 
 ```bash
-uv run --no-sync python -m research.spt.publication \
+uv run --no-sync python -m research.spt.manuscript \
   --compact --dpi 300
 ```
 

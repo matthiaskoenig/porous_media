@@ -172,22 +172,25 @@ def test_outlines_without_cell_grid_and_per_panel_scalar_bars(
     )
 
 
-def test_small_colorbar_labels_remain_distinct() -> None:
-    """Do not turn nonzero product concentrations into five identical zero labels."""
+@pytest.mark.parametrize(("maximum", "power"), [(0.006, "-3"), (5012.1, "3")])
+def test_colorbar_labels_remain_distinct_and_separate(
+    maximum: float, power: str
+) -> None:
+    """Neither collapse small values to zeros nor let long large labels collide."""
     from research.spt.plot_render import figure, scalar_bar
 
     art = figure((4, 4))
     try:
         axis = art.subplots()
         collection = PolyCollection([[[0, 0], [1, 0], [0, 1]]])
-        collection.set_clim(0, 0.006)
+        collection.set_clim(0, maximum)
         scalar_bar(art, axis, collection, LAYERS[1])
         art.set_dpi(150)
         art.canvas.draw()
         labels = [tick.get_text() for tick in art.axes[-1].get_xticklabels()]
         assert len(set(labels)) == 5
         exponent = art.axes[-1].xaxis.get_offset_text().get_text().replace("−", "-")
-        assert "10^{-3}" in exponent
+        assert f"10^{{{power}}}" in exponent
         boxes = [tick.get_window_extent() for tick in art.axes[-1].get_xticklabels()]
         assert not any(left.overlaps(right) for left, right in pairwise(boxes))
     finally:
