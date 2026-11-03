@@ -104,13 +104,6 @@ class PatternIcon(Artist):
         renderer.close_group("pattern_icon")
         self.stale = False
 
-    def scale(self, factor: float) -> None:
-        """Resize the panel, line and gap together with compact-export typography."""
-        self.size *= factor
-        self.gap *= factor
-        for artist in (self.panel, self.profile):
-            artist.set_linewidth(artist.get_linewidth() * factor)
-
 
 def add_pattern_icon(target: Text, pattern: int, *, size: float = 22) -> PatternIcon:
     """Attach the same profile to a heading or a row label in every figure."""

@@ -20,7 +20,7 @@ from research.spt.manuscript_data import (
     ManuscriptData,
     pattern_label,
 )
-from research.spt.manuscript_layout import manuscript_bounds, resize_manuscript_figure
+from research.spt.manuscript_layout import manuscript_bounds
 from research.spt.manuscript_patterns import add_pattern_icon
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import (
@@ -103,11 +103,8 @@ def save_manuscript_figure(
     art: Figure,
     destination: Path,
     options: RenderOptions,
-    *,
-    width_mm: float | None = None,
 ) -> None:
     """Keep annotations as vector text and bound dense map exports at the chosen DPI."""
-    resize_manuscript_figure(art, width_mm)
     art.set_dpi(options.dpi)
     bounds = manuscript_bounds(art)
     for extension in options.formats:
@@ -304,8 +301,6 @@ def render_example(
     ranges: dict[str, tuple[float, float]],
     directory: Path,
     options: RenderOptions,
-    *,
-    width_mm: float | None = None,
 ) -> None:
     """Show the representative case at five true times with shared field colorbars."""
     art = figure((12, 13))
@@ -324,7 +319,7 @@ def render_example(
             scale=0.7,
             dpi=options.dpi,
         )
-        save_manuscript_figure(art, directory / "figure-04", options, width_mm=width_mm)
+        save_manuscript_figure(art, directory / "figure-04", options)
     finally:
         art.clear()
 
@@ -335,8 +330,6 @@ def render_patterns(
     ranges: dict[str, tuple[float, float]],
     directory: Path,
     options: RenderOptions,
-    *,
-    width_mm: float | None = None,
 ) -> None:
     """Compare protein, toxic compound and necrosis with time running left to right."""
     art = figure((14, 16))
@@ -375,7 +368,7 @@ def render_patterns(
                 layer,
                 scale=1,
             )
-        save_manuscript_figure(art, directory / "figure-05", options, width_mm=width_mm)
+        save_manuscript_figure(art, directory / "figure-05", options)
     finally:
         art.clear()
 

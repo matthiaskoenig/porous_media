@@ -170,7 +170,7 @@ def _description(stem: str, spatial_times: list[object]) -> str:
 
 def _figure_order(stem: str) -> int:
     """Keep time courses and spatial snapshots in their natural reading order."""
-    name = stem.removesuffix("-symlog").removesuffix("-compact")
+    name = stem.removesuffix("-symlog")
     if name.startswith("figure-"):
         token = name.removeprefix("figure-")
         return int(token) if token.isdigit() else 1000

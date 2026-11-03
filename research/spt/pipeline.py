@@ -39,21 +39,17 @@ class PipelineReport(TypedDict):
 
 
 def create_manuscript(output_root: Path, formats: tuple[str, ...]) -> int:
-    """Create manuscript figures, compact variants and tissue panels from caches."""
-    from research.spt.manuscript import COMPACT_FIGURES, create_manuscript_figures
+    """Create manuscript figures and tissue panels from caches."""
+    from research.spt.manuscript import create_manuscript_figures
     from research.spt.tissue_panels import TissueOptions, create_tissue_panels
 
     outputs = create_manuscript_figures(output_root, formats=formats)
-    compact = create_manuscript_figures(
-        output_root, figures=COMPACT_FIGURES, formats=formats, width_mm=180.0
-    )
     tissue = create_tissue_panels(output_root, TissueOptions(formats=formats))
     atomic_json(
         log_path(output_root, "manuscript.json"),
         {
             "status": "passed",
             "figures": {key: str(path) for key, path in outputs.items()},
-            "compact": {key: str(path) for key, path in compact.items()},
             "tissue_panels": str(tissue),
             "raw_hdf_reads": 0,
         },

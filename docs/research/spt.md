@@ -686,7 +686,7 @@ The pipeline runs these stages in order:
 3. Build or resume the homogeneous-lobule numerical caches.
 4. Serialize quantitative analysis and create its figures.
 5. Create or resume sixth, lobulus, and combined geometry figures.
-6. Create the manuscript figures, their compact variants and the tissue panels.
+6. Create the manuscript figures and the tissue panels.
 
 It checks every selected result, stops dependent work after a failure, and writes
 `logs/pipeline.json` plus the final `index.html` report at the output root. The JSON names
@@ -728,7 +728,7 @@ code, outside the public library and release artifacts.
 
 The complete pipeline creates the updated Figures 4-7 of the
 [SPT manuscript](https://doi.org/10.1101/2024.03.26.586870), a convergence
-supplement, compact variants and the tissue panels in its last stage. Recreate
+supplement and the tissue panels in its last stage. Recreate
 only the manuscript figures after the pipeline has finished with:
 
 ```bash
@@ -777,17 +777,15 @@ Figures 4 and 5 is **D6**. Pattern names and lettering match across Figures 4-7:
 **E Sharp periportal** and **F Random**. Figures 6 and 7 share the same row-label
 format and typography; Figure 5 uses those labels as its pattern-block headings.
 Every pattern label also carries the same small square black-and-white vector profile
-panel, including the Figure 4 heading and both compact exports. The horizontal
-direction runs from periportal (left) to perivenous (right); the vertical
-direction shows relative initial protein abundance. Bold profile lines remain
-clear in compact exports. Flat, rising, falling,
-sharp-step and random profiles distinguish all six patterns. These schematics
+panel, including the Figure 4 heading. The horizontal direction runs from
+periportal (left) to perivenous (right); the vertical direction shows relative
+initial protein abundance. Flat, rising, falling, sharp-step and random profiles
+distinguish all six patterns. These schematics
 explain pattern identity; the random profile is illustrative.
 
 Figures 4, 5, 7 and S1 use the same slightly tilted orthographic geometry view as
-the study figures, including native thickness and exterior side faces. Full and
-compact exports share this camera. Figure 6 retains its time-course layout and
-styling. Captions and provenance record the view, and manuscript scalar ranges,
+the study figures, including native thickness and exterior side faces. Figure 6
+retains its time-course layout and styling. Captions and provenance record the view, and manuscript scalar ranges,
 binary necrosis states, pattern icons and dose labels stay unchanged.
 
 The convergence supplement retains every available native time point and actual
@@ -836,25 +834,6 @@ For example, regenerate only Figures 4 and 7 as PDF and PNG:
 uv run --no-sync python -m research.spt.manuscript \
   --figures 4 7 --formats pdf png --dpi 300
 ```
-
-Create additional, smaller versions of **Figures 4 and 5 only** at **300 DPI** with:
-
-```bash
-uv run --no-sync python -m research.spt.manuscript \
-  --compact --dpi 300
-```
-
-Compact figures use a nominal canvas width of 180 mm, preserving the aspect ratio,
-composition, colors and scientific data. Typography, line widths and embedded map
-tiles scale with the canvas. PNG resolution remains 300 DPI; SVG/PDF annotations
-and curves remain vector. Tight cropping can slightly change the exported width.
-Use `--width-mm 200` for another nominal width. Compact exports have independent
-caches and stable names such as `figure-04-compact.pdf` and
-`figure-05-compact.png`; full-size exports remain available. Figures 6, 7 and S1
-use their full-size exports; explicitly requesting them with `--compact` is
-rejected. Width and variant are
-recorded in the provenance. Both sizes of Figures 4 and 5 appear together in the
-inspection report, using its small cached previews.
 
 The default representative dose is index 6, matching the original manuscript.
 `--dose` changes that selection for Figures 4 and 5 and records the choice in

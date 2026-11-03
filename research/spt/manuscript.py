@@ -58,7 +58,6 @@ from research.spt.report import build_report
 MANUSCRIPT_VERSION = 4
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
-COMPACT_FIGURES = ("4", "5")
 TITLES = {
     "4": "Figure 4 | SPT metabolism over time",
     "5": "Figure 5 | Zonation pattern comparison",
@@ -200,7 +199,6 @@ def create_manuscript_figures(
     dose: int = 6,
     formats: tuple[str, ...] = ("svg", "pdf", "png"),
     dpi: int = 300,
-    width_mm: float | None = None,
     comparison_time: float = CONVERGENCE_TIME,
     force: bool = False,
 ) -> dict[str, Path]:
@@ -213,15 +211,11 @@ def create_manuscript_figures(
     options = RenderOptions(formats=formats, dpi=dpi)
     options.validate()
     if figures is None:
-        figures = COMPACT_FIGURES if width_mm is not None else FIGURES
+        figures = FIGURES
     if not figures or len(set(figures)) != len(figures) or set(figures) - set(FIGURES):
         raise ValueError("Select unique figure identifiers: 4, 5, 6, 7, S1")
     if not 1 <= dose <= 8:
         raise ValueError("Dose index must be between 1 and 8")
-    if width_mm is not None and (not np.isfinite(width_mm) or width_mm <= 0):
-        raise ValueError("Manuscript figure width must be finite and positive")
-    if width_mm is not None and set(figures) - set(COMPACT_FIGURES):
-        raise ValueError("Compact exports are available only for Figures 4 and 5")
     if not np.isfinite(comparison_time) or comparison_time < 0:
         raise ValueError("Comparison time must be finite and nonnegative")
     data = ManuscriptData(data_root)
@@ -322,14 +316,6 @@ def create_manuscript_figures(
                     for field, limits in data.ranges(sources).items()
                 },
             )
-        if width_mm is not None:
-            configuration.update(
-                width_mm=width_mm,
-                variant="compact",
-                compact_layout_version=1,
-                title=f"{TITLES[number]} (compact)",
-            )
-            stem += "-compact"
         directory = manuscript_directory(data.root, stem)
         with run_lock(directory):
             cached = current_manifest(directory, configuration, data.root)
@@ -351,12 +337,9 @@ def create_manuscript_figures(
                             ranges,
                             staging,
                             options,
-                            width_mm=width_mm,
                         )
                     elif number == "5":
-                        render_patterns(
-                            data, sources, ranges, staging, options, width_mm=width_mm
-                        )
+                        render_patterns(data, sources, ranges, staging, options)
                     elif number == "7":
                         render_necrosis(data, sources, staging, options)
                     elif number == "S1":
@@ -398,8 +381,6 @@ def create_manuscript_figures(
                     )
                 if number in {"4", "5", "6", "7"}:
                     description += " " + PATTERN_ICON_DESCRIPTION
-                if width_mm is not None:
-                    description += f" Compact export: nominal canvas width {width_mm:g} mm at {dpi} DPI."
                 atomic_text(staging / "caption.md", description + "\n")
                 atomic_json(
                     staging / "provenance.json",
@@ -440,16 +421,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument(
-        "--compact",
-        action="store_true",
-        help="Create compact Figures 4 and 5 at 180 mm nominal width",
-    )
-    parser.add_argument(
-        "--width-mm",
-        type=float,
-        help="Set nominal compact canvas width in millimetres (implies --compact)",
-    )
-    parser.add_argument(
         "--comparison-time",
         type=float,
         default=CONVERGENCE_TIME,
@@ -464,11 +435,6 @@ def main(argv: list[str] | None = None) -> int:
             dose=args.dose,
             formats=tuple(args.formats),
             dpi=args.dpi,
-            width_mm=args.width_mm
-            if args.width_mm is not None
-            else 180.0
-            if args.compact
-            else None,
             comparison_time=args.comparison_time,
             force=args.force,
         )

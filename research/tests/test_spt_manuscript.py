@@ -282,8 +282,6 @@ def test_shared_bars_and_tight_geometry_panels(
         art: Figure,
         destination: Path,
         options: RenderOptions,
-        *,
-        width_mm: float | None = None,
     ) -> None:
         maps = [axis for axis in art.axes if axis.images]
         bars = [axis for axis in art.axes if axis.axison]
@@ -424,8 +422,8 @@ def test_timecourse_pattern_and_dose_labels_are_consistent() -> None:
         art.clear()
 
 
-def test_pattern_icons_show_zonation_and_scale_as_vector_art(tmp_path: Path) -> None:
-    """Monochrome profiles distinguish patterns and survive compact vector exports."""
+def test_pattern_icons_show_zonation_as_vector_art(tmp_path: Path) -> None:
+    """Monochrome profiles distinguish patterns and remain vector art in exports."""
     from research.spt.plot_render import figure
 
     profiles = []
@@ -458,25 +456,16 @@ def test_pattern_icons_show_zonation_and_scale_as_vector_art(tmp_path: Path) -> 
         save_manuscript_figure(art, tmp_path / "patterns", options)
         canvas = art.canvas
         assert isinstance(canvas, FigureCanvasAgg)
-        before = icons[0].get_window_extent(canvas.get_renderer())
-        assert before.width == pytest.approx(before.height)
-        stroke = icons[0].profile.get_linewidth()
-        assert stroke == 2.0
-        save_manuscript_figure(
-            art, tmp_path / "patterns-compact", options, width_mm=101.6
-        )
-        after = icons[0].get_window_extent(canvas.get_renderer())
-        assert after.width == pytest.approx(before.width / 2)
-        assert after.width == pytest.approx(after.height)
-        assert icons[0].profile.get_linewidth() == pytest.approx(stroke / 2)
-        for stem in ("patterns", "patterns-compact"):
-            tree = ET.parse(tmp_path / f"{stem}.svg")
-            assert not list(tree.iter("{http://www.w3.org/2000/svg}image"))
-            for pattern in range(6):
-                assert any(
-                    node.get("id") == f"pattern-icon-{chr(97 + pattern)}"
-                    for node in tree.iter()
-                )
+        extent = icons[0].get_window_extent(canvas.get_renderer())
+        assert extent.width == pytest.approx(extent.height)
+        assert icons[0].profile.get_linewidth() == 2.0
+        tree = ET.parse(tmp_path / "patterns.svg")
+        assert not list(tree.iter("{http://www.w3.org/2000/svg}image"))
+        for pattern in range(6):
+            assert any(
+                node.get("id") == f"pattern-icon-{chr(97 + pattern)}"
+                for node in tree.iter()
+            )
     finally:
         art.clear()
 
@@ -624,44 +613,6 @@ def test_cached_manuscript_skips_arrays_and_repairs_missing_exports(
     assert provenance["raw_hdf_reads"] == 0
 
 
-def test_compact_exports_preserve_full_size_and_resolution(
-    manuscript_data: ManuscriptData, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Compact exports retain 300 DPI, original scalar styles and independent caches."""
-    data = manuscript_data
-    source = data.source("simulations_lobulus", "sim014")
-    monkeypatch.setattr(
-        "research.spt.manuscript.simulation_cohort", lambda data: [source]
-    )
-    original = create_manuscript_figures(
-        data.root, figures=("4",), formats=("png",), dpi=30
-    )
-    pointer = data.root / "manuscript/figure-04/manifest.json"
-    before = pointer.read_bytes()
-    compact = create_manuscript_figures(
-        data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
-    )
-    exported = data.root / "manuscript/exports/figure-04-compact.png"
-    assert exported.samefile(compact["4"] / exported.name)
-    assert pointer.read_bytes() == before
-    assert original["4"] != compact["4"]
-    with Image.open(exported) as image:
-        assert image.info["dpi"] == pytest.approx((300, 300), abs=0.01)
-        assert image.width == pytest.approx(180 / 25.4 * 300, rel=0.05)
-    provenance = json.loads((compact["4"] / "provenance.json").read_text())
-    assert provenance["width_mm"] == 180 and provenance["variant"] == "compact"
-    assert provenance["snapshot_times_s"] == list(SIMULATION_TIMES)
-    with monkeypatch.context() as cached:
-        cached.setattr("numpy.load", _no_hdf)
-        cached.setattr("xarray.open_dataset", _no_hdf)
-        assert (
-            create_manuscript_figures(
-                data.root, figures=("4",), formats=("png",), dpi=300, width_mm=180
-            )
-            == compact
-        )
-
-
 def test_mixed_readouts_sample_native_cells_at_one_common_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -738,20 +689,9 @@ def test_manuscript_figures_appear_in_fast_report(tmp_path: Path) -> None:
                 "runs": ["sim014"] if number == 4 else ["sim001", "sim014"],
             },
         )
-    _publish(
-        tmp_path,
-        "manuscript/figure-04-compact",
-        ("figure-04-compact.png",),
-        {
-            "study": "simulations_lobulus",
-            "title": "Figure 4 (compact)",
-            "runs": ["sim014"],
-        },
-    )
     report = ReportParser(build_report(tmp_path).read_text())
     assert [card["data-title"] for card in report.cards] == [
         "Figure 4",
-        "Figure 4 (compact)",
         "Figure 5",
         "Figure 6",
         "Figure 7",
@@ -847,22 +787,9 @@ def test_crop_excludes_padding_of_frameless_legends(tmp_path: Path) -> None:
         art.clear()
 
 
-@pytest.mark.parametrize("figure", ["6", "7", "S1"])
-def test_compact_selection_rejects_other_figures(tmp_path: Path, figure: str) -> None:
-    """Only the large geometry composites need a compact manuscript variant."""
-    with pytest.raises(ValueError, match="only for Figures 4 and 5"):
-        create_manuscript_figures(tmp_path, figures=(figure,), width_mm=180)
-    assert not list(tmp_path.iterdir())
-
-
-@pytest.mark.parametrize(
-    "width,time",
-    [(0, 5400), (-1, 5400), (float("nan"), 5400), (180, -1), (180, float("inf"))],
-)
-def test_invalid_dimensions_or_common_time_fail_before_output(
-    tmp_path: Path, width: float, time: float
-) -> None:
-    """Reject invalid physical dimensions and times without touching existing caches."""
+@pytest.mark.parametrize("time", [-1, float("inf"), float("nan")])
+def test_invalid_common_time_fails_before_output(tmp_path: Path, time: float) -> None:
+    """Reject invalid comparison times without touching existing caches."""
     with pytest.raises(ValueError):
-        create_manuscript_figures(tmp_path, width_mm=width, comparison_time=time)
+        create_manuscript_figures(tmp_path, comparison_time=time)
     assert not list(tmp_path.iterdir())
