@@ -29,6 +29,7 @@ from research.spt.artifacts import (
 from research.spt.fields import SUMMARY_FIELDS
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions
+from research.spt.plot_view import GEOMETRY_VIEW
 from research.spt.publication_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
@@ -313,6 +314,8 @@ def create_publication(
         }
         stem = f"figure-{int(number):02}" if number != "S1" else "figure-s1-convergence"
         rendered_stem = stem
+        if number != "6":
+            configuration["geometry_view"] = GEOMETRY_VIEW
         if number in {"4", "5", "6", "7"}:
             configuration.update(
                 manuscript_layout_version=3,
@@ -416,6 +419,13 @@ def create_publication(
                             staging / f"{stem}.{extension}"
                         )
                 description = caption(number, sources, dose, comparison_time)
+                if number != "6":
+                    description += (
+                        " Geometry uses an orthographic view tilted 20 degrees from "
+                        "above (azimuth -60 degrees). Native thickness is retained "
+                        "without exaggeration; caps and exterior walls share their "
+                        "owning cell's unmodified scalar color."
+                    )
                 if number in {"4", "5", "6", "7"}:
                     description += " " + PATTERN_ICON_DESCRIPTION
                 if width_mm is not None:

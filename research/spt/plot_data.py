@@ -18,7 +18,9 @@ from research.spt.artifacts import (
     atomic_json,
     current_manifest,
     fingerprint,
+    generation_path,
     publish,
+    records_current,
     run_lock,
 )
 from research.spt.cache import _read_frame, cached_catalog, validate_roots
@@ -33,6 +35,7 @@ from research.spt.catalog import (
 from research.spt.cli import selected_studies
 from research.spt.conditions import pattern_idx2name
 from research.spt.geometry import geometry_jobs, geometry_path
+from research.spt.plot_view import face_heights
 from research.spt.sampling import blend, bracket
 
 SAMPLE_VERSION = 1
@@ -352,6 +355,47 @@ def projected_faces(
     return np.concatenate(faces), np.concatenate(ids)
 
 
+def load_heights(
+    directory: Path,
+    sampled: dict[str, object],
+    input_root: Path,
+    *,
+    sample_path: Path,
+) -> np.ndarray:
+    """Cache native mesh thickness separately, reusing existing scalar samples.
+
+    Adopting an old planar sample cache reads only mesh coordinates/connectivity.
+    Subsequent rendering changes reuse this small cache without network reads.
+    """
+    configuration = cast(dict[str, object], sampled["configuration"])
+    descriptor = Path(str(configuration["descriptor"]))
+    records = sampled.get("sources")
+    if not records_current(records, input_root):
+        raise ValueError("Plot samples are stale; prepare them again")
+    with np.load(sample_path, allow_pickle=False) as data:
+        if "heights" in data:
+            return np.asarray(data["heights"])
+    paths = tuple(
+        Path(str(record["path"])) for record in cast(list[dict[str, object]], records)
+    )
+    options: dict[str, object] = {"version": 1, "descriptor": str(descriptor)}
+    with run_lock(directory):
+        cached = current_manifest(directory, options, input_root)
+        if cached:
+            generation = generation_path(directory, cached)
+        else:
+            before = [fingerprint(path) for path in paths]
+            with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
+                points, cells = reader.read_points_cells()
+            projected_faces(points, cells)
+            heights = face_heights(points, cells)
+            with tempfile.TemporaryDirectory(prefix=".partial-", dir=directory) as tmp:
+                staging = Path(tmp)
+                np.save(staging / "heights.npy", heights, allow_pickle=False)
+                generation = publish(directory, staging, options, paths, before)
+        return np.load(generation / "heights.npy", allow_pickle=False)
+
+
 def prepare_samples(
     source: PlotSource,
     output_root: Path,
@@ -427,6 +471,7 @@ def prepare_samples(
                 values=values,
                 sectors=sectors,
                 times=np.array(times),
+                heights=face_heights(points, cells),
             )
             atomic_json(staging / "metadata.json", metadata)
             if before != [fingerprint(path) for path in paths]:

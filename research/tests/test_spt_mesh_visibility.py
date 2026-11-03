@@ -90,7 +90,12 @@ def test_convergence_fields_and_mesh_only_exports_are_separate(
         collections = art.axes[0].collections
         if destination.name == "timecourse":
             assert len(collections) == 2
-            assert not np.asarray(collections[0].get_edgecolor()).size
+            art.canvas.draw()
+            # Own-color strokes close vector hairlines without a neutral cell grid.
+            np.testing.assert_allclose(
+                np.asarray(collections[0].get_edgecolor(), dtype=float),
+                np.asarray(collections[0].get_facecolor(), dtype=float),
+            )
             outline = collections[1]
             assert isinstance(outline, LineCollection)
             assert len(outline.get_segments()) == 4

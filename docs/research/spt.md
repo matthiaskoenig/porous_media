@@ -392,6 +392,8 @@ panels omit internal mesh lines and show only the domain outline, including
 holes. Homogeneous lobule outlines omit artificial sector seams; independent
 combined sectors retain their own outlines. Mesh-only figures use a white
 background and 45% opacity cell-edge strokes.
+Boundary-only scalar surfaces use a thin stroke in each cell's own color to close
+vector-export hairlines, without adding neutral mesh lines.
 Each panel occupies 4 by 4 inches, matching the original 600 pixel panels at
 150 DPI. Scalar bars retain five labels, bold text and one decimal place.
 Final-state overviews use the same panel sizes and per-panel scalar bars.
@@ -439,6 +441,15 @@ uv run --no-sync python -m research.spt.plot_geometry \
   --panels --video-frames 200 --fps 12 --gif
 ```
 
+All geometry figures share an orthographic camera tilted 20 degrees from above,
+with an azimuth of -60 degrees. Native cap heights and exterior side faces show
+the mesh thickness without exaggeration. Caps and walls use their owning cell's
+unchanged scalar value and the canonical colormap; lighting does not alter the
+colors. The camera applies consistently to sixths, lobules, combined sectors,
+mesh-only figures, publication figures and optional videos. Quantitative plots
+and their statistics are unaffected. Colored convergence boundaries and sector
+numbers follow the same projection, and cropping includes the visible thickness.
+
 SVG and PDF preserve vector cell geometry and text. PNG previews default to
 150 DPI; `--dpi` also controls optional video resolution. FFmpeg is required only
 when videos are requested. Video artists are reused and frames stream directly
@@ -453,8 +464,9 @@ rendering time and storage without changing the underlying histories.
 
 The shared Matplotlib renderer runs headlessly without importing PyVista or
 needing a graphics session. It supports planar XY triangles/quads and vertical
-wedge/hexahedron extrusions. Other geometries fail clearly instead of producing
-an incorrect projection; use the library's 3D visualization helpers for those.
+wedge/hexahedron extrusions with horizontal caps. Planar elements tilt without
+inventing thickness. Other geometries fail clearly instead of producing an
+incorrect projection; use the library's 3D visualization helpers for those.
 Historical `visualize_spt_2d` calls remain available, including generator inputs,
 custom layer labels, unit conversions and fixed color limits. Separate panels
 and videos now require explicit selection in that helper too.
@@ -464,6 +476,7 @@ Outputs and preview caches use the following layout:
 ```text
 results/spt/
 ├── plot-data/<study>/<run_id>/manifest.json
+├── plot-depth/<study>/<run_id>/manifest.json
 ├── figures/<study>/<run_id>/manifest.json
 ├── overviews/<study>/manifest.json
 ├── report-previews/<fingerprint>.webp
@@ -475,7 +488,12 @@ results/spt/
 Each manifest points to a complete generation. A failed replacement preserves
 the previous published figures. Source and output fingerprints enable unchanged
 runs to skip XML parsing, numerical reads, rendering and worker startup. Changing
-only a rendering option reuses the existing sampled arrays. Missing artifacts
+only a rendering option reuses the existing sampled arrays. New sample caches
+retain native cap heights. Older planar caches are adopted without resampling
+scalar histories: one geometry-only read stores the heights separately in
+`plot-depth/`. Later rendering changes reuse this small local cache. Mesh-view
+settings are included in figure provenance and invalidate geometry figure caches.
+Missing artifacts
 are regenerated; `--force` explicitly resamples and rerenders. Fingerprints use
 size and modification time, so changes preserving both require `--force`.
 The HTML gallery links previews, vector figures and any requested videos; the
@@ -735,6 +753,12 @@ direction shows relative initial protein abundance. Bold profile lines remain
 clear in compact exports. Flat, rising, falling,
 sharp-step and random profiles distinguish all six patterns. These schematics
 explain pattern identity; the random profile is illustrative.
+
+Figures 4, 5, 7 and S1 use the same slightly tilted orthographic geometry view as
+the study figures, including native thickness and exterior side faces. Full and
+compact exports share this camera. Figure 6 retains its time-course layout and
+styling. Captions and provenance record the view, and manuscript scalar ranges,
+binary necrosis states, pattern icons and dose labels stay unchanged.
 
 The convergence supplement retains every available native time point and actual
 end time. The `06250` and `09375` histories stop at 10.16 and 21.58 h; no curve is

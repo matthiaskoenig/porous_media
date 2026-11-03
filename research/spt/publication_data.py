@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -22,7 +23,7 @@ from research.spt.catalog import RunSource, Study
 from research.spt.conditions import SimulationCondition
 from research.spt.fields import SUMMARY_FIELDS
 from research.spt.geometry import CONVERGENCE_MESHES
-from research.spt.plot_data import SAMPLE_VERSION, PlotSource
+from research.spt.plot_data import SAMPLE_VERSION, PlotSource, load_heights
 from research.spt.plot_render import Samples
 
 SIMULATION_TIMES = (0.0, 21600.0, 43200.0, 64800.0, 86400.0)
@@ -60,6 +61,7 @@ def convergence_view(samples: Samples) -> Samples:
         samples.values,
         len(CONVERGENCE_DISPLAY_MESHES) - 1 - samples.sectors,
         samples.times,
+        samples.heights,
     )
 
 
@@ -144,12 +146,23 @@ class PublicationData:
         return directory, manifest
 
     def mesh(self, study: str, run_id: str) -> Samples:
-        """Load each distinct projected mesh once, keeping native cell identities."""
+        """Load native cap heights once per mesh, keeping original cell identities."""
         directory, manifest = self.mesh_manifest(study, run_id)
         metadata = cast(dict[str, object], manifest["metadata"])
-        mesh_hash = str(metadata["mesh_hash"])
+        heights = load_heights(
+            self.root / "plot-depth" / study / run_id,
+            manifest,
+            self.root,
+            sample_path=generation_path(directory, manifest) / "samples.npz",
+        )
+        mesh_hash = (
+            str(metadata["mesh_hash"])
+            + hashlib.blake2b(heights.tobytes(), digest_size=16).hexdigest()
+        )
         if mesh_hash not in self._meshes:
-            samples = Samples.load(generation_path(directory, manifest) / "samples.npz")
+            samples = Samples.load(
+                generation_path(directory, manifest) / "samples.npz", heights=heights
+            )
             # The geometry cache can be shared across runs; its old scalar frames cannot.
             self._meshes[mesh_hash] = Samples(
                 samples.faces,
@@ -157,6 +170,7 @@ class PublicationData:
                 np.empty((0, 0, 0)),
                 samples.sectors,
                 np.empty(0),
+                samples.heights,
             )
         return self._meshes[mesh_hash]
 
@@ -190,6 +204,7 @@ class PublicationData:
                 values,
                 mesh.sectors,
                 np.array(times),
+                mesh.heights,
             )
         return self._snapshots[key]
 
@@ -229,7 +244,12 @@ class PublicationData:
                 raise ValueError(f"Mixed convergence cell identities differ: {name}")
             values[0][:, target] = samples.values[0][:, selected]
         return Samples(
-            mixed.faces, mixed.cell_ids, values, mixed.sectors, np.array([time])
+            mixed.faces,
+            mixed.cell_ids,
+            values,
+            mixed.sectors,
+            np.array([time]),
+            mixed.heights,
         )
 
     def ranges(self, sources: list[PlotSource]) -> dict[str, tuple[float, float]]:

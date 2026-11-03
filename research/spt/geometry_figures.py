@@ -1,33 +1,31 @@
-"""Render planar sector comparisons without a display server or VTK renderer."""
+"""Render tilted sector comparisons without a display server or VTK renderer."""
 
 from __future__ import annotations
 
 import tempfile
-from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
 import matplotlib.pyplot as plt
 import meshio
 import numpy as np
-from matplotlib.collections import LineCollection, PolyCollection
-from matplotlib.colors import to_rgba
-from numpy.typing import ArrayLike
 
 from research.spt.artifacts import fingerprint, generation_path, publish, run_lock
 from research.spt.conditions import pattern_idx2name
-from research.spt.fields import SPT_LAYERS
+from research.spt.fields import SPT_LAYERS, Layer
 from research.spt.geometry import GeometryJob, geometry_manifest
-from research.spt.plot_mesh import boundary_segments
+from research.spt.plot_render import Samples, panel
+from research.spt.plot_view import face_heights, project
 
-COMPARISON_PLOT_VERSION = 3
+COMPARISON_PLOT_VERSION = 5
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:
     """Save mesh/zonation and final-state panels beside a derived time series.
 
-    These thin extruded meshes are viewed along z. One triangular face per wedge
-    represents its cell value; separate sector nodes preserve discontinuities.
+    Native cap and exterior wall faces share the same camera and unmodified
+    cell values as the geometry and publication figures.
     """
     from research.spt.plot_data import projected_faces
 
@@ -36,6 +34,9 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
         _, _, initial = reader.read_data(0)
         end, _, final = reader.read_data(reader.num_steps - 1)
     faces, face_ids = projected_faces(points, cells)
+    heights = face_heights(points, cells)
+    sector_ids = np.concatenate(initial["sector_id"]).reshape(-1)
+    samples = Samples(faces, face_ids, np.empty(0), sector_ids, np.empty(0), heights)
     mixed_patterns = job.study == "simulations_combinations"
     selections = (
         (
@@ -53,50 +54,39 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
         for axis, (field, title, data) in zip(axes, selections, strict=True):
             values = np.concatenate(data[field]).reshape(-1)
             if field == "sector_id":
-                collection = PolyCollection(
-                    cast(Sequence[ArrayLike], faces),
-                    facecolors="white",
-                    linewidths=0.48,
-                    edgecolors=to_rgba("darkgray", 0.45),
-                )
+                layer = Layer("mesh", "Mesh", edge_alpha=0.45)
             else:
                 layer = next(layer for layer in SPT_LAYERS if layer.sid == field)
-                collection = PolyCollection(
-                    cast(Sequence[ArrayLike], faces),
-                    cmap=layer.colormap,
-                    linewidths=layer.line_width if mixed_patterns else 0,
-                    edgecolors=to_rgba(layer.edge_color, layer.edge_alpha)
-                    if mixed_patterns
-                    else "none",
-                    antialiaseds=mixed_patterns,
+                layer = replace(
+                    layer, show_edges=mixed_patterns, outline=not mixed_patterns
                 )
-                collection.set_array(values[face_ids])
-                if field == "rr_necrosis":
-                    collection.set_clim(0, 1)
-            axis.add_collection(collection)
-            if not mixed_patterns and field != "sector_id":
-                sectors = np.concatenate(initial["sector_id"]).reshape(-1)[face_ids]
-                axis.add_collection(
-                    LineCollection(
-                        cast(Sequence[ArrayLike], boundary_segments(faces, sectors)),
-                        colors=to_rgba("darkgray", 0.8),
-                        linewidths=0.48,
-                    )
-                )
-            extent = float(np.linalg.norm(points[:, :2], axis=1).max()) * 1.25
-            axis.set_xlim(-extent, extent)
-            axis.set_ylim(-extent, extent)
-            axis.set_aspect("equal")
-            axis.set_axis_off()
+            limits = (
+                (0.0, 1.0)
+                if field in {"rr_necrosis", "sector_id"}
+                else (float(values.min()), float(values.max()))
+            )
+            if limits[0] == limits[1]:
+                limits = (limits[0], limits[1] + 1.0)
+            collection = panel(
+                axis,
+                samples,
+                layer,
+                values,
+                limits,
+                mesh=field == "sector_id",
+                sectors=not mixed_patterns,
+            )
             axis.set_title(title)
             if field != "sector_id":
                 figure.colorbar(collection, ax=axis, shrink=0.7)
-            sector_ids = np.concatenate(initial["sector_id"]).reshape(-1)
             centers = np.concatenate(
                 [points[block.data, :2].mean(axis=1) for block in cells]
             )
             for sector in range(6):
-                position = centers[sector_ids == sector].mean(axis=0) * 1.8
+                position = project(
+                    centers[sector_ids == sector].mean(axis=0) * 1.8,
+                    float(heights[:, 1].max()),
+                )
                 axis.text(
                     *position,
                     str(sector + 1),
