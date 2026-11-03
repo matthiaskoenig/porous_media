@@ -265,7 +265,7 @@ def visualize_data_layers(
             )
             if data_layer.scalar_bar:
                 # PyVista's functools.wraps exposes an unbound method signature to ty.
-                p.add_scalar_bar(  # ty: ignore[missing-argument]
+                p.add_scalar_bar(
                     title=data_layer.title,
                     n_labels=5,
                     bold=True,
@@ -366,7 +366,7 @@ def visualize_interactive(
             pvmesh.set_active_tensors(name=name)
 
         # PyVista's functools.wraps exposes an unbound method signature to ty.
-        p.show_grid()  # ty: ignore[missing-argument]
+        p.show_grid()
 
         # FIXME: add multiple layers on top of each other, combination of data layers
         actor = p.add_mesh(
@@ -397,10 +397,8 @@ def visualize_interactive(
         # p.add_light(light)
 
         # p.add_floor('-z', lighting=True, color='white', pad=1.0)
-        p.add_floor(  # ty: ignore[missing-argument]
-            face="-z", lighting=True, color="white", pad=0.5
-        )
-        p.enable_shadows()  # ty: ignore[missing-argument]
+        p.add_floor(face="-z", lighting=True, color="white", pad=0.5)
+        p.enable_shadows()
 
         # TODO:
         # # arrows for vectors: https://docs.pyvista.org/version/stable/examples/01-filter/glyphs.html
@@ -411,7 +409,7 @@ def visualize_interactive(
         # )
 
         if data_layer.scalar_bar:
-            p.add_scalar_bar(  # ty: ignore[missing-argument]
+            p.add_scalar_bar(
                 title=data_layer.title,
                 n_labels=5,
                 bold=True,
