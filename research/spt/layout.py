@@ -81,7 +81,7 @@ Keep this directory together; the report uses relative links.
 | `figures/runs/<study>/<run>/` | Geometry time course of one sixth, lobule or mixed-sector history |
 | `figures/overviews/<study>/` | Final-state overview of all runs of a study and geometry |
 | `meshes/<study>/<run>/` | Reconstructed lobules and mixed-sector XDMF/HDF histories with comparison previews |
-| `catalog/` | `runs.tsv` and `runs.xlsx` run catalogue and simulation-condition figures |
+| `catalog/` | `runs.tsv` run catalogue (`runs.xlsx` with `--excel`) and simulation-condition figures |
 | `logs/` | Pipeline, processing, analysis, plotting and manuscript reports with per-stage catalogues |
 | `cache/` | Intermediate numerical caches, plot samples and report previews |
 
