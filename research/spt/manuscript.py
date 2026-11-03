@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
 import sys
 import tempfile
 from dataclasses import asdict
@@ -13,7 +11,7 @@ from pathlib import Path
 import matplotlib as mpl
 import numpy as np
 
-from research import RESULTS_DIR
+from research.spt import results_spt_dir
 from research.spt.analysis_plots import PlotOptions, _curves
 from research.spt.artifacts import (
     atomic_json,
@@ -27,34 +25,39 @@ from research.spt.artifacts import (
     validate_output,
 )
 from research.spt.fields import SUMMARY_FIELDS
-from research.spt.plot_data import PlotSource
-from research.spt.plot_render import RenderOptions
-from research.spt.plot_view import GEOMETRY_VIEW
-from research.spt.publication_data import (
+from research.spt.layout import (
+    category_root,
+    exports_directory,
+    log_path,
+    manuscript_directory,
+)
+from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
     SIMULATION_TIMES,
-    PublicationData,
+    ManuscriptData,
     pattern_label,
 )
-from research.spt.publication_geometry import (
+from research.spt.manuscript_geometry import (
     render_example,
     render_necrosis,
     render_patterns,
-    save_publication,
+    save_manuscript_figure,
 )
-from research.spt.publication_patterns import PATTERN_ICON_DESCRIPTION
-from research.spt.publication_timecourses import (
+from research.spt.manuscript_patterns import PATTERN_ICON_DESCRIPTION
+from research.spt.manuscript_timecourses import (
     CONVERGENCE_COLORS,
     annotate_timecourses,
     render_convergence,
 )
+from research.spt.plot_data import PlotSource
+from research.spt.plot_render import RenderOptions
+from research.spt.plot_view import GEOMETRY_VIEW
 from research.spt.report import build_report
 
-PUBLICATION_VERSION = 3
+MANUSCRIPT_VERSION = 4
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
-COMPACT_FIGURES = ("4", "5")
 TITLES = {
     "4": "Figure 4 | SPT metabolism over time",
     "5": "Figure 5 | Zonation pattern comparison",
@@ -66,7 +69,7 @@ TITLES = {
 
 def export_figure(generation: Path, root: Path, stem: str) -> None:
     """Expose stable manuscript filenames without duplicating generation storage."""
-    directory = root / "publication/exports"
+    directory = exports_directory(root)
     validate_output(directory / stem)
     directory.mkdir(parents=True, exist_ok=True)
     for name in (
@@ -89,12 +92,14 @@ def export_figure(generation: Path, root: Path, stem: str) -> None:
                 temporary.hardlink_to(source)
 
 
-def simulation_cohort(data: PublicationData) -> list[PlotSource]:
+def simulation_cohort(data: ManuscriptData) -> list[PlotSource]:
     """Require all six patterns and eight doses, identified by recorded conditions."""
     sources = [
         data.source("simulations_lobulus", path.parent.name)
         for path in sorted(
-            (data.root / "analysis-data/simulations_lobulus").glob("*/manifest.json")
+            (category_root(data.root, "analysis-data") / "simulations_lobulus").glob(
+                "*/manifest.json"
+            )
         )
     ]
     conditions = [
@@ -106,7 +111,7 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
         (p, d) for p in range(6) for d in range(8)
     }:
         raise ValueError(
-            "Publication figures require six patterns and eight doses; run the complete SPT pipeline"
+            "Manuscript figures require six patterns and eight doses; run the complete SPT pipeline"
         )
     return sorted(
         sources,
@@ -115,46 +120,6 @@ def simulation_cohort(data: PublicationData) -> list[PlotSource]:
             source.run.condition.boundary_flow_key if source.run.condition else -1,
         ),
     )
-
-
-def remove_obsolete_compact(root: Path) -> None:
-    """Retire only generated compact variants superseded by the manuscript selection."""
-    for number, stem in (
-        ("6", "figure-06-compact"),
-        ("7", "figure-07-compact"),
-        ("S1", "figure-s1-convergence-compact"),
-    ):
-        directory = root / "publication" / stem
-        pointer = directory / "manifest.json"
-        if not pointer.is_file():
-            continue
-        with run_lock(directory):
-            manifest = json.loads(pointer.read_text())
-            configuration = manifest["configuration"]
-            if (
-                configuration.get("variant") != "compact"
-                or configuration.get("figure") != number
-            ):
-                raise ValueError(
-                    f"Refusing to remove unrelated publication output: {stem}"
-                )
-            generation = generation_path(directory, manifest)
-            targets = [
-                root / "publication/exports" / f"{stem}{suffix}"
-                for suffix in (
-                    ".svg",
-                    ".pdf",
-                    ".png",
-                    ".caption.md",
-                    ".provenance.json",
-                )
-            ]
-            for target in targets:
-                validate_output(target)
-            pointer.unlink()
-            for target in targets:
-                target.unlink(missing_ok=True)
-            shutil.rmtree(generation)
 
 
 def caption(
@@ -173,7 +138,8 @@ def caption(
             "right. Continuous cell "
             "values are interpolated between native frames; discrete necrosis holds "
             "the preceding frame. One shared vertical colorbar beside each field row uses scalar limits "
-            "from full histories of all 48 runs."
+            "from full histories of all 48 runs. Maps show the lobule outline "
+            "without internal mesh edges."
         )
     if number == "5":
         return (
@@ -182,7 +148,8 @@ def caption(
             "and F: random zonation. Each block has three rows for protein, toxic "
             "compound and necrosis. Columns show 0, 6, 12, 18 and 24 h from left to "
             "right. All blocks share full-cohort scalar limits and a single bottom "
-            "set of three field colorbars. Runs: "
+            "set of three field colorbars. Maps show lobule outlines without "
+            "internal mesh edges. Runs: "
             + ", ".join(source.run.run_id for source in sources)
             + "."
         )
@@ -201,11 +168,13 @@ def caption(
             "Figure 7. Necrosis at 24 h by protein zonation pattern (rows A-F) and "
             "increasing substrate inflow (D1-D8, columns). The shared binary legend "
             "on the right labels black as necrosis and white as no necrosis. "
-            "Cell states retain the fixed 0-1 scale."
+            "Cell states retain the fixed 0-1 scale. Maps show lobule outlines "
+            "without internal mesh edges."
         )
     common_end = min(source.end for source in sources)
     return (
-        "Convergence supplement. A: source-sector meshes ordered coarse to fine, "
+        "Convergence supplement. A: source-sector meshes with their triangles, "
+        "ordered coarse to fine, "
         "plus the mixed lobule with sectors 1-6 clockwise from upper left "
         "(37250, 25000, 18750, 12500, 09375, 06250). "
         "Mesh boundaries and native time courses share one distinct color per "
@@ -223,14 +192,13 @@ def caption(
     )
 
 
-def create_publication(
+def create_manuscript_figures(
     data_root: Path,
     *,
     figures: tuple[str, ...] | None = None,
     dose: int = 6,
     formats: tuple[str, ...] = ("svg", "pdf", "png"),
     dpi: int = 300,
-    width_mm: float | None = None,
     comparison_time: float = CONVERGENCE_TIME,
     force: bool = False,
 ) -> dict[str, Path]:
@@ -243,18 +211,14 @@ def create_publication(
     options = RenderOptions(formats=formats, dpi=dpi)
     options.validate()
     if figures is None:
-        figures = COMPACT_FIGURES if width_mm is not None else FIGURES
+        figures = FIGURES
     if not figures or len(set(figures)) != len(figures) or set(figures) - set(FIGURES):
         raise ValueError("Select unique figure identifiers: 4, 5, 6, 7, S1")
     if not 1 <= dose <= 8:
         raise ValueError("Dose index must be between 1 and 8")
-    if width_mm is not None and (not np.isfinite(width_mm) or width_mm <= 0):
-        raise ValueError("Publication width must be finite and positive")
-    if width_mm is not None and set(figures) - set(COMPACT_FIGURES):
-        raise ValueError("Compact exports are available only for Figures 4 and 5")
     if not np.isfinite(comparison_time) or comparison_time < 0:
         raise ValueError("Comparison time must be finite and nonnegative")
-    data = PublicationData(data_root)
+    data = ManuscriptData(data_root)
     simulations = simulation_cohort(data) if set(figures) - {"S1"} else []
     chosen = [source for source in simulations if source.dose == dose - 1]
     ranges = data.ranges(simulations) if simulations else {}
@@ -292,7 +256,7 @@ def create_publication(
             simulations if number in {"4", "5"} else sources, mesh_sources
         )
         configuration: dict[str, object] = {
-            "version": PUBLICATION_VERSION,
+            "version": MANUSCRIPT_VERSION,
             "figure": number,
             "title": TITLES[number],
             "study": sources[0].run.study,
@@ -352,21 +316,13 @@ def create_publication(
                     for field, limits in data.ranges(sources).items()
                 },
             )
-        if width_mm is not None:
-            configuration.update(
-                width_mm=width_mm,
-                variant="compact",
-                compact_layout_version=1,
-                title=f"{TITLES[number]} (compact)",
-            )
-            stem += "-compact"
-        directory = data.root / "publication" / stem
+        directory = manuscript_directory(data.root, stem)
         with run_lock(directory):
             cached = current_manifest(directory, configuration, data.root)
             if cached and not force:
                 output[number] = generation_path(directory, cached)
                 export_figure(output[number], data.root, stem)
-                print(f"Publication {number}: cached", flush=True)
+                print(f"Figure {number}: cached", flush=True)
                 continue
             records = [fingerprint(path) for path in inputs]
             with tempfile.TemporaryDirectory(
@@ -381,12 +337,9 @@ def create_publication(
                             ranges,
                             staging,
                             options,
-                            width_mm=width_mm,
                         )
                     elif number == "5":
-                        render_patterns(
-                            data, sources, ranges, staging, options, width_mm=width_mm
-                        )
+                        render_patterns(data, sources, ranges, staging, options)
                     elif number == "7":
                         render_necrosis(data, sources, staging, options)
                     elif number == "S1":
@@ -408,7 +361,7 @@ def create_publication(
                                 PlotOptions(formats=formats, dpi=dpi),
                                 SUMMARY_FIELDS,
                                 decorate=annotate_timecourses,
-                                export=save_publication,
+                                export=save_manuscript_figure,
                             )
                         finally:
                             for dataset in datasets:
@@ -428,8 +381,6 @@ def create_publication(
                     )
                 if number in {"4", "5", "6", "7"}:
                     description += " " + PATTERN_ICON_DESCRIPTION
-                if width_mm is not None:
-                    description += f" Compact export: nominal canvas width {width_mm:g} mm at {dpi} DPI."
                 atomic_text(staging / "caption.md", description + "\n")
                 atomic_json(
                     staging / "provenance.json",
@@ -452,14 +403,14 @@ def create_publication(
                     directory, staging, configuration, inputs, records
                 )
             export_figure(output[number], data.root, stem)
-            print(f"Publication {number}: rendered", flush=True)
+            print(f"Figure {number}: rendered", flush=True)
     return output
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Create selected publication figures from a completed local SPT pipeline."""
+    """Create selected manuscript figures from a completed local SPT pipeline."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=RESULTS_DIR / "spt")
+    parser.add_argument("--data-root", type=Path, default=results_spt_dir)
     parser.add_argument("--figures", choices=FIGURES, nargs="+")
     parser.add_argument("--dose", type=int, default=6)
     parser.add_argument(
@@ -470,16 +421,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument(
-        "--compact",
-        action="store_true",
-        help="Create compact Figures 4 and 5 at 180 mm nominal width",
-    )
-    parser.add_argument(
-        "--width-mm",
-        type=float,
-        help="Set nominal compact canvas width in millimetres (implies --compact)",
-    )
-    parser.add_argument(
         "--comparison-time",
         type=float,
         default=CONVERGENCE_TIME,
@@ -488,23 +429,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     try:
-        outputs = create_publication(
+        outputs = create_manuscript_figures(
             args.data_root,
             figures=tuple(args.figures) if args.figures is not None else None,
             dose=args.dose,
             formats=tuple(args.formats),
             dpi=args.dpi,
-            width_mm=args.width_mm
-            if args.width_mm is not None
-            else 180.0
-            if args.compact
-            else None,
             comparison_time=args.comparison_time,
             force=args.force,
         )
-        remove_obsolete_compact(args.data_root.expanduser().resolve())
         atomic_json(
-            args.data_root / "publication-report.json",
+            log_path(args.data_root, "manuscript.json"),
             {
                 "status": "passed",
                 "figures": {key: str(path) for key, path in outputs.items()},
@@ -513,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(build_report(args.data_root))
     except (OSError, ValueError, KeyError) as error:
-        print(f"Publication figures failed: {error}", file=sys.stderr)
+        print(f"Manuscript figures failed: {error}", file=sys.stderr)
         return 1
     return 0
 

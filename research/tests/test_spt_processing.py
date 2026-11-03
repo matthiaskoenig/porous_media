@@ -251,7 +251,7 @@ def test_failed_rebuild_preserves_completed_generation(
     assert (manifest.parent / json.loads(previous)["generation"] / "cells.nc").is_file()
 
 
-@pytest.mark.parametrize("output_kind", ["same", "child", "parent", "symlink"])
+@pytest.mark.parametrize("output_kind", ["same", "study", "parent", "symlink"])
 def test_output_cannot_modify_raw_tree(
     study_data: tuple[Path, Path], output_kind: str
 ) -> None:
@@ -260,19 +260,33 @@ def test_output_cannot_modify_raw_tree(
     source = sources(root)[0]
     if output_kind == "same":
         output = root
-    elif output_kind == "child":
-        output = root / "derived"
+    elif output_kind == "study":
+        output = root / source.study / "derived"
     elif output_kind == "parent":
         output = root.parent
     else:
         output.mkdir()
-        (output / source.study).symlink_to(
-            root / source.study, target_is_directory=True
-        )
+        (output / "cache").symlink_to(root / source.study, target_is_directory=True)
     before = set(root.rglob("*"))
     result = process_run(source, output)
     assert result.status == "failed"
     assert set(root.rglob("*")) == before
+
+
+def test_dedicated_results_directory_inside_input_root(
+    study_data: tuple[Path, Path],
+) -> None:
+    """Allow a results subdirectory of the input root without touching study data."""
+    root, _ = study_data
+    source = sources(root)[0]
+    before = {
+        path for path in root.rglob("*") if path.is_relative_to(root / source.study)
+    }
+    assert process_run(source, root / "results").status == "processed"
+    assert (root / "results/cache/cells" / source.study / source.run_id).is_dir()
+    assert {
+        path for path in root.rglob("*") if path.is_relative_to(root / source.study)
+    } == before
 
 
 def test_cli_dry_run_and_information_are_read_only(
@@ -285,7 +299,7 @@ def test_cli_dry_run_and_information_are_read_only(
     assert information_main([*args, "--dry-run"]) == 0
     assert not output.exists()
     assert information_main(args) == 0
-    table = (output / "catalog.tsv").read_text()
+    table = (output / "catalog/runs.tsv").read_text()
     assert "convergence_06250" in table
     assert "86400" not in table
 
@@ -297,7 +311,7 @@ def test_cli_failure_does_not_discard_other_runs(study_data: tuple[Path, Path]) 
     modify_hdf(source, "element_volume_point_TPM", 0, -1)
     args = ["--input-root", str(root), "--output-root", str(output), "--workers", "1"]
     assert main(args) == 1
-    report = json.loads((output / "processing-report.json").read_text())
+    report = json.loads((output / "logs/processing.json").read_text())
     assert sorted(row["status"] for row in report) == [
         "failed",
         "processed",
@@ -370,7 +384,7 @@ def test_missing_simulation_is_reported(study_data: tuple[Path, Path]) -> None:
     (root / "simulations_sixth/xdmf/sim002.xdmf").unlink()
     args = ["--input-root", str(root), "--output-root", str(output)]
     assert information_main(args) == 1
-    assert "missing" in (output / "catalog.tsv").read_text()
+    assert "missing" in (output / "catalog/runs.tsv").read_text()
     assert main(args) == 1
     assert (
         main([*args, "--study", "simulations", "--runs", "sim001", "--workers", "1"])
@@ -414,9 +428,9 @@ def test_condition_plots_are_headless_and_closed(study_data: tuple[Path, Path]) 
         )
         == 0
     )
-    assert (output / "figures/boundary_flux.png").is_file()
-    assert (output / "figures/boundary_color.png").is_file()
-    assert (output / "catalog.xlsx").is_file()
+    assert (output / "catalog/boundary-flows.png").is_file()
+    assert (output / "catalog/condition-colors.png").is_file()
+    assert (output / "catalog/runs.xlsx").is_file()
     assert not plt.get_fignums()
 
 

@@ -123,7 +123,6 @@ def test_vector_figures_and_unchanged_resume(
     assert not list(output.rglob("*.xdmf"))
     assert not list(output.rglob("*.mp4"))
     assert not list(output.rglob("panels"))
-    assert "SVG" in (output / "figures/index-simulations.html").read_text()
 
     def unexpected(*args: object, **kwargs: object) -> None:
         pytest.fail("Unchanged plots must use metadata only")
@@ -147,7 +146,7 @@ def test_vector_figures_and_unchanged_resume(
         workers=2,
     )
     assert [result.status for result in resumed] == ["cached"]
-    report = json.loads((output / "plot-report-simulations.json").read_text())
+    report = json.loads((output / "logs/plots-simulations.json").read_text())
     assert report["sampling"]["hdf_field_reads"] == 0
     assert {
         path: (path.stat().st_size, path.stat().st_mtime_ns) for path in before
@@ -180,7 +179,7 @@ def test_repair_and_failed_publication(
     repaired = run()[0]
     assert repaired.status == "rendered"
     assert Path(str(repaired.row["png"])).is_file()
-    manifest = output / "figures/simulations_sixth/sim001/manifest.json"
+    manifest = output / "figures/runs/simulations_sixth/sim001/manifest.json"
     before = manifest.read_bytes()
 
     def fail(*args: object) -> None:
@@ -231,19 +230,19 @@ def test_three_geometries_and_separate_common_windows(tmp_path: Path) -> None:
     assert len(results) == 15
     assert all(result.status == "rendered" for result in results)
     for result in results:
-        assert Path(str(result.row["mesh_svg"])).is_file()
-        mesh = Path(str(result.row["mesh_png"]))
-        assert mesh.is_file()
-        provenance = json.loads((mesh.parent / "provenance.json").read_text())
+        assert "mesh_svg" not in result.row
+        figure = Path(str(result.row["png"]))
+        assert figure.is_file()
+        assert not list(figure.parent.glob("mesh.*"))
+        provenance = json.loads((figure.parent / "provenance.json").read_text())
         assert all(
             layer["outline"] and not layer["show_edges"]
             for layer in provenance["options"]["layers"]
         )
-    gallery = (output / "figures/index-convergence.html").read_text()
-    assert "MESH SVG" in gallery and "report-previews/" in gallery
-    catalog = (output / "plot-catalog-convergence.tsv").read_text()
+    assert not list(output.rglob("index-*.html"))
+    catalog = (output / "logs/plots-convergence.tsv").read_text()
     assert "convergence_combinations" in catalog
-    assert len(list((output / "overviews").rglob("*.svg"))) == 6
+    assert len(list((output / "figures/overviews").rglob("*.svg"))) == 3
 
 
 def test_generator_compatibility_and_selected_panels(
@@ -309,7 +308,7 @@ def test_dry_run_invalid_options_and_overviews_only(
     )
     assert results[0].status == "sampled"
     assert not list((output / "figures").rglob("timecourse.*"))
-    assert len(list((output / "overviews").rglob("*.svg"))) == 2
+    assert len(list((output / "figures/overviews").rglob("*.svg"))) == 1
     with pytest.raises(FileNotFoundError, match="FFmpeg"):
         process_plots(
             root,
@@ -369,17 +368,17 @@ def test_changed_data_invalidate_samples(simulation: tuple[Path, Path]) -> None:
 def test_output_paths_cannot_write_into_sources(simulation: tuple[Path, Path]) -> None:
     """Reject overlapping roots and a redirected plot directory before output writes."""
     root, output = simulation
-    with pytest.raises(ValueError, match="nonoverlapping"):
+    with pytest.raises(ValueError, match="study directory"):
         process_plots(
             root,
             output,
-            root / "plots",
+            root / "simulations_sixth" / "plots",
             study="simulations",
             geometry="sixth",
             workers=1,
         )
-    output.mkdir()
-    (output / "plot-data").symlink_to(root, target_is_directory=True)
+    (output / "cache").mkdir(parents=True)
+    (output / "cache/plots").symlink_to(root, target_is_directory=True)
     with pytest.raises(ValueError, match="symbolic links"):
         process_plots(
             root, output, output, study="simulations", geometry="sixth", workers=1
@@ -455,7 +454,7 @@ def test_explicit_symlog_figures(simulation: tuple[Path, Path]) -> None:
         )
         == 0
     )
-    directory = output / "figures/simulations_sixth/sim001"
+    directory = output / "figures/runs/simulations_sixth/sim001"
     manifest = json.loads((directory / "manifest.json").read_text())
     layers = manifest["configuration"]["options"]["layers"]
     assert layers[0]["scale"] == "symlog"
@@ -465,5 +464,5 @@ def test_explicit_symlog_figures(simulation: tuple[Path, Path]) -> None:
     svg = directory / manifest["generation"] / "timecourse.svg"
     assert "Toxic compound T [mM] (symlog)" in svg.read_text()
     assert not list(ET.parse(svg).iter("{http://www.w3.org/2000/svg}image"))
-    report = json.loads((output / "plot-report-simulations.json").read_text())
+    report = json.loads((output / "logs/plots-simulations.json").read_text())
     assert report["ranges"]["simulations"]["rr_(T)"] == [10, 10]

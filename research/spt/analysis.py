@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import sys
 import time
 from argparse import BooleanOptionalAction
@@ -13,17 +12,18 @@ from typing import cast
 
 import pandas as pd
 
-from research import RESULTS_DIR
+from research.spt import results_spt_dir
 from research.spt.analysis_data import AnalysisOptions, prepare_analysis, timelines
 from research.spt.analysis_plots import (
     PlotOptions,
     cached_analysis_figures,
     render_analysis,
 )
-from research.spt.artifacts import atomic_json, atomic_text
+from research.spt.artifacts import atomic_json
 from research.spt.cache import ProcessingResult, validate_roots
 from research.spt.cli import selection_parser, write_catalog
 from research.spt.execution import execute_jobs
+from research.spt.layout import log_path
 from research.spt.plot_data import PlotSource, plot_sources
 
 
@@ -211,21 +211,9 @@ def process_analysis(
                     {},
                 )
             )
-    directory = output_root / "analysis"
-    if directory.resolve() != directory.absolute():
-        raise ValueError("Analysis index must not traverse symbolic links")
-    directory.mkdir(parents=True, exist_ok=True)
-    links = "".join(
-        f'<li><a href="{html.escape(Path(str(row["gallery"])).relative_to(directory).as_posix(), quote=True)}">{html.escape(str(row["study"]))}</a> ({row["runs"]} runs)</li>'
-        for row in rows
-    )
-    atomic_text(
-        directory / "index.html",
-        f'<!doctype html><html lang="en"><meta charset="utf-8"><title>SPT quantitative analysis</title><h1>SPT quantitative analysis</h1><ul>{links}</ul><p>Time courses retain native histories. Matched comparisons interpolate cell values and volumes before reduction. SD describes spatial variation.</p></html>',
-    )
-    write_catalog(pd.DataFrame(rows), output_root, name=f"analysis-catalog-{study}")
+    write_catalog(pd.DataFrame(rows), log_path(output_root, f"analysis-{study}.tsv"))
     atomic_json(
-        output_root / f"analysis-report-{study}.json",
+        log_path(output_root, f"analysis-{study}.json"),
         {
             "elapsed_s": time.perf_counter() - started,
             "results": [asdict(result) for result in results],
@@ -253,7 +241,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
     """Analyze local caches and return nonzero for missing inputs or failed outputs."""
     parser = selection_parser(__doc__ or "Analyze SPT")
     parser.set_defaults(study=study)
-    parser.add_argument("--data-root", type=Path, default=RESULTS_DIR / "spt")
+    parser.add_argument("--data-root", type=Path, default=results_spt_dir)
     parser.add_argument("--geometry", choices=("sixth", "lobulus"), default="lobulus")
     parser.add_argument("--fields", nargs="+", default=list(AnalysisOptions().fields))
     parser.add_argument("--time-points", type=int, default=51)

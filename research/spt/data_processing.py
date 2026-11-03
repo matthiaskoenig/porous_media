@@ -22,6 +22,7 @@ from research.spt.catalog import CatalogValue, discover_runs, inspect_run
 from research.spt.cli import selected_studies, selection_parser, write_catalog
 from research.spt.conditions import conditions_from_source
 from research.spt.execution import execute_jobs, print_result
+from research.spt.layout import log_path
 
 
 def process_febio_simulations(input_dir: Path, xdmf_dir: Path) -> dict[Path, Path]:
@@ -127,12 +128,11 @@ def process_studies(
         print_result(result)
     results.sort(key=lambda result: (result.study, result.run_id))
     atomic_json(
-        target / "processing-report.json", [asdict(result) for result in results]
+        log_path(target, "processing.json"), [asdict(result) for result in results]
     )
     write_catalog(
         pd.DataFrame([result.row for result in results if result.row]),
-        target,
-        name="processing-catalog",
+        log_path(target, "processing-runs.tsv"),
     )
     return results
 

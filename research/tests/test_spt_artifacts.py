@@ -11,6 +11,8 @@ from research.spt.artifacts import (
     atomic_text,
     fingerprint,
     publish,
+    run_lock,
+    sweep_leftovers,
 )
 from research.spt.execution import execute_jobs
 
@@ -133,3 +135,40 @@ def test_atomic_writes_reject_symbolic_links(tmp_path: Path, kind: str) -> None:
     with pytest.raises(ValueError, match="symbolic links"):
         atomic_text(destination, "unrelated result")
     assert (protected / "result.txt").read_text() == "protected"
+
+
+def test_lock_removes_leftovers_of_interrupted_runs(tmp_path: Path) -> None:
+    """Delete staging data and unreferenced generations of killed writers."""
+    source = tmp_path / "source.txt"
+    source.write_text("input")
+    directory = tmp_path / "output"
+    staging = directory / "staging"
+    staging.mkdir(parents=True)
+    (staging / "data.txt").write_text("result")
+    current = publish(directory, staging, {}, (source,), [fingerprint(source)])
+    killed = directory / ".partial-killed"
+    killed.mkdir()
+    (killed / "timecourse.png").write_bytes(b"")
+    (directory / ".partial-manifest.json").write_text("{")
+    orphan = directory / "generation-00000000-0000-0000-0000-000000000000"
+    orphan.mkdir()
+    (directory / "notes.txt").write_text("kept")
+    with run_lock(directory):
+        assert sorted(path.name for path in directory.iterdir()) == sorted(
+            [".lock", "manifest.json", current.name, "notes.txt"]
+        )
+    assert (current / "data.txt").read_text() == "result"
+
+
+def test_sweep_cleans_idle_directories_and_skips_locked_ones(tmp_path: Path) -> None:
+    """Remove leftovers below cached artifacts without touching active writers."""
+    idle, busy = tmp_path / "figures/runs/a", tmp_path / "figures/runs/b"
+    for directory in (idle, busy):
+        directory.mkdir(parents=True)
+        (directory / "manifest.json").write_text("{}")
+    (idle / ".partial-killed").mkdir()
+    with run_lock(busy):
+        (busy / ".partial-active").mkdir()
+        sweep_leftovers(tmp_path)
+        assert (busy / ".partial-active").is_dir()
+    assert not (idle / ".partial-killed").exists()

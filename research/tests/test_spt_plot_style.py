@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import xarray as xr
-from matplotlib.collections import PolyCollection
+from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.container import ErrorbarContainer
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
@@ -126,10 +126,10 @@ def test_local_limits_override_malformed_legacy_metadata(
     assert ranges["rr_(S)"] == (0, 8)
 
 
-def test_mesh_edges_and_per_panel_scalar_bars(
+def test_outlines_without_cell_grid_and_per_panel_scalar_bars(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Retain cell boundaries and a labeled five-tick horizontal bar in every panel."""
+    """Draw domain outlines, no cell grid, and a five-tick scalar bar per panel."""
     data = Samples(
         np.array([[[0, 0], [1, 0], [0, 1]]]),
         np.array([0]),
@@ -146,11 +146,18 @@ def test_mesh_edges_and_per_panel_scalar_bars(
             collection = axis.collections[0]
             assert isinstance(collection, PolyCollection)
             assert collection.cmap.name == "hot"
+            art.canvas.draw()
             np.testing.assert_allclose(
-                np.asarray(collection.get_edgecolor(), dtype=float)[0],
-                [169 / 255] * 3 + [0.18],
+                np.asarray(collection.get_edgecolor(), dtype=float),
+                np.asarray(collection.get_facecolor(), dtype=float),
             )
-            assert np.asarray(collection.get_linewidth(), dtype=float)[0] == 0.48
+            outline = axis.collections[1]
+            assert isinstance(outline, LineCollection)
+            np.testing.assert_allclose(
+                np.asarray(outline.get_edgecolor(), dtype=float)[0],
+                [169 / 255] * 3 + [0.8],
+            )
+            assert np.asarray(outline.get_linewidth(), dtype=float)[0] == 0.48
         for axis in art.axes[2:]:
             assert axis.get_title() == "Protein"
             assert len(axis.get_xticks()) == 5
@@ -165,22 +172,25 @@ def test_mesh_edges_and_per_panel_scalar_bars(
     )
 
 
-def test_small_colorbar_labels_remain_distinct() -> None:
-    """Do not turn nonzero product concentrations into five identical zero labels."""
+@pytest.mark.parametrize(("maximum", "power"), [(0.006, "-3"), (5012.1, "3")])
+def test_colorbar_labels_remain_distinct_and_separate(
+    maximum: float, power: str
+) -> None:
+    """Neither collapse small values to zeros nor let long large labels collide."""
     from research.spt.plot_render import figure, scalar_bar
 
     art = figure((4, 4))
     try:
         axis = art.subplots()
         collection = PolyCollection([[[0, 0], [1, 0], [0, 1]]])
-        collection.set_clim(0, 0.006)
+        collection.set_clim(0, maximum)
         scalar_bar(art, axis, collection, LAYERS[1])
         art.set_dpi(150)
         art.canvas.draw()
         labels = [tick.get_text() for tick in art.axes[-1].get_xticklabels()]
         assert len(set(labels)) == 5
         exponent = art.axes[-1].xaxis.get_offset_text().get_text().replace("−", "-")
-        assert "10^{-3}" in exponent
+        assert f"10^{{{power}}}" in exponent
         boxes = [tick.get_window_extent() for tick in art.axes[-1].get_xticklabels()]
         assert not any(left.overlaps(right) for left, right in pairwise(boxes))
     finally:

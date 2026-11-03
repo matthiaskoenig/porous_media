@@ -17,6 +17,19 @@ from numpy.typing import ArrayLike
 from research.spt.analysis_plots import LABELS, _scale
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES
+from research.spt.manuscript_data import (
+    CONVERGENCE_DISPLAY_MESHES,
+    CONVERGENCE_TIME,
+    ManuscriptData,
+    convergence_view,
+)
+from research.spt.manuscript_geometry import (
+    FIELD_TITLES,
+    label_pattern_row,
+    map_panel,
+    raster_panel,
+    save_manuscript_figure,
+)
 from research.spt.plot_data import PlotSource
 from research.spt.plot_mesh import boundary_edges, boundary_segments
 from research.spt.plot_render import (
@@ -27,19 +40,6 @@ from research.spt.plot_render import (
 )
 from research.spt.plot_style import simulation_color
 from research.spt.plot_view import project
-from research.spt.publication_data import (
-    CONVERGENCE_DISPLAY_MESHES,
-    CONVERGENCE_TIME,
-    PublicationData,
-    convergence_view,
-)
-from research.spt.publication_geometry import (
-    FIELD_TITLES,
-    label_pattern_row,
-    map_panel,
-    raster_panel,
-    save_publication,
-)
 
 CONVERGENCE_COLORS = dict(
     zip(
@@ -101,7 +101,7 @@ def annotate_timecourses(art: Figure, axes: np.ndarray) -> None:
 
 
 def render_convergence(
-    data: PublicationData,
+    data: ManuscriptData,
     sources: list[PlotSource],
     directory: Path,
     options: RenderOptions,
@@ -286,7 +286,7 @@ def render_convergence(
             + ".",
             fontsize=10,
         )
-        save_publication(art, directory / "figure-s1-convergence", options)
+        save_manuscript_figure(art, directory / "figure-s1-convergence", options)
     finally:
         for dataset in datasets:
             dataset.close()

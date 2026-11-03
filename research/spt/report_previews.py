@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from research.spt.artifacts import atomic_json, atomic_output, validate_output
+from research.spt.layout import PREVIEWS
 
 PREVIEW_SIZE = (768, 768)
 PREVIEW_VERSION = 1
@@ -43,7 +44,7 @@ def preview_image(source: Path, root: Path) -> Preview:
     key = hashlib.sha256(
         json.dumps(configuration, sort_keys=True).encode()
     ).hexdigest()[:24]
-    target = root / "report-previews" / f"{key}.webp"
+    target = root.joinpath(*PREVIEWS) / f"{key}.webp"
     metadata = target.with_suffix(".json")
     validate_output(target)
     validate_output(metadata)
@@ -77,3 +78,17 @@ def preview_image(source: Path, root: Path) -> Preview:
         },
     )
     return Preview(target, width, height)
+
+
+def prune_previews(root: Path, used: set[Path]) -> int:
+    """Remove cached previews that the current report no longer references."""
+    directory = root.resolve().joinpath(*PREVIEWS)
+    if not directory.is_dir() or directory.is_symlink():
+        return 0
+    removed = 0
+    for path in directory.glob("*.webp"):
+        if path.resolve() not in used:
+            path.unlink(missing_ok=True)
+            path.with_suffix(".json").unlink(missing_ok=True)
+            removed += 1
+    return removed

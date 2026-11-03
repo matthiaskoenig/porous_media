@@ -15,6 +15,10 @@ data_spt_dir = Path(
     os.environ.get("POROUS_MEDIA_SPT_DATA", DATA_DIR / "spt")
 ).expanduser()
 
+results_spt_dir = Path(
+    os.environ.get("POROUS_MEDIA_SPT_RESULTS", data_spt_dir / "results")
+).expanduser()
+
 selection_spt = list(SUMMARY_FIELDS)
 
 

@@ -49,6 +49,7 @@ from research.spt.catalog import (
 from research.spt.cli import selected_studies, write_catalog
 from research.spt.conditions import conditions_from_source
 from research.spt.execution import execute_jobs, print_result
+from research.spt.layout import artifact_directory, log_path
 from research.spt.sampling import DISCRETE_FIELDS as DISCRETE_FIELDS
 from research.spt.sampling import blend, bracket
 
@@ -68,7 +69,7 @@ class GeometryJob:
     def directory(self, output_root: Path) -> Path:
         """Return a stable manifest directory without following output links."""
         output_root = output_root.expanduser().resolve()
-        directory = output_root / self.study / "xdmf" / self.run_id
+        directory = artifact_directory(output_root, "meshes", self.study, self.run_id)
         if (
             not directory.is_relative_to(output_root)
             or directory.resolve() != directory.absolute()
@@ -300,9 +301,10 @@ def write_composition(
         raise ValueError("A lobulus requires six source sectors")
     output = output.expanduser().absolute()
     if any(
-        output.resolve().is_relative_to(source.root.resolve()) for source in sources
+        output.resolve().is_relative_to((source.root / source.study).resolve())
+        for source in sources
     ):
-        raise ValueError("Geometry output must be outside the input tree")
+        raise ValueError("Geometry output must be outside the input study directories")
     if any(
         path.exists() or path.is_symlink()
         for path in (output, output.with_suffix(".h5"))
@@ -651,12 +653,12 @@ def process_geometries(
             result.row["figure_pdf"] = str(descriptor.with_suffix(".pdf"))
     if not dry_run:
         atomic_json(
-            output_root / "geometry-report.json", [asdict(result) for result in results]
+            log_path(output_root, "geometry.json"),
+            [asdict(result) for result in results],
         )
         write_catalog(
             pd.DataFrame([result.row for result in results if result.row]),
-            output_root,
-            name="geometry-catalog",
+            log_path(output_root, "geometry-runs.tsv"),
         )
     return results
 

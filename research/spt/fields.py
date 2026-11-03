@@ -15,11 +15,11 @@ class Layer:
     factor: float = 1.0
     scale: Literal["linear", "symlog"] = "linear"
     scalar_bar: bool = True
-    show_edges: bool = True
+    show_edges: bool = False
     edge_color: str = "darkgray"
     line_width: float = 0.48  # Matplotlib points: one pixel at the default 150 DPI.
     edge_alpha: float = 0.18
-    outline: bool = False
+    outline: bool = True
 
 
 SPT_LAYERS = (

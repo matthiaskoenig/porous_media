@@ -16,20 +16,41 @@ from urllib.parse import quote, unquote
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from research import RESULTS_DIR
+from research.spt import results_spt_dir
 from research.spt.artifacts import atomic_text, generation_path, validate_output
-from research.spt.report_previews import preview_image
+from research.spt.layout import (
+    CATALOG,
+    LOGS,
+    MANUSCRIPT,
+    MESHES,
+    README,
+    README_TEXT,
+    REPORT,
+    catalog_path,
+    log_path,
+)
+from research.spt.report_previews import preview_image, prune_previews
 
 SECTIONS = {
-    "publication": "Publication figures",
+    "manuscript": "Manuscript figures",
     "analysis": "Quantitative analysis",
     "overviews": "Geometry overviews",
-    "meshes": "Meshes only",
     "combinations": "Combined sector layouts",
     "geometry": "Geometry time courses",
-    "supplements": "Supplemental geometry figures",
     "conditions": "Simulation conditions",
 }
+# Manifest locations of each report section, relative to the results root.
+KINDS = {
+    "manuscript": f"{MANUSCRIPT}/*/manifest.json",
+    "analysis": "analysis/*/manifest.json",
+    "overviews": "figures/overviews/*/manifest.json",
+    "geometry": "figures/runs/*/*/manifest.json",
+    "combinations": f"{MESHES}/*_combinations/*/manifest.json",
+}
+CONDITION_FIGURES = (
+    ("condition-colors", "Pattern and flow colour mapping"),
+    ("boundary-flows", "Boundary flux conditions"),
+)
 IMAGE_FORMATS = {".png", ".svg", ".pdf", ".gif", ".mp4"}
 
 
@@ -117,7 +138,7 @@ def _outputs(manifest: Path, root: Path) -> tuple[dict[str, object], list[Path]]
 
 
 def _catalogue(root: Path) -> list[dict[str, str]]:
-    path = root / "catalog.tsv"
+    path = catalog_path(root)
     if not _local(path, root) or not path.is_file():
         return []
     with path.open(encoding="utf-8", newline="") as handle:
@@ -137,8 +158,6 @@ def _description(stem: str, spatial_times: list[object]) -> str:
         "convergence-errors": "Differences from the finest available mesh",
         "initial-properties": "Initial cell properties",
         "final-state": "Final state overview",
-        "meshes": "Distinct meshes",
-        "mesh": "Mesh only",
         "timecourse": "Geometry time course",
     }
     if linear.startswith("spatial-"):
@@ -151,7 +170,7 @@ def _description(stem: str, spatial_times: list[object]) -> str:
 
 def _figure_order(stem: str) -> int:
     """Keep time courses and spatial snapshots in their natural reading order."""
-    name = stem.removesuffix("-symlog").removesuffix("-compact")
+    name = stem.removesuffix("-symlog")
     if name.startswith("figure-"):
         token = name.removeprefix("figure-")
         return int(token) if token.isdigit() else 1000
@@ -160,7 +179,6 @@ def _figure_order(stem: str) -> int:
     return {
         "timecourses": 0,
         "final-state": 0,
-        "meshes": 1,
         "endpoints": 100,
         "convergence-errors": 110,
         "initial-properties": 120,
@@ -175,42 +193,19 @@ def _collect(
     warnings: list[str] = []
     analysed: set[str] = set()
     conditions = {row["run_id"]: row for row in rows}
-    patterns = (
-        "publication/*/manifest.json",
-        "analysis/*/manifest.json",
-        "overviews/*/manifest.json",
-        "figures/*/*/manifest.json",
-        "*_combinations/xdmf/*/manifest.json",
-    )
-    bases = [
-        root,
-        *sorted(
-            path for path in root.iterdir() if _local(path, root) and path.is_dir()
-        ),
-    ]
     manifests = sorted(
-        {path for base in bases for pattern in patterns for path in base.glob(pattern)}
+        (path, kind) for kind, pattern in KINDS.items() for path in root.glob(pattern)
     )
     seen: set[Path] = set()
-    for manifest in manifests:
+    for manifest, kind in manifests:
         try:
             value, paths = _outputs(manifest, root)
             configuration = _mapping(value.get("configuration"))
-            relative = manifest.relative_to(root)
-            kind = next(
-                part
-                for part in relative.parts
-                if part in {"analysis", "overviews", "figures", "xdmf", "publication"}
+            study = str(configuration.get("study", "")) or (
+                manifest.parent.name
+                if kind in {"analysis", "overviews"}
+                else manifest.parent.parent.name
             )
-            study = str(configuration.get("study", ""))
-            if not study:
-                study = (
-                    manifest.parents[2].name
-                    if kind == "xdmf"
-                    else manifest.parent.name
-                    if kind in {"analysis", "overviews"}
-                    else manifest.parent.parent.name
-                )
             family = "Convergence" if study.startswith("convergence") else "Simulations"
             geometry = (
                 "Combined"
@@ -219,20 +214,7 @@ def _collect(
                 if "sixth" in study
                 else "Lobulus"
             )
-            section = {
-                "analysis": "analysis",
-                "overviews": "overviews",
-                "xdmf": "combinations",
-                "figures": "geometry",
-                "publication": "publication",
-            }[kind]
-            supplemental = (
-                relative.parts[0]
-                not in {"analysis", "overviews", "figures", "publication"}
-                and kind != "xdmf"
-            )
-            if supplemental:
-                section = "supplements"
+            section = kind
             runs = configuration.get("runs", [])
             runs = [str(run) for run in runs] if isinstance(runs, list) else []
             if kind == "overviews":
@@ -241,7 +223,7 @@ def _collect(
                     runs = [str(source).split(" | ")[0] for source in sources]
             if kind == "analysis":
                 analysed.update(runs)
-            run = manifest.parent.name if kind in {"figures", "xdmf"} else ""
+            run = manifest.parent.name if kind in {"geometry", "combinations"} else ""
             selected = [conditions[key] for key in runs if key in conditions]
             if run in conditions:
                 selected = [conditions[run]]
@@ -261,7 +243,7 @@ def _collect(
             keywords = " ".join(
                 str(_mapping(layer).get("title", "")) for layer in layers
             )
-            if kind in {"analysis", "publication"}:
+            if kind in {"analysis", "manuscript"}:
                 keywords += (
                     " substrate product protein toxicant necrosis pressure volume"
                 )
@@ -295,15 +277,7 @@ def _collect(
                         stem.name, configuration.get("title", "")
                     )
                 ) or _description(stem.name, spatial_times)
-                mesh_only = stem.name in {"mesh", "meshes"}
-                if mesh_only:
-                    title = (
-                        f"{_description(stem.name, spatial_times)} | {title}"
-                        if configuration.get("title")
-                        else title
-                    )
-                    scale = "Linear"
-                if kind == "xdmf":
+                if kind == "combinations":
                     title = (
                         f"Dose {doses[0]}: six zonation patterns"
                         if doses
@@ -335,15 +309,13 @@ def _collect(
                 )
                 if kind == "analysis":
                     caption = f"{family} · homogeneous lobules · {len(runs)} runs"
-                if supplemental:
-                    caption += f" · {relative.parts[0]}"
                 requested_order = _mapping(configuration.get("artifact_order")).get(
                     stem.name
                 )
                 figures.append(
                     Figure(
                         title,
-                        "meshes" if mesh_only else section,
+                        section,
                         family,
                         geometry,
                         scale,
@@ -380,11 +352,8 @@ def _collect(
                 )
         except (OSError, ValueError, StopIteration) as error:
             warnings.append(f"{manifest.relative_to(root)}: {error}")
-    for name, title in (
-        ("boundary_color", "Pattern and flow colour mapping"),
-        ("boundary_flux", "Boundary flux conditions"),
-    ):
-        path = root / "figures" / f"{name}.png"
+    for name, title in CONDITION_FIGURES:
+        path = root / CATALOG / f"{name}.png"
         if _local(path, root) and path.is_file():
             href = _href(path, root)
             figures.append(
@@ -403,7 +372,7 @@ def _collect(
     figures.sort(
         key=lambda figure: (
             order.index(figure.section),
-            figure.order if figure.section == "publication" else 0,
+            figure.order if figure.section == "manuscript" else 0,
             figure.family != "Simulations",
             figure.geometry,
             figure.caption,
@@ -422,7 +391,7 @@ def _collect(
 
 
 def build_report(output_root: Path) -> Path:
-    """Publish report.html and index.html without reading raw or numerical data.
+    """Publish index.html and README.md without reading raw or numerical data.
 
     All published figure generations below the output root are included, even
     when the most recent pipeline invocation selected only a subset. Incomplete
@@ -435,35 +404,38 @@ def build_report(output_root: Path) -> Path:
     rows = _catalogue(root)
     figures, downloads, warnings, analysed = _collect(root, rows)
     preview_warnings = []
+    used: set[Path] = set()
     for figure in figures:
         if not figure.preview:
             continue
         source = root / unquote(figure.preview)
         try:
             small = preview_image(source, root)
+            used.add(small.path.resolve())
             figure.preview = _href(small.path, root)
             figure.preview_width, figure.preview_height = small.width, small.height
         except (OSError, ValueError) as error:
             figure.preview = ""
             preview_warnings.append(f"{source.relative_to(root)}: {error}")
-    pipeline_path = root / "pipeline-report.json"
+    prune_previews(root, used)
+    pipeline_path = log_path(root, "pipeline.json")
     pipeline = (
         _read_json(pipeline_path)
         if _local(pipeline_path, root) and pipeline_path.is_file()
         else {}
     )
     counts = Counter(figure.section for figure in figures)
-    resources = []
-    for pattern in ("*catalog*.tsv", "*report*.json", "*validation*.json"):
-        resources.extend(
-            path
-            for path in sorted(root.glob(pattern))
-            if _local(path, root) and path.is_file()
-        )
+    resources = [catalog_path(root), catalog_path(root, ".xlsx")]
+    for pattern in ("*.tsv", "*.json"):
+        resources.extend(sorted((root / LOGS).glob(pattern)))
     downloads.append(
         {
             "title": "Catalogues and execution records",
-            "links": {path.name: _href(path, root) for path in sorted(set(resources))},
+            "links": {
+                path.relative_to(root).as_posix(): _href(path, root)
+                for path in resources
+                if _local(path, root) and path.is_file()
+            },
         }
     )
     environment = Environment(
@@ -499,19 +471,19 @@ def build_report(output_root: Path) -> Path:
             ),
         },
     )
-    # Render everything before replacing either entry point. Never follow links
+    # Render everything before replacing either file. Never follow links
     # supplied as destinations, including links to other research output files.
-    for name in ("report.html", "index.html"):
+    for name in (REPORT, README):
         validate_output(root / name)
-    for name in ("report.html", "index.html"):
-        atomic_text(root / name, document)
-    return root / "report.html"
+    atomic_text(root / README, README_TEXT)
+    atomic_text(root / REPORT, document)
+    return root / REPORT
 
 
 def main(argv: list[str] | None = None) -> int:
     """Refresh the final report independently of processing and the raw share."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-root", type=Path, default=RESULTS_DIR / "spt")
+    parser.add_argument("--output-root", type=Path, default=results_spt_dir)
     args = parser.parse_args(argv)
     try:
         print(build_report(args.output_root))

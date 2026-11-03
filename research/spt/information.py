@@ -75,7 +75,7 @@ def plot_boundary_flux(df: pd.DataFrame, results_dir: Path) -> None:
         axes.set_xlabel("simulation index", fontsize=15, fontweight="bold")
         axes.set_ylabel("absolute boundary flow", fontsize=15, fontweight="bold")
         axes.legend()
-        figure.savefig(results_dir / "boundary_flux.png", bbox_inches="tight")
+        figure.savefig(results_dir / "boundary-flows.png", bbox_inches="tight")
     finally:
         plt.close(figure)
 
@@ -97,7 +97,7 @@ def plot_colors(df: pd.DataFrame, results_dir: Path) -> None:
         axes.set_ylim(bottom=0)
         axes.set_xlabel("zonation pattern", fontsize=15, fontweight="bold")
         axes.set_ylabel("boundary flow", fontsize=15, fontweight="bold")
-        figure.savefig(results_dir / "boundary_color.png", bbox_inches="tight")
+        figure.savefig(results_dir / "condition-colors.png", bbox_inches="tight")
     finally:
         plt.close(figure)
 
@@ -108,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     from research.spt.catalog import CatalogValue, discover_runs, inspect_run
     from research.spt.cli import selected_studies, selection_parser, write_catalog
     from research.spt.conditions import conditions_from_source
+    from research.spt.layout import CATALOG, catalog_path
 
     parser = selection_parser(__doc__ or "Catalogue SPT data")
     parser.add_argument(
@@ -181,12 +182,12 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         if not args.dry_run:
-            write_catalog(data, target, excel=args.excel)
+            write_catalog(data, catalog_path(target), excel=args.excel)
             if args.plots and args.study in {"both", "simulations"}:
                 conditions, _ = conditions_from_source(source)
                 frame = simulation_conditions_df(conditions)
-                plot_boundary_flux(frame, target / "figures")
-                plot_colors(frame, target / "figures")
+                plot_boundary_flux(frame, target / CATALOG)
+                plot_colors(frame, target / CATALOG)
     except (OSError, ValueError) as error:
         print(f"SPT information: {error}", file=sys.stderr)
         return 1

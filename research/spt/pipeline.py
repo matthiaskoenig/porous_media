@@ -12,12 +12,13 @@ from typing import TypedDict
 from research.spt.analysis import process_analysis
 from research.spt.analysis_data import AnalysisOptions
 from research.spt.analysis_plots import PlotOptions
-from research.spt.artifacts import atomic_json
+from research.spt.artifacts import atomic_json, sweep_leftovers
 from research.spt.cache import ProcessingResult, validate_roots
 from research.spt.cli import selection_parser
 from research.spt.data_processing import process_studies
 from research.spt.geometry import process_geometries
 from research.spt.information import main as information_main
+from research.spt.layout import log_path
 from research.spt.plot_geometry import process_plots
 from research.spt.plot_render import RenderOptions
 from research.spt.report import build_report
@@ -35,6 +36,25 @@ class PipelineReport(TypedDict):
     stages: list[dict[str, object]]
     truncated_runs: list[str]
     scope: str
+
+
+def create_manuscript(output_root: Path, formats: tuple[str, ...]) -> int:
+    """Create manuscript figures and tissue panels from caches."""
+    from research.spt.manuscript import create_manuscript_figures
+    from research.spt.tissue_panels import TissueOptions, create_tissue_panels
+
+    outputs = create_manuscript_figures(output_root, formats=formats)
+    tissue = create_tissue_panels(output_root, TissueOptions(formats=formats))
+    atomic_json(
+        log_path(output_root, "manuscript.json"),
+        {
+            "status": "passed",
+            "figures": {key: str(path) for key, path in outputs.items()},
+            "tissue_panels": str(tissue),
+            "raw_hdf_reads": 0,
+        },
+    )
+    return 0
 
 
 def run_pipeline(
@@ -212,6 +232,21 @@ def run_pipeline(
         )
     ):
         failed = True
+    manuscript = geometry_figures and study == "both" and not run_ids
+    if manuscript and dry_run:
+        stages.append(
+            {
+                "name": "manuscript",
+                "status": "pending",
+                "reason": "not inspected in status mode",
+            }
+        )
+    elif (
+        manuscript
+        and not failed
+        and not stage("manuscript", lambda: create_manuscript(output_root, formats))
+    ):
+        failed = True
     report: PipelineReport = {
         "status": "failed"
         if failed
@@ -228,7 +263,8 @@ def run_pipeline(
         "scope": "existing solver results; homogeneous lobulus analysis; mixed sectors for visualization only",
     }
     if not dry_run:
-        atomic_json(output_root / "pipeline-report.json", report)
+        sweep_leftovers(output_root)
+        atomic_json(log_path(output_root, "pipeline.json"), report)
         build_report(output_root)
     return report
 

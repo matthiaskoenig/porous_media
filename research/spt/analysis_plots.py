@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -20,7 +19,6 @@ from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 from research.spt.analysis_data import load_analysis, weighted_statistics
 from research.spt.artifacts import (
     atomic_json,
-    atomic_text,
     current_manifest,
     fingerprint,
     generation_path,
@@ -39,7 +37,7 @@ from research.spt.plot_style import (
     simulation_color,
 )
 
-ANALYSIS_PLOT_VERSION = 5
+ANALYSIS_PLOT_VERSION = 6
 LABELS = {
     "rr_(S_ext)": "Substrate [mM]",
     "rr_(P_ext)": "Product [mM]",
@@ -776,42 +774,18 @@ def render_analysis(
                     "sources": [fingerprint(path) for path in paths],
                 },
             )
-            links = [
-                f'<li><a href="{html.escape(path.name, quote=True)}">{html.escape(path.name)}</a></li>'
-                for path in sorted(staging.iterdir())
-                if path.suffix in {".nc", ".tsv", ".json"}
-            ]
-            cards = []
-            for name in sorted(
-                {
-                    path.stem
-                    for path in staging.iterdir()
-                    if path.suffix in {".png", ".svg", ".pdf"}
-                }
-            ):
-                exports = " | ".join(
-                    f'<a href="{name}.{extension}">{extension.upper()}</a>'
-                    for extension in options.formats
-                )
-                preview = (
-                    f'<img loading="lazy" src="{name}.png" style="width:100%">'
-                    if "png" in options.formats
-                    else ""
-                )
-                cards.append(
-                    f"<article><h2>{name}</h2>{preview}<p>{exports}</p></article>"
-                )
-            atomic_text(
-                staging / "index.html",
-                f'<!doctype html><html lang="en"><meta charset="utf-8"><title>SPT analysis</title><style>body{{font:16px system-ui;margin:2rem}}article{{max-width:1500px;margin:2rem 0}}h2{{font-size:1.1rem}}</style><h1>{sources[0].run.study}</h1><p>Volume-weighted means; SD describes spatial variation. Concentrations retain source units. Necrosis figures use percent; serialized values remain fractions. Empty spatial bins remain missing.</p><ul>{"".join(links)}</ul>{"".join(cards)}</html>',
-            )
+            figures = {
+                path.stem
+                for path in staging.iterdir()
+                if path.suffix in {".png", ".svg", ".pdf"}
+            }
             generation = publish(
                 directory,
                 staging,
                 configuration,
                 paths,
                 before,
-                {"runs": len(sources), "figures": len(cards)},
+                {"runs": len(sources), "figures": len(figures)},
             )
         for dataset in (
             *native,

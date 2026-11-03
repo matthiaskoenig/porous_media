@@ -9,7 +9,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 import matplotlib as mpl
-import numpy as np
 
 from research.spt.artifacts import (
     current_manifest,
@@ -20,7 +19,6 @@ from research.spt.artifacts import (
     run_lock,
 )
 from research.spt.conditions import pattern_idx2name
-from research.spt.fields import Layer
 from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_render import (
@@ -37,7 +35,7 @@ from research.spt.plot_render import (
 )
 from research.spt.plot_view import GEOMETRY_VIEW
 
-OVERVIEW_VERSION = 4
+OVERVIEW_VERSION = 5
 
 
 def _label(source: PlotSource) -> str:
@@ -149,51 +147,6 @@ def render_overview(
     finally:
         art.clear()
 
-    unique = []
-    seen = set()
-    for index, data in enumerate(samples):
-        key = (data.faces.shape, data.faces.tobytes(), data.cell_ids.tobytes())
-        if key not in seen:
-            seen.add(key)
-            unique.append(index)
-    columns = min(4, len(unique))
-    art = figure((3.5 * columns, 3.5 * math.ceil(len(unique) / columns) + 0.6))
-    axes = art.subplots(math.ceil(len(unique) / columns), columns, squeeze=False)
-    try:
-        for axis in axes.flat:
-            axis.set_axis_off()
-        for axis, index in zip(axes.flat, unique, strict=False):
-            data, source = samples[index], sources[index]
-            values = np.maximum(data.sectors, 0)
-            panel(
-                axis,
-                data,
-                Layer("mesh", "Mesh", edge_alpha=0.45),
-                values,
-                (-0.5, 5.5),
-                mesh=True,
-            )
-            if source.sector_labels:
-                label_sectors(axis, data)
-            axis.set_title(
-                f"{source.run.run_id}\n{data.values.shape[2]:,} cells", fontsize=11
-            )
-        art.suptitle(
-            f"{sources[0].family.title()} | {sources[0].geometry} | {len(unique)} distinct mesh(es)",
-            fontsize=13,
-        )
-        if sources[0].sector_labels:
-            art.supxlabel(
-                " | ".join(
-                    f"{index + 1}: {name}"
-                    for index, name in enumerate(sources[0].sector_labels)
-                ),
-                fontsize=9,
-            )
-        save_figure(art, directory / "meshes", options)
-    finally:
-        art.clear()
-
 
 def overview_figures(
     sources: list[PlotSource],
@@ -263,7 +216,7 @@ def overview_figures(
                     directory, staging, configuration, paths, before, {}
                 )
     result = []
-    for name in ("final-state", "meshes"):
+    for name in ("final-state",):
         row = {"study": source.run.study, "run_id": name, "geometry": source.geometry}
         row.update(
             {

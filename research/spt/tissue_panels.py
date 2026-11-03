@@ -21,7 +21,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 from numpy.typing import ArrayLike
 
-from research import RESULTS_DIR
+from research.spt import results_spt_dir
 from research.spt.artifacts import (
     atomic_json,
     atomic_text,
@@ -32,11 +32,12 @@ from research.spt.artifacts import (
     run_lock,
 )
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
+from research.spt.layout import log_path, manuscript_directory
+from research.spt.manuscript import export_figure, simulation_cohort
+from research.spt.manuscript_data import SIMULATION_TIMES, ManuscriptData
+from research.spt.manuscript_geometry import save_manuscript_figure, shared_colorbar
+from research.spt.manuscript_patterns import add_pattern_icon
 from research.spt.plot_render import RenderOptions, display_limits, figure
-from research.spt.publication import export_figure, simulation_cohort
-from research.spt.publication_data import SIMULATION_TIMES, PublicationData
-from research.spt.publication_geometry import save_publication, shared_colorbar
-from research.spt.publication_patterns import add_pattern_icon
 from research.spt.report import build_report
 from research.spt.tissue_geometry import TissuePatch, crop_tissue, tile_lobules
 
@@ -144,7 +145,7 @@ def save_panel(pixels: np.ndarray, destination: Path, options: TissueOptions) ->
 
 
 def render_tissue(
-    data: PublicationData,
+    data: ManuscriptData,
     source_study: str,
     source_run: str,
     ranges: dict[str, tuple[float, float]],
@@ -273,7 +274,7 @@ def render_tissue(
                     scale=1,
                     vertical=True,
                 )
-        save_publication(
+        save_manuscript_figure(
             art,
             directory / stem,
             RenderOptions(formats=options.formats, dpi=options.dpi),
@@ -309,7 +310,7 @@ def create_tissue_panels(
     """Publish additional flat tissue images from the existing local SPT caches."""
     options = options or TissueOptions()
     options.validate()
-    data = PublicationData(data_root)
+    data = ManuscriptData(data_root)
     sources = simulation_cohort(data)
     selected = [
         source
@@ -368,7 +369,7 @@ def create_tissue_panels(
         "native_cell_values": "unchanged, including clipped border cells; no averaging",
         "vessel_openings": "native lumens retained as background; no fabricated scalar data",
     }
-    directory = data.root / "publication" / stem
+    directory = manuscript_directory(data.root, stem)
     with run_lock(directory):
         cached = current_manifest(directory, configuration, data.root)
         if cached and not force:
@@ -415,9 +416,9 @@ def create_tissue_panels(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Create publication-ready square tissue cutouts and refresh the HTML report."""
+    """Create manuscript-ready square tissue cutouts and refresh the HTML report."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=RESULTS_DIR / "spt")
+    parser.add_argument("--data-root", type=Path, default=results_spt_dir)
     parser.add_argument("--dose", type=int, default=6)
     parser.add_argument(
         "--times-hours",
@@ -455,7 +456,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         generation = create_tissue_panels(args.data_root, options, force=args.force)
         atomic_json(
-            args.data_root / "tissue-panel-report.json",
+            log_path(args.data_root, "tissue-panels.json"),
             {
                 "status": "passed",
                 "generation": str(generation),

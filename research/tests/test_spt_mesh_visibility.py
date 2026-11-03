@@ -15,7 +15,6 @@ from research.spt.plot_render import (
     Samples,
     figure,
     panel,
-    render_mesh,
     render_timecourse,
 )
 from research.tests.test_spt_plot_style import _source
@@ -66,7 +65,7 @@ def test_transparent_edges_do_not_fade_scalar_colors() -> None:
     art = figure((4, 4))
     try:
         samples = _square()
-        layer = LAYERS[2]
+        layer = replace(LAYERS[2], show_edges=True)
         collection = panel(art.subplots(), samples, layer, samples.values[0, 0], (0, 1))
         art.canvas.draw()
         np.testing.assert_allclose(np.asarray(collection.get_facecolor())[:, 3], 1)
@@ -76,44 +75,34 @@ def test_transparent_edges_do_not_fade_scalar_colors() -> None:
         art.clear()
 
 
-def test_convergence_fields_and_mesh_only_exports_are_separate(
+def test_default_maps_show_outlines_without_cell_grid(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Draw domain outlines on fields and the full neutral grid in a separate figure."""
+    """Draw only domain outlines on fields; no separate mesh-only figure exists."""
     samples = _square()
-    layer = replace(LAYERS[2], show_edges=False, outline=True)
+    layer = LAYERS[2]
+    assert not layer.show_edges and layer.outline
     source = _source(tmp_path, convergence=True)
     inspected = []
 
     def inspect(art: Figure, destination: Path, options: RenderOptions) -> None:
         inspected.append(destination.name)
         collections = art.axes[0].collections
-        if destination.name == "timecourse":
-            assert len(collections) == 2
-            art.canvas.draw()
-            # Own-color strokes close vector hairlines without a neutral cell grid.
-            np.testing.assert_allclose(
-                np.asarray(collections[0].get_edgecolor(), dtype=float),
-                np.asarray(collections[0].get_facecolor(), dtype=float),
-            )
-            outline = collections[1]
-            assert isinstance(outline, LineCollection)
-            assert len(outline.get_segments()) == 4
-        else:
-            assert len(collections) == 1
-            assert collections[0].get_array() is None
-            np.testing.assert_allclose(
-                np.asarray(collections[0].get_facecolor()), [[1, 1, 1, 1]]
-            )
-            np.testing.assert_allclose(
-                np.asarray(collections[0].get_edgecolor())[:, 3], 0.45
-            )
+        assert len(collections) == 2
+        art.canvas.draw()
+        # Own-color strokes close vector hairlines without a neutral cell grid.
+        np.testing.assert_allclose(
+            np.asarray(collections[0].get_edgecolor(), dtype=float),
+            np.asarray(collections[0].get_facecolor(), dtype=float),
+        )
+        outline = collections[1]
+        assert isinstance(outline, LineCollection)
+        assert len(outline.get_segments()) == 4
 
     monkeypatch.setattr("research.spt.plot_render.save_figure", inspect)
     options = RenderOptions(layers=(layer,), snapshots=(0,))
     render_timecourse(source, samples, tmp_path, options, {layer.sid: (0, 1)})
-    render_mesh(source, samples, tmp_path, options)
-    assert inspected == ["timecourse", "mesh"]
+    assert inspected == ["timecourse"]
 
 
 @pytest.mark.parametrize("alpha", [-0.01, 1.01, float("nan")])

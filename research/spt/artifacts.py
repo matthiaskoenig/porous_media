@@ -82,6 +82,47 @@ def records_current(records: object, root: Path | None = None) -> bool:
     return True
 
 
+def remove_leftovers(directory: Path) -> None:
+    """Delete staging data and orphaned generations left by interrupted runs.
+
+    Every writer stages and publishes below an artifact directory only while it
+    holds that directory's lock, so once the lock is acquired any staging entry
+    or generation that the manifest does not name belongs to a dead process.
+    """
+    current = None
+    with suppress(OSError, ValueError):
+        current = generation_path(
+            directory, json.loads((directory / "manifest.json").read_text())
+        ).name
+    for path in directory.iterdir():
+        stale = path.name.startswith(".partial-") or (
+            path.name.startswith("generation-") and path.name != current
+        )
+        if not stale:
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
+def sweep_leftovers(root: Path) -> None:
+    """Clean every idle artifact directory below a results root.
+
+    Cached stages skip their locks, so leftovers of interrupted runs would
+    otherwise persist. Directories locked by another process are left alone.
+    """
+    for current, directories, files in os.walk(root):
+        directories[:] = [
+            name
+            for name in directories
+            if not name.startswith(("generation-", ".partial-"))
+        ]
+        if "manifest.json" in files:
+            with suppress(BlockingIOError, PermissionError), run_lock(Path(current)):
+                pass
+
+
 @contextmanager
 def run_lock(directory: Path) -> Generator[None]:
     """Hold an OS lock until artifact access completes, including after failure."""
@@ -106,6 +147,7 @@ def run_lock(directory: Path) -> Generator[None]:
 
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         try:
+            remove_leftovers(directory)
             yield
         finally:
             if os.name == "nt":

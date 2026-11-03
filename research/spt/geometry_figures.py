@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import tempfile
-from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -13,19 +12,19 @@ import numpy as np
 
 from research.spt.artifacts import fingerprint, generation_path, publish, run_lock
 from research.spt.conditions import pattern_idx2name
-from research.spt.fields import SPT_LAYERS, Layer
+from research.spt.fields import SPT_LAYERS
 from research.spt.geometry import GeometryJob, geometry_manifest
 from research.spt.plot_render import Samples, panel
 from research.spt.plot_view import face_heights, project
 
-COMPARISON_PLOT_VERSION = 5
+COMPARISON_PLOT_VERSION = 6
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:
     """Save mesh/zonation and final-state panels beside a derived time series.
 
     Native cap and exterior wall faces share the same camera and unmodified
-    cell values as the geometry and publication figures.
+    cell values as the geometry and manuscript figures.
     """
     from research.spt.plot_data import projected_faces
 
@@ -44,25 +43,22 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
             ("rr_necrosis", f"Necrosis at {end:g} s", final),
         )
         if mixed_patterns
-        else (
-            ("sector_id", "Convergence meshes", initial),
-            ("rr_(T)", f"Toxicant at {end:g} s", final),
-        )
+        else (("rr_(T)", f"Toxicant at {end:g} s", final),)
     )
-    figure, axes = plt.subplots(1, 2, figsize=(11, 6), layout="constrained")
+    figure, axes = plt.subplots(
+        1,
+        len(selections),
+        figsize=(5.5 * len(selections), 6),
+        layout="constrained",
+        squeeze=False,
+    )
     try:
-        for axis, (field, title, data) in zip(axes, selections, strict=True):
+        for axis, (field, title, data) in zip(axes[0], selections, strict=True):
             values = np.concatenate(data[field]).reshape(-1)
-            if field == "sector_id":
-                layer = Layer("mesh", "Mesh", edge_alpha=0.45)
-            else:
-                layer = next(layer for layer in SPT_LAYERS if layer.sid == field)
-                layer = replace(
-                    layer, show_edges=mixed_patterns, outline=not mixed_patterns
-                )
+            layer = next(layer for layer in SPT_LAYERS if layer.sid == field)
             limits = (
                 (0.0, 1.0)
-                if field in {"rr_necrosis", "sector_id"}
+                if field == "rr_necrosis"
                 else (float(values.min()), float(values.max()))
             )
             if limits[0] == limits[1]:
@@ -73,12 +69,10 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
                 layer,
                 values,
                 limits,
-                mesh=field == "sector_id",
-                sectors=not mixed_patterns,
+                sectors=True,
             )
             axis.set_title(title)
-            if field != "sector_id":
-                figure.colorbar(collection, ax=axis, shrink=0.7)
+            figure.colorbar(collection, ax=axis, shrink=0.7)
             centers = np.concatenate(
                 [points[block.data, :2].mean(axis=1) for block in cells]
             )

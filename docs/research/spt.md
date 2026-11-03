@@ -37,29 +37,57 @@ Use the [development environment](../development.md#environment), or sync just
 research dependencies with `uv sync --locked --group research --no-dev`.
 Commands run from the checkout root:
 
+To run the complete project from catalogue through analysis, figures and
+manuscript figures, use:
+
 ```bash
 export POROUS_MEDIA_SPT_DATA=/data/koeniglab/spt
-export MPLBACKEND=Agg
-uv run --no-sync python -m research.spt.information --output-root results/spt
-uv run --no-sync python -m research.spt.data_processing --step all --output-root results/spt
-```
-
-To run the complete project from catalogue through analysis and figures, use:
-
-```bash
-uv run --no-sync python -m research.spt.pipeline --output-root results/spt
+export MPLBACKEND=Agg PYVISTA_OFF_SCREEN=true
+uv run --no-sync python -m research.spt.pipeline
 ```
 
 The [complete workflow](#run-and-verify-the-complete-project) below describes
-resuming, inspecting stages, and the resulting project index.
+resuming, inspecting stages, and the [results layout](#results-layout).
 
 On PowerShell, set `$env:POROUS_MEDIA_SPT_DATA` and `$env:MPLBACKEND` instead.
-Both commands also accept `--input-root /data/koeniglab/spt` explicitly. The input
+Every command also accepts `--input-root /data/koeniglab/spt` explicitly. The input
 default is `POROUS_MEDIA_SPT_DATA`, falling back to the checkout's `data/spt`.
-The output default is `RESULTS_DIR / "spt"`, normally `results/spt`, on local
-storage. Overlapping input/output trees and symlinked output subdirectories are
-rejected.
-Neither command creates or changes files on the source share.
+The output default is `POROUS_MEDIA_SPT_RESULTS`, falling back to `results/`
+inside the input root, for example `/data/koeniglab/spt/results`. Results never
+live inside the repository checkout. Outputs inside a supplied study directory,
+outputs containing the input root and symlinked output subdirectories are
+rejected. No command changes the supplied study directories.
+
+### Results layout
+
+The output root separates deliverables from intermediate data. Every report
+refresh also writes this overview as `README.md`:
+
+```text
+results/
+├── index.html           offline report; open this first
+├── README.md            folder guide
+├── manuscript/
+│   ├── exports/         stable figure-04.pdf ... figure-s1-convergence.pdf, tissue panels
+│   └── <figure>/        versioned generation of each manuscript figure
+├── analysis/<study>/    quantitative tables, NetCDF, figures and provenance
+├── figures/
+│   ├── runs/<study>/<run_id>/   geometry time course of one history
+│   └── overviews/<study>/       final-state overview of a study
+├── meshes/<study>/<run_id>/     reconstructed lobules and mixed-sector histories
+├── catalog/             runs.tsv, optional runs.xlsx, condition figures
+├── logs/                pipeline.json and per-stage reports and catalogues
+└── cache/
+    ├── cells/<study>/<run_id>/      numerical cell, point and summary caches
+    ├── analysis/<study>/<run_id>/   per-run analysis results
+    ├── plots/<study>/<run_id>/      sampled plot geometry and values
+    ├── depth/<study>/<run_id>/      native cap heights for tilted views
+    └── previews/                    report thumbnails
+```
+
+Each artifact directory holds a `manifest.json` naming its current
+`generation-<id>/` folder; previous generations are removed after a successful
+update. Unused report previews are pruned whenever the report is rebuilt.
 
 ## Inspect conditions and available runs
 
@@ -82,8 +110,9 @@ uv run --no-sync python -m research.spt.information --dry-run
 uv run --no-sync python -m research.spt.information --plots --excel
 ```
 
-The first command writes nothing. The second writes `catalog.tsv`, optional
-`catalog.xlsx`, and two condition figures under `figures/`. Figures are saved
+The first command writes nothing. The second writes `catalog/runs.tsv`, optional
+`catalog/runs.xlsx`, and the condition figures `catalog/boundary-flows.png` and
+`catalog/condition-colors.png`. Figures are saved
 without opening windows and are closed after use. Metadata failures and missing
 expected simulations are reported and produce a nonzero exit status.
 
@@ -149,7 +178,7 @@ rather than the machine's CPU count. An unchanged batch avoids worker startup.
 Each run publishes a complete generation under:
 
 ```text
-results/spt/<study>/runs/<run_id>/
+results/cache/cells/<study>/<run_id>/
 ├── manifest.json
 └── generation-<identifier>/
     ├── cells.nc
@@ -166,8 +195,8 @@ manifest. A failed run leaves previously completed outputs intact, and the next
 invocation resumes other completed runs. Source changes during processing cause
 failure and require a retry after the upload completes.
 
-`processing-report.json` records all selected successes and failures, while
-`processing-catalog.tsv` records the selected successful metadata. These describe
+`logs/processing.json` records all selected successes and failures, while
+`logs/processing-runs.tsv` records the selected successful metadata. These describe
 the latest invocation and do not overwrite the separate information catalogue.
 Any failed run gives the processing command a nonzero exit status. Short but
 readable histories are reported separately from processing failures.
@@ -181,7 +210,7 @@ from research.spt.cache import load_processed_run, load_summary
 from research.spt.catalog import discover_runs
 
 source = discover_runs(Path("/data/koeniglab/spt"), run_ids=("sim001",))[0]
-output = Path("results/spt")
+output = Path("/data/koeniglab/spt/results")
 summary = load_summary(source, output)  # Reads only the compact summary.
 cells, points, summary = load_processed_run(source, output)
 ```
@@ -285,13 +314,14 @@ condition. For example, dose 1 uses `sim001`, `sim009`, `sim017`, `sim025`,
 ordering; flow units remain unspecified. Each comparison includes the complete
 common history. Its figure shows initial protein zonation and final necrosis,
 with numbered sectors and a pattern legend. The convergence figure shows the
-six meshes and final toxicant values. Figures render headlessly with Matplotlib,
+final toxicant values of the six numbered resolution sectors. Both figures draw
+sector outlines without internal mesh edges. Figures render headlessly with Matplotlib,
 without requiring a VTK display backend.
 
 Geometry generations are stored separately from numerical cache generations:
 
 ```text
-results/spt/<study>/xdmf/<run_id>/
+results/meshes/<study>/<run_id>/
 ├── manifest.json
 └── generation-<identifier>/
     ├── <run_id>.xdmf
@@ -317,8 +347,8 @@ conditions, field-transform policy, and temporal alignment are recorded in the
 manifest and provenance file. Only complete generations become visible through
 the manifest. Failed reconstruction or figure generation preserves the previous
 generation, and unchanged runs skip array reads and worker startup.
-`geometry-report.json` describes the latest selected reconstruction invocation.
-`geometry-catalog.tsv` lists successful outputs, including descriptor and figure
+`logs/geometry.json` describes the latest selected reconstruction invocation.
+`logs/geometry-runs.tsv` lists successful outputs, including descriptor and figure
 paths, so readers do not need to navigate generation directories manually.
 
 Resolve published paths rather than globbing temporary or retired generations:
@@ -330,17 +360,17 @@ from research.spt.cache import load_summary
 from research.spt.geometry import geometry_path, lobulus_sources
 
 raw = Path("/data/koeniglab/spt")
-output = Path("results/spt")
+output = raw / "results"
 source = lobulus_sources(raw, output, run_ids=("sim001",))[0]
 summary = load_summary(source, output)
 lobulus_xdmf = source.xdmf
 comparison_xdmf = geometry_path(
-    output / "simulations_combinations" / "xdmf" / "dose_01"
+    output / "meshes" / "simulations_combinations" / "dose_01"
 )
 ```
 
-Numerical lobulus caches use the same `runs/<run_id>/manifest.json` layout as
-source-sector caches, under their respective `*_lobulus` study directories.
+Numerical lobulus caches use the same `cache/cells/<study>/<run_id>/` layout as
+source-sector caches, under their respective `*_lobulus` study names.
 Use published lobules for quantitative analysis and sector comparisons for
 visualization. Mixed-sector histories never enter whole-lobule statistics.
 
@@ -353,8 +383,8 @@ uv run --no-sync python -m research.spt.plot_geometry --workers 2
 ```
 
 The input, data and output roots default to the same locations used above.
-`--data-root results/spt` selects the published reconstructed histories;
-`--output-root results/spt` selects local plot storage. The raw share is read
+`--data-root` selects the published reconstructed histories; `--output-root`
+selects plot storage. Both default to the results directory. The raw share is read
 only. Plotting does not change reconstructed histories or numerical caches.
 These repository commands also work independently:
 
@@ -373,12 +403,9 @@ uv run --no-sync python -m research.spt.plot_geometry --status
 `--geometry` accepts `all`, `sixth`, `lobulus`, or `combined`. The complete current
 dataset produces 119 time-course figures: 55 source sixths, 55 homogeneous
 lobules, eight dose comparisons and one mixed convergence history. Each of the
-six study/geometry groups also gets a final-state overview and an overview of
-distinct meshes. Identical simulation meshes appear once in the mesh overview.
-Simulation overviews follow the generator's pattern and dose ordering.
-Convergence histories additionally export a separate `mesh.svg`, `mesh.pdf` and
-`mesh.png`. These neutral mesh-only views show cell boundaries independently of
-the scalar fields and appear in the report's **Meshes only** section.
+six study/geometry groups also gets a final-state overview. Simulation overviews
+follow the generator's pattern and dose ordering. No figure shows the mesh
+itself; only the triangles of manuscript Figure S1 A display cell edges.
 
 Default figures preserve the manuscript's five snapshots: indices 1, 3, 5, 7
 and 9 of ten equally spaced times in the common interval. Explicit `--times`
@@ -386,12 +413,11 @@ and other snapshot counts override this selection. The five columns retain
 extracellular substrate and product, protein, toxic compound and necrosis.
 The canonical layers in `research/spt/fields.py` preserve `magma` for
 concentrations, `hot` for protein and `binary` for necrosis, with the original
-labels and horizontal scalar bars in every panel. Simulation cell-edge strokes
-use 18% opacity while scalar colors remain fully opaque. Convergence scalar
-panels omit internal mesh lines and show only the domain outline, including
-holes. Homogeneous lobule outlines omit artificial sector seams; independent
-combined sectors retain their own outlines. Mesh-only figures use a white
-background and 45% opacity cell-edge strokes.
+labels and horizontal scalar bars in every panel. Scalar panels omit internal
+mesh lines and show only the domain outline, including holes. Homogeneous
+lobule outlines omit artificial sector seams; independent combined sectors
+retain their own outlines. Layers can opt into transparent cell edges with
+`show_edges=True` in `research/spt/fields.py`.
 Boundary-only scalar surfaces use a thin stroke in each cell's own color to close
 vector-export hairlines, without adding neutral mesh lines.
 Each panel occupies 4 by 4 inches, matching the original 600 pixel panels at
@@ -429,8 +455,9 @@ uv run --no-sync python -m research.spt.plot_geometry \
   --study simulations --times 0 21600 43200 86400
 
 # Preserve outliers while showing smaller concentrations on a symlog color scale.
+# Use a separate output root so the linear default figures remain unchanged.
 uv run --no-sync python -m research.spt.plot_geometry \
-  --study convergence --scale symlog --output-root results/spt/convergence-symlog
+  --study convergence --scale symlog --output-root /tmp/spt-convergence-symlog
 
 # Generate only the two study overviews per geometry.
 uv run --no-sync python -m research.spt.plot_geometry --only-overviews
@@ -446,7 +473,7 @@ with an azimuth of -60 degrees. Native cap heights and exterior side faces show
 the mesh thickness without exaggeration. Caps and walls use their owning cell's
 unchanged scalar value and the canonical colormap; lighting does not alter the
 colors. The camera applies consistently to sixths, lobules, combined sectors,
-mesh-only figures, publication figures and optional videos. Quantitative plots
+manuscript figures and optional videos. Quantitative plots
 and their statistics are unaffected. Colored convergence boundaries and sector
 numbers follow the same projection, and cropping includes the visible thickness.
 
@@ -474,15 +501,14 @@ and videos now require explicit selection in that helper too.
 Outputs and preview caches use the following layout:
 
 ```text
-results/spt/
-├── plot-data/<study>/<run_id>/manifest.json
-├── plot-depth/<study>/<run_id>/manifest.json
-├── figures/<study>/<run_id>/manifest.json
-├── overviews/<study>/manifest.json
-├── report-previews/<fingerprint>.webp
-├── figures/index-both.html
-├── plot-catalog-both.tsv
-└── plot-report-both.json
+results/
+├── cache/plots/<study>/<run_id>/manifest.json
+├── cache/depth/<study>/<run_id>/manifest.json
+├── cache/previews/<fingerprint>.webp
+├── figures/runs/<study>/<run_id>/manifest.json
+├── figures/overviews/<study>/manifest.json
+├── logs/plots-both.tsv
+└── logs/plots-both.json
 ```
 
 Each manifest points to a complete generation. A failed replacement preserves
@@ -491,13 +517,13 @@ runs to skip XML parsing, numerical reads, rendering and worker startup. Changin
 only a rendering option reuses the existing sampled arrays. New sample caches
 retain native cap heights. Older planar caches are adopted without resampling
 scalar histories: one geometry-only read stores the heights separately in
-`plot-depth/`. Later rendering changes reuse this small local cache. Mesh-view
+`cache/depth/`. Later rendering changes reuse this small local cache. Mesh-view
 settings are included in figure provenance and invalidate geometry figure caches.
 Missing artifacts
 are regenerated; `--force` explicitly resamples and rerenders. Fingerprints use
 size and modification time, so changes preserving both require `--force`.
-The HTML gallery links previews, vector figures and any requested videos; the
-catalogue gives their current paths. The report records errors, sampled color
+The catalogue gives the current paths of figures and any requested videos; the
+final HTML report links them. The plot report records errors, sampled color
 ranges, elapsed time and the number of selected HDF field arrays read. Files
 are named by the selected study (`both`, `simulations`, or `convergence`) and
 describe the latest invocation, including an intentionally partial selection.
@@ -601,7 +627,7 @@ exports are SVG/PDF/PNG; `--formats`, `--dpi`, and `--fields` limit figure outpu
 ### Reusable analysis results
 
 Each run publishes a compact numerical generation under
-`analysis-data/<study>/<run_id>/`:
+`cache/analysis/<study>/<run_id>/`:
 
 | File | Contents |
 | --- | --- |
@@ -620,9 +646,9 @@ and native-end-time coordinates; native histories with differing time axes are
 preserved in the native TSV table and per-run files. No pickle files are used.
 The study tables and NetCDF files can be moved and read without the raw share.
 
-`analysis/index.html` links the selected study galleries.
-`analysis-catalog-<study>.tsv` supplies current result paths, and
-`analysis-report-<study>.json` records errors, common windows, elapsed time, and
+The figures appear in the analysis section of the offline report.
+`logs/analysis-<study>.tsv` supplies current result paths, and
+`logs/analysis-<study>.json` records errors, common windows, elapsed time, and
 the number of native frames read. These describe the latest selection. Unchanged
 invocations inspect fingerprints without opening numerical arrays or starting
 workers. Plot styling or format changes reuse numerical reductions. Missing
@@ -638,7 +664,7 @@ from research.spt.analysis_data import load_analysis
 from research.spt.plot_data import plot_sources
 
 raw = Path("/data/koeniglab/spt")
-output = Path("results/spt")
+output = raw / "results"
 source = plot_sources(
     raw, output, study="simulations", geometry="lobulus", run_ids=("sim001",)
 )[0]
@@ -660,9 +686,10 @@ The pipeline runs these stages in order:
 3. Build or resume the homogeneous-lobule numerical caches.
 4. Serialize quantitative analysis and create its figures.
 5. Create or resume sixth, lobulus, and combined geometry figures.
+6. Create the manuscript figures and the tissue panels.
 
 It checks every selected result, stops dependent work after a failure, and writes
-`pipeline-report.json` plus the final HTML report at the output root. The JSON names
+`logs/pipeline.json` plus the final `index.html` report at the output root. The JSON names
 each stage and records its outcome and elapsed time. Repeating the command is a
 supported resume operation. Existing numerical and geometry outputs are reused
 only when their provenance and output fingerprints match; they are not rebuilt
@@ -671,8 +698,9 @@ Short source histories are listed separately in `truncated_runs`; a successful
 pipeline does not imply that every source solver run reached its model duration.
 
 `--study` selects a study, and `--runs` selects an explicit subset. A subset
-omits mixed comparisons, which require a complete study. `--no-geometry-figures`
-skips the last stage when only numerical results are needed. `--formats pdf png`
+omits mixed comparisons and manuscript figures, which require complete studies.
+`--no-geometry-figures` skips the last two stages when only numerical results
+are needed. `--formats pdf png`
 reduces export size, while `--geometry-snapshots` changes the geometry figure
 panel count. Inspecting a fresh output root reports downstream stages as pending
 without creating directories or loading HDF arrays.
@@ -696,21 +724,22 @@ workflow. Historical plotting adapters still serve other research projects and
 delegate to the current renderer. These helpers remain repository-only research
 code, outside the public library and release artifacts.
 
-### Publication figures
+### Manuscript figures
 
-Create the updated Figures 4-7 of the
-[SPT manuscript](https://doi.org/10.1101/2024.03.26.586870) and a convergence
-supplement after the complete pipeline and geometry plotting have finished:
+The complete pipeline creates the updated Figures 4-7 of the
+[SPT manuscript](https://doi.org/10.1101/2024.03.26.586870), a convergence
+supplement and the tissue panels in its last stage. Recreate
+only the manuscript figures after the pipeline has finished with:
 
 ```bash
 MPLBACKEND=Agg PYVISTA_OFF_SCREEN=true uv run --no-sync \
-  python -m research.spt.publication --data-root results/spt
+  python -m research.spt.manuscript
 ```
 
 This step reads validated local NetCDF summaries, selected cell frames and cached
 projected meshes. It does not require the raw network drive, rerun reductions or
 alter existing plots. Unchanged figures use metadata-only cache checks. Missing
-exports are repaired; `--force` regenerates selected publication figures.
+exports are repaired; `--force` regenerates selected manuscript figures.
 
 | Figure | Data and layout | Restored annotations |
 | --- | --- | --- |
@@ -725,8 +754,9 @@ historical overview snapshot selection. Labels are derived from the actual times
 a nonzero overview frame is never relabeled as zero. Continuous cell fields are
 interpolated locally and necrosis holds its preceding native frame. Shared scalar
 limits use full histories of the entire simulation cohort, preserving the mesh
-palettes. Cell-edge widths scale with panel size while retaining their existing
-opacity. Figure 6 reuses the existing volume-weighted means, population SD,
+palettes. Maps of Figures 4, 5 and 7 show lobule outlines without internal mesh
+edges; outline widths scale with panel size. Only the source meshes in Figure S1 A
+show their triangles. Figure 6 reuses the existing volume-weighted means, population SD,
 markers and pattern/dose colors. SD represents spatial heterogeneity, rather than
 uncertainty across replicate simulations.
 
@@ -747,17 +777,15 @@ Figures 4 and 5 is **D6**. Pattern names and lettering match across Figures 4-7:
 **E Sharp periportal** and **F Random**. Figures 6 and 7 share the same row-label
 format and typography; Figure 5 uses those labels as its pattern-block headings.
 Every pattern label also carries the same small square black-and-white vector profile
-panel, including the Figure 4 heading and both compact exports. The horizontal
-direction runs from periportal (left) to perivenous (right); the vertical
-direction shows relative initial protein abundance. Bold profile lines remain
-clear in compact exports. Flat, rising, falling,
-sharp-step and random profiles distinguish all six patterns. These schematics
+panel, including the Figure 4 heading. The horizontal direction runs from
+periportal (left) to perivenous (right); the vertical direction shows relative
+initial protein abundance. Flat, rising, falling, sharp-step and random profiles
+distinguish all six patterns. These schematics
 explain pattern identity; the random profile is illustrative.
 
 Figures 4, 5, 7 and S1 use the same slightly tilted orthographic geometry view as
-the study figures, including native thickness and exterior side faces. Full and
-compact exports share this camera. Figure 6 retains its time-course layout and
-styling. Captions and provenance record the view, and manuscript scalar ranges,
+the study figures, including native thickness and exterior side faces. Figure 6
+retains its time-course layout and styling. Captions and provenance record the view, and manuscript scalar ranges,
 binary necrosis states, pattern icons and dose labels stay unchanged.
 
 The convergence supplement retains every available native time point and actual
@@ -770,7 +798,7 @@ source-mesh boundary and mixed-sector boundaries. Source sixths are selected fro
 local lobule meshes, so producing this figure does not reopen the original network
 meshes. The mixed view numbers those same six resolutions clockwise from upper
 left, coarse to fine. This display rotation preserves cell values and the
-archived composition; it applies to the mesh-only view and all five readouts.
+archived composition; it applies to the Panel A mesh view and all five readouts.
 Panel B compares substrate S, product P, protein, toxic compound T and necrosis
 at **5400 s (1.5 h)**, the existing convergence reference time. All six sectors
 use exactly this time, native-frame continuous interpolation and preceding-frame
@@ -783,18 +811,18 @@ and full-history limits shared by the six meshes; necrosis uses the fixed range
 times outside the common interval are rejected. Dashed time-course lines mark
 the map time; dotted lines mark the common interval end.
 
-Stable manuscript filenames are available under `publication/exports/`, for
+Stable manuscript filenames are available under `manuscript/exports/`, for
 example `figure-04.pdf` through `figure-07.pdf` and `figure-s1-convergence.pdf`.
 These files share storage with validated generations. Regenerating a figure
 refreshes its stable exports, caption and provenance from the complete generation.
-Outputs live under `publication/<figure>/manifest.json` in complete generations.
+Outputs live under `manuscript/<figure>/manifest.json` in complete generations.
 Each generation contains PNG, SVG and PDF exports, `caption.md` and
 `provenance.json`, including run conditions, snapshot times and native end times.
 Dense map panels are rasterized at the chosen export DPI to keep the composite
 files practical; annotations and time-course curves stay vector in SVG/PDF.
 Each map is rendered as an independent small tile so PDF export never retains
 one full-composite raster buffer per panel.
-All publication formats are cropped to displayed content with a one-point safety
+All manuscript formats are cropped to displayed content with a one-point safety
 border. Cropping retains labels, arrows, legends and white living tissue, and
 preserves the spacing between panels. Hidden map-axis rectangles do not add
 empty margins; embedded map tiles are cropped geometrically, independently of
@@ -803,34 +831,14 @@ The default is 300 DPI. Select `--dpi 600` when higher-resolution maps are neede
 For example, regenerate only Figures 4 and 7 as PDF and PNG:
 
 ```bash
-uv run --no-sync python -m research.spt.publication \
-  --data-root results/spt --figures 4 7 --formats pdf png --dpi 300
+uv run --no-sync python -m research.spt.manuscript \
+  --figures 4 7 --formats pdf png --dpi 300
 ```
-
-Create additional, smaller versions of **Figures 4 and 5 only** at **300 DPI** with:
-
-```bash
-uv run --no-sync python -m research.spt.publication \
-  --data-root results/spt --compact --dpi 300
-```
-
-Compact figures use a nominal canvas width of 180 mm, preserving the aspect ratio,
-composition, colors and scientific data. Typography, line widths and embedded map
-tiles scale with the canvas. PNG resolution remains 300 DPI; SVG/PDF annotations
-and curves remain vector. Tight cropping can slightly change the exported width.
-Use `--width-mm 200` for another nominal width. Compact exports have independent
-caches and stable names such as `figure-04-compact.pdf` and
-`figure-05-compact.png`; full-size exports remain available. Figures 6, 7 and S1
-use their full-size exports. The publication command retires previously generated
-compact versions of those three figures from the export directory and report.
-Explicitly requesting them with `--compact` is rejected. Width and variant are
-recorded in the provenance. Both sizes of Figures 4 and 5 appear together in the
-inspection report, using its small cached previews.
 
 The default representative dose is index 6, matching the original manuscript.
 `--dose` changes that selection for Figures 4 and 5 and records the choice in
 their provenance and captions. Keep the default when reproducing the manuscript.
-The final inspection report includes published outputs in its **Publication
+The final inspection report includes these outputs in its **Manuscript
 figures** section and uses the same small, cached previews as other figures.
 
 ### Flat tissue cutouts for linear increase
@@ -839,7 +847,7 @@ Create additional top-down CYP2E1, toxic-compound and necrosis panels by repeati
 the linear-increase lobule on a hexagonal lattice:
 
 ```bash
-uv run --no-sync python -m research.spt.tissue_panels --data-root results/spt
+uv run --no-sync python -m research.spt.tissue_panels
 ```
 
 The defaults use **D6** (`sim014`) at **0, 6, 12, 18 and 24 h**, with canonical
@@ -874,7 +882,7 @@ necrosis legend. For a final-time selection or a wider square:
 
 ```bash
 uv run --no-sync python -m research.spt.tissue_panels \
-  --data-root results/spt --dose 6 --times-hours 24 --width-lobules 2.5
+  --dose 6 --times-hours 24 --width-lobules 2.5
 ```
 
 Widths smaller than 2, negative seeds, invalid dose indices and times outside the
@@ -883,24 +891,25 @@ control only these new outputs. Existing manuscript figures and numerical
 results are preserved.
 The default stable exports include `linear-increase-tissue-d6.pdf` and individual
 files such as `linear-increase-tissue-d6-necrosis-t86400s.png`, under
-`publication/exports/`. Exact fractional seconds use `p` instead of a decimal point
+`manuscript/exports/`. Exact fractional seconds use `p` instead of a decimal point
 in filenames. Captions and provenance record the source run, time selection,
 scalar ranges, lattice spacing, vessel coverage and clipping convention.
 
 Outputs publish through one atomic generation under
-`publication/linear-increase-tissue-d6/manifest.json`. An unchanged invocation checks
+`manuscript/linear-increase-tissue-d6/manifest.json`. An unchanged invocation checks
 metadata without opening numerical arrays or rendering. Missing stable exports
 are restored from that generation. The HTML report lists the composite and each
 field/time panel separately, with small previews and descriptive titles.
 
 ### Final inspection report
 
-Open `results/spt/report.html` or `results/spt/index.html` in a browser after the
-pipeline finishes. Both open the same offline report. It gathers all current
-published figures: numerical analysis, geometry overviews, individual sixths and
-lobules, mixed sectors, supplemental views, and simulation conditions. Exports of
-the same figure share one card. Previously generated supplements remain included
-when the latest pipeline invocation selects a subset of the data.
+Open `index.html` in the results directory in a browser after the pipeline
+finishes. The offline report gathers all current published figures: manuscript
+figures, numerical analysis, geometry overviews, individual sixths and lobules,
+mixed sectors, and simulation conditions. Exports of the same figure share one
+card. Previously generated figures remain included when the latest pipeline
+invocation selects a subset of the data. `README.md` beside it explains the
+folder layout.
 
 Search by run, pattern, dose, or title, and combine section, study family,
 geometry, pattern, dose, and scale filters. Click a preview for the zoom viewer.
@@ -912,7 +921,7 @@ records. Aggregate figures match every pattern and dose they contain.
 Refresh only the report after generating additional figures:
 
 ```bash
-uv run --no-sync python -m research.spt.report --output-root results/spt
+uv run --no-sync python -m research.spt.report
 ```
 
 This reads local manifests and output metadata without accessing the raw share,
@@ -922,14 +931,15 @@ pipeline status refers to the latest pipeline invocation; the report does not
 independently validate raw-source freshness. Condition PNGs are included when
 present. The gallery uses lazily loaded, lossless WebP previews bounded by
 768 by 768 pixels. Opening a figure loads its original resolution; PNG, SVG and
-PDF downloads remain unchanged. Previews are cached under `report-previews/`
+PDF downloads remain unchanged. Previews are cached under `cache/previews/`
 using relative source paths and file metadata. An unchanged report refresh reads
 only metadata and reuses previews without decoding the original images. Missing
-or changed previews are regenerated locally without rereading simulation data.
+or changed previews are regenerated locally without rereading simulation data,
+and previews no longer referenced by the report are removed.
 
 The HTML embeds its styling and interaction code and needs no web server or
 internet connection. Images and data retain relative links. Move or share the
-whole results directory, including its generation and `report-previews` folders,
+whole results directory, including its generation and `cache` folders,
 to keep those links working. The report generator also recognizes relocated
 generation files from their manifests. Generated reports and private results stay
-outside Git.
+outside the repository.

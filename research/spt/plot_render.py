@@ -40,7 +40,7 @@ from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_view import GEOMETRY_VIEW, SurfaceProjection
 
-RENDER_VERSION = 7
+RENDER_VERSION = 9
 SOLID_CELL_STROKE = 0.2
 
 
@@ -294,8 +294,12 @@ def scalar_bar(
         return
     ticks = np.linspace(*collection.get_clim(), 5).tolist()
     label_format: str | ScalarFormatter = "%.1f"
-    if len({f"{value:.1f}" for value in ticks}) < len(ticks):
-        # The original fixed decimals collapse small concentrations to five zeros.
+    if (
+        len({f"{value:.1f}" for value in ticks}) < len(ticks)
+        or max(abs(value) for value in ticks) >= 1000
+    ):
+        # Fixed decimals collapse small concentrations to five zeros and let
+        # labels of large values run into each other.
         scientific = ScalarFormatter(useMathText=True)
         scientific.set_powerlimits((0, 0))
         label_format = scientific
@@ -348,7 +352,7 @@ def render_timecourse(
                     axis.text(
                         -0.03,
                         0.5,
-                        f"{time_value / 3600:g} h",
+                        f"{time_value / 3600:.3g} h",
                         transform=axis.transAxes,
                         ha="right",
                         va="center",
@@ -395,7 +399,9 @@ def render_panels(
                 collection.set_array(
                     samples.frame(time_value)[index][samples.display_ids] * layer.factor
                 )
-                axis.set_title(f"{layer.title} | {time_value / 3600:g} h", fontsize=11)
+                axis.set_title(
+                    f"{layer.title} | {time_value / 3600:.3g} h", fontsize=11
+                )
                 save_figure(
                     art,
                     directory / "panels" / f"field_{index + 1:02}_t{frame:05}",
@@ -403,38 +409,6 @@ def render_panels(
                 )
         finally:
             art.clear()
-
-
-def render_mesh(
-    source: PlotSource, samples: Samples, directory: Path, options: RenderOptions
-) -> None:
-    """Publish a neutral mesh view independently of convergence scalar fields."""
-    art = figure((4.0, 4.0))
-    try:
-        axis = art.subplots()
-        panel(
-            axis,
-            samples,
-            Layer("mesh", "Mesh", edge_alpha=0.45),
-            np.zeros(len(samples.sectors)),
-            (0, 1),
-            mesh=True,
-        )
-        axis.set_title(
-            f"{source.run.run_id}\n{len(samples.sectors):,} cells", fontsize=11
-        )
-        if source.sector_labels:
-            label_sectors(axis, samples)
-            art.supxlabel(
-                " | ".join(
-                    f"{index + 1}: {name}"
-                    for index, name in enumerate(source.sector_labels)
-                ),
-                fontsize=9,
-            )
-        save_figure(art, directory / "mesh", options)
-    finally:
-        art.clear()
 
 
 def render_video(
@@ -478,7 +452,7 @@ def render_video(
                     collection.set_array(
                         values[index][samples.display_ids] * layer.factor
                     )
-                title.set_text(f"{time_value / 3600:g} h")
+                title.set_text(f"{time_value / 3600:.3g} h")
                 writer.grab_frame(facecolor="white")
         if options.gif:
             from porous_media.visualization.video import create_gif_from_video
@@ -568,8 +542,6 @@ def render_source(
                 staging = Path(temporary)
                 with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
                     render_timecourse(source, samples, staging, options, ranges)
-                    if source.family == "convergence":
-                        render_mesh(source, samples, staging, options)
                     if options.panels:
                         render_panels(source, samples, staging, options, ranges)
                     if options.video_times:
@@ -631,8 +603,6 @@ def figure_row(
     }
     for extension in options.formats:
         row[extension] = str(generation / f"timecourse.{extension}")
-        if source.family == "convergence":
-            row[f"mesh_{extension}"] = str(generation / f"mesh.{extension}")
     if options.video_times:
         row["video"] = str(generation / "timecourse.mp4")
     if options.gif:

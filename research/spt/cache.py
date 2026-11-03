@@ -22,6 +22,7 @@ from research.spt.artifacts import (
     run_lock,
 )
 from research.spt.catalog import (
+    STUDIES,
     CatalogValue,
     ParsedRun,
     RunSource,
@@ -29,6 +30,7 @@ from research.spt.catalog import (
     inspect_run,
 )
 from research.spt.fields import ANALYSIS_FIELDS, SUMMARY_FIELDS, VOLUME
+from research.spt.layout import artifact_directory, category_root
 
 type Profile = Literal["analysis", "full"]
 type LegacyPolicy = Literal["sample", "full", "ignore"]
@@ -53,19 +55,28 @@ class ProcessingResult:
 
 
 def validate_roots(input_root: Path, output_root: Path) -> tuple[Path, Path]:
-    """Keep all derived outputs separate from the input tree."""
+    """Keep all derived outputs separate from the supplied study directories.
+
+    The output may be a dedicated subdirectory of the input root, such as
+    ``<input>/results``, but never a supplied study directory or an ancestor of
+    the input root.
+    """
     source = input_root.expanduser().resolve()
     target = output_root.expanduser().resolve()
-    if target.is_relative_to(source) or source.is_relative_to(target):
+    if source.is_relative_to(target) or (
+        target.is_relative_to(source) and target.relative_to(source).parts[0] in STUDIES
+    ):
         raise ValueError(
-            "Input and output directories must be separate, nonoverlapping trees"
+            "Outputs must not contain the input root or a supplied study directory"
         )
     return source, target
 
 
 def run_directory(source: RunSource, output_root: Path) -> Path:
     """Locate the local cache without depending on input file ordering."""
-    path = output_root.expanduser().resolve() / source.study / "runs" / source.run_id
+    path = artifact_directory(
+        output_root.expanduser().resolve(), "cells", source.study, source.run_id
+    )
     if path.resolve() != path.absolute():
         raise ValueError("Cache directories must not traverse symbolic links")
     return path
@@ -372,7 +383,7 @@ def process_run(
             if (
                 source.root.resolve() != output_root
                 or not source.xdmf.resolve().is_relative_to(
-                    output_root / source.study / "xdmf"
+                    category_root(output_root, "meshes") / source.study
                 )
                 or source.xdmf.resolve().is_relative_to(directory)
             ):

@@ -35,6 +35,7 @@ from research.spt.catalog import (
 from research.spt.cli import selected_studies
 from research.spt.conditions import pattern_idx2name
 from research.spt.geometry import geometry_jobs, geometry_path
+from research.spt.layout import artifact_directory
 from research.spt.plot_view import face_heights
 from research.spt.sampling import blend, bracket
 
@@ -64,7 +65,7 @@ class PlotSource:
     def directory(self, output_root: Path, category: str) -> Path:
         """Keep sample caches and figures in separate safe local directories."""
         root = output_root.expanduser().resolve()
-        path = root / category / self.run.study / self.run.run_id
+        path = artifact_directory(root, category, self.run.study, self.run.run_id)
         if not path.is_relative_to(root) or path.resolve() != path.absolute():
             raise ValueError("Plot directories must not traverse symbolic links")
         return path
@@ -91,7 +92,7 @@ def source_row(
     row = cached_catalog(source, data_root)
     if row:
         return row
-    directory = plot_root / "plot-data" / source.study / source.run_id
+    directory = artifact_directory(plot_root, "plot-data", source.study, source.run_id)
     try:
         stored = json.loads((directory / "manifest.json").read_text())
         configuration = stored["configuration"]
@@ -144,11 +145,11 @@ def plot_sources(
             )
     if "lobulus" in kinds:
         for source in selected_raw:
-            folder = (
-                data_root
-                / source.study.replace("_sixth", "_lobulus")
-                / "xdmf"
-                / source.run_id
+            folder = artifact_directory(
+                data_root,
+                "meshes",
+                source.study.replace("_sixth", "_lobulus"),
+                source.run_id,
             )
             path = geometry_path(folder)
             run = RunSource(

@@ -91,26 +91,27 @@ def published(tmp_path: Path) -> Path:
     for geometry in ("sixth", "lobulus"):
         _publish(
             root,
-            f"figures/simulations_{geometry}/sim001",
+            f"figures/runs/simulations_{geometry}/sim001",
             ("timecourse.png", "timecourse.pdf", "provenance.json"),
             {"title": "sim001 | constant | dose 1"},
         )
-    _publish(root, "overviews/simulations_lobulus", ("meshes.svg", "final-state.png"))
-    _publish(root, "simulations_combinations/xdmf/dose_01", ("dose_01.png",))
+    _publish(root, "figures/overviews/simulations_lobulus", ("final-state.png",))
+    _publish(root, "meshes/simulations_combinations/dose_01", ("dose_01.png",))
     _publish(
         root,
-        "convergence_combinations/xdmf/convergence_mixed",
+        "meshes/convergence_combinations/convergence_mixed",
         ("convergence_mixed.png",),
     )
     _publish(
         root,
-        "convergence-symlog/figures/convergence_sixth/convergence_06250",
+        "figures/runs/convergence_sixth/convergence_06250",
         ("timecourse.png",),
         {"options": {"layers": [{"title": "Substrate", "scale": "symlog"}]}},
     )
+    (root / "catalog").mkdir()
     with Image.new("RGB", (24, 16), "white") as image:
-        image.save(root / "figures/boundary_color.png")
-    with (root / "catalog.tsv").open("w", newline="") as handle:
+        image.save(root / "catalog/condition-colors.png")
+    with (root / "catalog/runs.tsv").open("w", newline="") as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=(
@@ -147,18 +148,17 @@ def test_report_covers_all_figures_and_exports(published: Path) -> None:
     }
     document = build_report(published).read_text()
     parsed = ReportParser(document)
-    assert len(parsed.cards) == 9
-    assert len({card["id"] for card in parsed.cards}) == 9
+    assert len(parsed.cards) == 8
+    assert len({card["id"] for card in parsed.cards}) == 8
     assert len(set(parsed.identifiers)) == len(parsed.identifiers)
     assert {card["data-section"] for card in parsed.cards} == {
         "analysis",
         "geometry",
         "combinations",
         "overviews",
-        "meshes",
-        "supplements",
         "conditions",
     }
+    assert any(card["data-scale"] == "Symlog" for card in parsed.cards)
     mixed = next(
         card
         for card in parsed.cards
@@ -180,6 +180,8 @@ def test_report_covers_all_figures_and_exports(published: Path) -> None:
     assert "convergence_06250 ends at 2 s" in document
     assert "omitted generations" not in document
     assert (published / "index.html").read_text() == document
+    assert not (published / "report.html").exists()
+    assert "manuscript/exports/" in (published / "README.md").read_text()
     assert {
         path: (path.stat().st_size, path.stat().st_mtime_ns) for path in before
     } == before
@@ -235,7 +237,7 @@ def test_invalid_generations_are_omitted(
         image.symlink_to(external)
     document = build_report(published).read_text()
     parsed = ReportParser(document)
-    assert len(parsed.cards) == 8
+    assert len(parsed.cards) == 7
     assert "1 omitted generation requires attention" in document
     assert not any(link.endswith("timecourses.png") for link in parsed.links)
 
@@ -246,7 +248,7 @@ def test_escape_metadata_and_encode_filenames(tmp_path: Path) -> None:
     title = '</script><script>alert("title")</script><img onerror="alert(1)">'
     _publish(
         root,
-        "figures/simulations_sixth/sim001",
+        "figures/runs/simulations_sixth/sim001",
         ('space # & " figure.png',),
         {"title": title},
     )
@@ -267,15 +269,16 @@ def test_report_destinations_and_missing_results(tmp_path: Path) -> None:
     assert not missing.exists()
     root = tmp_path / "results"
     root.mkdir()
-    old = root / "report.html"
-    old.write_text("previous report")
+    old = root / "README.md"
+    old.write_text("previous readme")
     target = tmp_path / "unrelated.html"
     target.write_text("unrelated")
     (root / "index.html").symlink_to(target)
     with pytest.raises(ValueError, match="symbolic link"):
         build_report(root)
-    assert old.read_text() == "previous report"
+    assert old.read_text() == "previous readme"
     assert target.read_text() == "unrelated"
     (root / "index.html").unlink()
     assert main(["--output-root", str(root)]) == 0
-    assert "No published figures are available" in old.read_text()
+    assert "No published figures are available" in (root / "index.html").read_text()
+    assert old.read_text() != "previous readme"

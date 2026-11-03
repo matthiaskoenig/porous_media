@@ -246,7 +246,7 @@ def test_comparison_figures_and_hdf_storage(
     assert path.with_suffix(".pdf").stat().st_size > 1000
     monkeypatch.chdir(target.parent)
     assert (
-        geometry_path(Path("derived/convergence_combinations/xdmf/convergence_mixed"))
+        geometry_path(Path("derived/meshes/convergence_combinations/convergence_mixed"))
         == path
     )
     with h5py.File(path.with_suffix(".h5"), "r") as handle:
@@ -304,17 +304,15 @@ def test_geometry_rejects_wrong_sector_and_output_links(
     runs = discover_runs(root, ("convergence_sixth",))
     job = geometry_jobs(root, study="convergence", combinations=False)[0]
     target.mkdir()
-    (target / "convergence_lobulus").symlink_to(
-        root / "convergence_sixth", target_is_directory=True
-    )
+    (target / "meshes").symlink_to(root / "convergence_sixth", target_is_directory=True)
     assert process_geometry(job, target).status == "failed"
     with pytest.raises(ValueError, match="requires six"):
         write_composition(
             tuple(runs[:5]), tmp_path_placeholder := target / "invalid.xdmf"
         )
     assert not tmp_path_placeholder.exists()
-    unsafe = root / "new.xdmf"
-    with pytest.raises(ValueError, match="outside the input"):
+    unsafe = root / "convergence_sixth" / "new.xdmf"
+    with pytest.raises(ValueError, match="outside the input study"):
         write_composition((runs[0],) * 6, unsafe)
     assert not unsafe.exists()
     # A malformed source angle must not be accepted as a sixth of a lobule.
@@ -375,10 +373,13 @@ def test_complete_cli_analyzes_lobules_only(convergence: tuple[Path, Path]) -> N
         )
         == 0
     )
-    assert len(list((target / "convergence_lobulus/runs").glob("*/manifest.json"))) == 7
-    assert not (target / "convergence_sixth/runs").exists()
-    assert not (target / "convergence_combinations/runs").exists()
-    assert "figure_png" in (target / "geometry-catalog.tsv").read_text()
+    assert (
+        len(list((target / "cache/cells/convergence_lobulus").glob("*/manifest.json")))
+        == 7
+    )
+    assert not (target / "cache/cells/convergence_sixth").exists()
+    assert not (target / "cache/cells/convergence_combinations").exists()
+    assert "figure_png" in (target / "logs/geometry-runs.tsv").read_text()
 
 
 def test_interrupted_staging_preserves_published_pair(
