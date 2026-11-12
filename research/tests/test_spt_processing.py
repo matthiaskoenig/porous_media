@@ -192,8 +192,10 @@ def test_a_new_study_design_keeps_its_runs_and_names_its_patterns(
     assert len(conditions) == 14
     assert conditions[-1].sim_id == "sim014"
     assert conditions[-1].pattern_key == 6
-    assert pattern_name(6) == "pattern 6"
+    assert pattern_name(6) == "cyp2e1"
     assert pattern_name(1) == "linear increase"
+    # A pattern beyond the named ones stays catalogued under its index.
+    assert pattern_name(9) == "pattern 9"
     # Each pattern keeps a distinct shade so a new one stays readable.
     colors = {simulation_color(key, 1, 2) for key in range(7)}
     assert len(colors) == 7

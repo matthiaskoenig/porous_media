@@ -45,7 +45,7 @@ TISSUE_VERSION = 3
 TISSUE_LAYERS = (
     replace(LAYERS[2], title="CYP2E1"),
     LAYERS[3],
-    replace(LAYERS[4], title="Necrosis", limits=(0, 1)),
+    replace(LAYERS[4], title="Necrosis"),
 )
 FIELD_NAMES = {
     "rr_protein": "cyp2e1",

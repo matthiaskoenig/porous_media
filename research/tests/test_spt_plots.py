@@ -16,6 +16,7 @@ import pytest
 from porous_media.visualization.pyvista_visualization import DataLayer
 from research.spt.cache import ProcessingResult
 from research.spt.catalog import discover_runs
+from research.spt.fields import SPT_LAYERS
 from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.plot_data import (
     PlotSource,
@@ -267,6 +268,10 @@ def test_generator_compatibility_and_selected_panels(
     assert "Custom units" in panels[0].read_text()
     assert layer.color_limits is None
     assert display_limits(Layer("T", "T", factor=-2), {"T": (1, 4)}) == (-8, -2)
+    # A cell state keeps its physical scale, so float32 round-off below zero
+    # never reaches a shared colorbar as a negative tick.
+    necrosis = next(layer for layer in SPT_LAYERS if layer.sid == "rr_necrosis")
+    assert display_limits(necrosis, {"rr_necrosis": (-1.08e-11, 1.0)}) == (0.0, 1.0)
     with pytest.raises(ValueError, match="at least one"):
         visualize_spt_2d(iter(()), [layer], output, [layer.sid])
 
@@ -459,7 +464,8 @@ def test_explicit_symlog_figures(simulation: tuple[Path, Path]) -> None:
     layers = manifest["configuration"]["options"]["layers"]
     assert layers[0]["scale"] == "symlog"
     assert layers[1]["scale"] == "linear"
-    assert layers[1]["limits"] is None
+    # Necrosis keeps its physical zero to one scale whatever scale is asked for.
+    assert layers[1]["limits"] == [0.0, 1.0]
     assert layers[1]["colormap"] == "binary"
     svg = directory / manifest["generation"] / "timecourse.svg"
     assert "Toxic compound T [mM] (symlog)" in svg.read_text()

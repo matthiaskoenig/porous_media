@@ -24,15 +24,19 @@ from research.spt.data_processing import process_studies
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.manuscript import (
+    caption,
     create_manuscript_figures,
     simulation_cohort,
 )
 from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
+    DOSE_COUNT,
+    PATTERN_NAMES,
     SIMULATION_TIMES,
     ManuscriptData,
     convergence_view,
     pattern_label,
+    truncated_runs,
 )
 from research.spt.manuscript_geometry import (
     raster_panel,
@@ -114,7 +118,7 @@ def test_true_times_and_discrete_necrosis_use_local_caches(
     assert samples is data.snapshots(source, SIMULATION_TIMES)
     with pytest.raises(ValueError, match="outside native history"):
         data.snapshots(source, (0, 86401))
-    with pytest.raises(ValueError, match="six patterns and eight doses"):
+    with pytest.raises(ValueError, match="patterns and 8 doses"):
         simulation_cohort(data)
 
 
@@ -196,7 +200,7 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A-F pattern order and the eight-dose necrosis grid follow recorded conditions."""
+    """Pattern order and the eight-dose necrosis grid follow recorded conditions."""
     data = manuscript_data
     prototype = data.source("simulations_lobulus", "sim014")
     all_sources = [
@@ -229,24 +233,80 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
         render_necrosis(data, all_sources, tmp_path, options)
     patterns = (tmp_path / "figure-05.svg").read_text()
     assert all(
-        label in patterns for label in [pattern_label(pattern) for pattern in range(6)]
+        label in patterns
+        for label in [pattern_label(pattern) for pattern in range(len(PATTERN_NAMES))]
     )
     necrosis = (tmp_path / "figure-07.svg").read_text()
-    assert all(f"D{dose}" in necrosis for dose in range(1, 9))
+    assert all(f"D{dose}" in necrosis for dose in range(1, DOSE_COUNT + 1))
     assert "Dose " not in necrosis
     assert "Substrate / drug inflow" in necrosis
     assert "Substrate" not in patterns and "Product" not in patterns
     assert patterns.count("Toxic compound T [mM]") == 1
     tree = ET.fromstring(patterns)
-    assert len(list(tree.iter("{http://www.w3.org/2000/svg}image"))) == 90
+    # One raster map per pattern block, field row and snapshot column.
+    assert len(list(tree.iter("{http://www.w3.org/2000/svg}image"))) == (
+        len(PATTERN_NAMES) * len(LAYERS[2:]) * len(SIMULATION_TIMES)
+    )
     assert "D6" in patterns
-    assert all(pattern_label(pattern) in necrosis for pattern in range(6))
+    assert all(
+        pattern_label(pattern) in necrosis for pattern in range(len(PATTERN_NAMES))
+    )
     assert necrosis.count(">necrosis<") == 1
     assert necrosis.count(">no necrosis<") == 1
     assert "0 (alive)" not in necrosis and "1 (death)" not in necrosis
     for figure in (patterns, necrosis):
-        for pattern in range(6):
+        for pattern in range(len(PATTERN_NAMES)):
             assert figure.count(f'id="pattern-icon-{chr(97 + pattern)}"') == 1
+
+
+def test_truncated_runs_are_marked_instead_of_extrapolated(
+    manuscript_data: ManuscriptData,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A diverged solver run loses its own panel only, and says why in place."""
+    data = manuscript_data
+    prototype = data.source("simulations_lobulus", "sim014")
+    conditions = simulation_conditions()
+    all_sources = [
+        replace(
+            prototype,
+            run=replace(prototype.run, run_id=c.sim_id, condition=c),
+            dose=c.boundary_flow_key,
+            end=1342.6 if index == 8 else prototype.end,
+        )
+        for index, c in enumerate(conditions)
+    ]
+    stopped = all_sources[8]
+    original = data.snapshots(prototype, SIMULATION_TIMES)
+    requested = []
+
+    def snapshots(source: PlotSource, times: tuple[float, ...]) -> Samples:
+        requested.append(source.run.run_id)
+        return replace(original, times=np.asarray(times), values=original.values[-1:])
+
+    monkeypatch.setattr(data, "snapshots", snapshots)
+    with mpl.rc_context({"svg.fonttype": "none"}):
+        render_necrosis(
+            data, all_sources, tmp_path, RenderOptions(formats=("svg",), dpi=25)
+        )
+    necrosis = (tmp_path / "figure-07.svg").read_text()
+    assert stopped.run.run_id not in requested
+    assert len(requested) == len(conditions) - 1
+    tree = ET.fromstring(necrosis)
+    assert len(list(tree.iter("{http://www.w3.org/2000/svg}image"))) == (
+        len(conditions) - 1
+    )
+    assert f"{stopped.run.run_id} ends at 0.37 h" in necrosis
+    assert "no state at 24 h" in necrosis
+    # The caption names the gap, and the manifest makes the cached figure stale
+    # once the rerun history reaches the full duration.
+    description = caption("7", all_sources, 5)
+    assert f"{stopped.run.run_id} at 0.37 h" in description
+    assert "without extrapolation" in description
+    assert truncated_runs(all_sources) == [stopped.run.run_id]
+    assert not truncated_runs([prototype])
+    assert "stopped" not in caption("7", [prototype], 5)
 
 
 def test_shared_bars_and_tight_geometry_panels(
@@ -282,7 +342,7 @@ def test_shared_bars_and_tight_geometry_panels(
         maps = [axis for axis in art.axes if axis.images]
         bars = [axis for axis in art.axes if axis.axison]
         if destination.name == "figure-07":
-            assert len(maps) == 48 and not bars
+            assert len(maps) == len(PATTERN_NAMES) * DOSE_COUNT and not bars
             legend = art.legends[0]
             assert [text.get_text() for text in legend.get_texts()] == [
                 "necrosis",
@@ -302,7 +362,11 @@ def test_shared_bars_and_tight_geometry_panels(
             )
         else:
             example = destination.name == "figure-04"
-            assert len(maps) == (25 if example else 90)
+            assert len(maps) == (
+                25
+                if example
+                else len(PATTERN_NAMES) * len(LAYERS[2:]) * len(SIMULATION_TIMES)
+            )
             assert len(bars) == (5 if example else 3)
             art.canvas.draw()
             for bar in bars:
@@ -396,9 +460,9 @@ def test_timecourse_pattern_and_dose_labels_are_consistent() -> None:
     """Time-course rows use the same pattern names and D1-D8 labels as map figures."""
     from research.spt.plot_render import figure
 
-    art = figure((13.5, 15))
+    art = figure((13.5, 17.5))
     try:
-        axes = art.subplots(6, 5, squeeze=False)
+        axes = art.subplots(len(PATTERN_NAMES), 5, squeeze=False)
         annotate_timecourses(art, axes)
         expected = [
             "A  Constant",
@@ -407,11 +471,13 @@ def test_timecourse_pattern_and_dose_labels_are_consistent() -> None:
             "D  Linear decrease",
             "E  Sharp periportal",
             "F  Random",
+            "G  CYP2E1",
         ]
+        assert len(expected) == len(PATTERN_NAMES)
         assert [text.get_text() for text in art.legends[0].get_texts()] == [
-            f"D{dose}" for dose in range(1, 9)
+            f"D{dose}" for dose in range(1, DOSE_COUNT + 1)
         ]
-        for row in range(6):
+        for row in range(len(PATTERN_NAMES)):
             assert [text.get_text() for text in axes[row, 0].texts] == [expected[row]]
             assert len(axes[row, 0].findobj(match=PatternIcon)) == 1
     finally:
@@ -423,7 +489,7 @@ def test_pattern_icons_show_zonation_as_vector_art(tmp_path: Path) -> None:
     from research.spt.plot_render import figure
 
     profiles = []
-    for pattern in range(6):
+    for pattern in range(len(PATTERN_NAMES)):
         position, values = pattern_profile(pattern)
         profiles.append((values[0], values[-1]))
         np.testing.assert_array_equal(pattern_profile(pattern)[1], values)
@@ -431,16 +497,24 @@ def test_pattern_icons_show_zonation_as_vector_art(tmp_path: Path) -> None:
         assert position[0] == 0 and position[-1] == 1
         assert np.all(np.diff(position) >= 0)
     assert profiles[:5] == [(0.5, 0.5), (0, 1), (0, 1), (1, 0), (1, 0)]
+    assert profiles[6] == (0, 1)
     for pattern in (2, 4):
         position, values = pattern_profile(pattern)
         assert position[1] == position[2] and values[1] != values[2]
     assert np.var(pattern_profile(5)[1]) > 0.02
+    # CYP2E1 rises smoothly: it is monotone like the linear pattern but its
+    # steepest segment is past the middle, which is what the icon must show.
+    cyp_position, cyp_values = pattern_profile(6)
+    assert np.all(np.diff(cyp_values) > 0)
+    steps = np.diff(cyp_values)
+    assert cyp_position[int(np.argmax(steps))] > 0.5
+    assert cyp_values[len(cyp_values) // 2] < 0.5
     with pytest.raises(ValueError, match="Unknown zonation pattern"):
-        pattern_profile(6)
+        pattern_profile(len(PATTERN_NAMES))
     art = figure((8, 2))
     try:
         icons = []
-        for pattern, axis in enumerate(art.subplots(1, 6)):
+        for pattern, axis in enumerate(art.subplots(1, len(PATTERN_NAMES))):
             axis.set_axis_off()
             label = axis.text(0.7, 0.5, chr(65 + pattern))
             icon = add_pattern_icon(label, pattern, size=30)
@@ -457,7 +531,7 @@ def test_pattern_icons_show_zonation_as_vector_art(tmp_path: Path) -> None:
         assert icons[0].profile.get_linewidth() == 2.0
         tree = ET.parse(tmp_path / "patterns.svg")
         assert not list(tree.iter("{http://www.w3.org/2000/svg}image"))
-        for pattern in range(6):
+        for pattern in range(len(PATTERN_NAMES)):
             assert any(
                 node.get("id") == f"pattern-icon-{chr(97 + pattern)}"
                 for node in tree.iter()

@@ -164,13 +164,19 @@ patterns by eight boundary flows, and six convergence runs.
 unknown `complete`. Comparisons must choose a shared time window or explicitly
 handle different end times.
 
-The seventh zonation pattern has no name in this repository: the FEBio plugin
-interprets the pattern index, and only the six the manuscript describes are
-named here. Such a pattern is catalogued and plotted as `pattern 6` rather than
-dropped or given an invented label, and it keeps a palette of its own. The
-mixed-pattern comparison lobule still requires exactly six patterns, one per
-sector, so it is skipped with `--no-combinations` until the cohort for it is
-chosen.
+Pattern 6 is the CYP2E1 zonation pattern. It rises from periportal to
+perivenous like the linear pattern, but smoothly: measured on `sim049` at
+t = 0, relative protein runs from 0.013 to 0.996 of its range, is flat
+periportally, steepest at about 0.6 of the position and saturated perivenously.
+It carries the `YlOrBr` palette, the row label **G CYP2E1** and a sigmoidal
+profile icon. A pattern index this repository does not name at all is still
+catalogued and plotted, as `pattern <index>`, rather than dropped or given an
+invented label.
+
+A lobule is six rotations of one source sector, so the mixed-pattern comparison
+view holds six sources and no more. With seven patterns it compares the first
+six; every pattern still has its own lobule and its own row in the study and
+manuscript figures. `--no-combinations` skips the mixed views entirely.
 
 ## Build or resume local caches
 
@@ -621,8 +627,8 @@ the numerical-cache root; `--output-root` selects local analysis storage.
 Neither the raw share nor reconstructed simulation histories are modified.
 
 Manuscript time-course figures use matched-time cell-volume-weighted means.
-Simulation panels retain the six pattern palettes (`Greys`, `Blues`, `Purples`,
-`Reds`, `Oranges`, `Greens`), dose shades, black-edged circular markers and
+Simulation panels retain the pattern palettes (`Greys`, `Blues`, `Purples`,
+`Reds`, `Oranges`, `Greens`, `YlOrBr`), dose shades, black-edged circular markers and
 population SD error bars. `--no-spread` explicitly omits the bars; `--spread`
 also enables them for convergence. SD describes cell variation, not uncertainty
 in a mean or a confidence interval. Convergence retains a coarse-to-fine
@@ -806,9 +812,9 @@ exports are repaired; `--force` regenerates selected manuscript figures.
 | Figure | Data and layout | Restored annotations |
 | --- | --- | --- |
 | 4 | `sim014`, linear increase, D6; five field rows by five time columns | Pattern/dose heading, field labels, horizontal time arrow and column labels; one vertical colorbar per field row |
-| 5 | `sim006`, `sim014`, `sim022`, `sim030`, `sim038`, `sim046` at D6; two columns by three pattern blocks | Each block has protein, toxic compound and necrosis rows, five time columns, A-F labels and icons; three shared bottom colorbars |
-| 6 | All 48 homogeneous lobules; six pattern rows and five fields | Consistent A-F pattern labels, field headers and D1-D8 legend |
-| 7 | Necrosis at 24 h; six pattern rows by eight doses | Consistent A-F pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right |
+| 5 | One run per zonation pattern at D6, in pattern blocks | Each block has protein, toxic compound and necrosis rows, five time columns, pattern labels and icons; three shared bottom colorbars |
+| 6 | Every homogeneous lobule; one pattern row per pattern and five fields | Consistent pattern labels, field headers and D1-D8 legend |
+| 7 | Necrosis at 24 h; pattern rows by eight doses | Consistent pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right; dashed placeholders name runs that stop early |
 | S1 | Six source-sector meshes, five common-time mixed-sixth readouts and one row of native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-C panels, exact map time, linear axes, common-window boundary and truncated-history markers |
 
 Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
@@ -816,7 +822,8 @@ historical overview snapshot selection. Labels are derived from the actual times
 a nonzero overview frame is never relabeled as zero. Continuous cell fields are
 interpolated locally and necrosis holds its preceding native frame. Shared scalar
 limits use full histories of the entire simulation cohort, preserving the mesh
-palettes. Maps of Figures 4, 5 and 7 show lobule outlines without internal mesh
+palettes. Necrosis is a cell state, so every map shows it on the physical 0-1
+scale and float32 round-off just below zero never reaches a colorbar label. Maps of Figures 4, 5 and 7 show lobule outlines without internal mesh
 edges; outline widths scale with panel size. Only the source meshes in Figure S1 A
 show their triangles. Figure 6 reuses the existing volume-weighted means, population SD,
 markers and pattern/dose colors. SD represents spatial heterogeneity, rather than
@@ -825,10 +832,13 @@ uncertainty across replicate simulations.
 Time runs left to right in Figures 4 and 5, with columns for 0, 6, 12, 18 and 24 h.
 Figure 4 retains all five fields as rows, each with one vertical colorbar on the
 right. Figure 5 shows only protein, toxic compound and necrosis. Its three bottom
-colorbars serve all six pattern blocks. Figure 7 uses two swatches
+colorbars serve every pattern block. Figure 7 uses two swatches
 beside the complete grid: black means **necrosis** and white means **no necrosis**.
 Its binary legend has no intermediate values. Individual map panels have no
-colorbars. The field palettes and
+colorbars. A simulation whose solver stops before 24 h keeps its place in the
+pattern-by-dose grid as a dashed panel naming the run and its actual end time;
+nothing is extrapolated, and the caption and manifest list the affected runs, so
+a completed rerun invalidates the cached figure. The field palettes and
 full-cohort limits remain unchanged. Geometry axes use their cropped domain
 extents, including white living tissue; smaller canvases and closely packed grids
 reduce whitespace around the meshes.
@@ -836,13 +846,15 @@ reduce whitespace around the meshes.
 All manuscript figures use dose labels **D1-D8**. The representative dose in
 Figures 4 and 5 is **D6**. Pattern names and lettering match across Figures 4-7:
 **A Constant**, **B Linear increase**, **C Sharp perivenous**, **D Linear decrease**,
-**E Sharp periportal** and **F Random**. Figures 6 and 7 share the same row-label
+**E Sharp periportal**, **F Random** and **G CYP2E1**. The row letters and the
+cohort size follow `PATTERN_NAMES` in `research/spt/manuscript_data.py`, so
+naming a further pattern extends every figure rather than one of them. Figures 6 and 7 share the same row-label
 format and typography; Figure 5 uses those labels as its pattern-block headings.
 Every pattern label also carries the same small square black-and-white vector profile
 panel, including the Figure 4 heading. The horizontal direction runs from
 periportal (left) to perivenous (right); the vertical direction shows relative
-initial protein abundance. Flat, rising, falling, sharp-step and random profiles
-distinguish all six patterns. These schematics
+initial protein abundance. Flat, rising, falling, sharp-step, sigmoidal and
+random profiles distinguish the patterns. These schematics
 explain pattern identity; the random profile is illustrative.
 
 Figures 4, 5, 7 and S1 use the same slightly tilted orthographic geometry view as

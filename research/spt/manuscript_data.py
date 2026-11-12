@@ -28,6 +28,8 @@ from research.spt.plot_data import SAMPLE_VERSION, PlotSource, load_heights
 from research.spt.plot_render import Samples
 
 SIMULATION_TIMES = (0.0, 21600.0, 43200.0, 64800.0, 86400.0)
+# The necrosis matrix shows the final state of the shared model duration.
+NECROSIS_TIME = SIMULATION_TIMES[-1]
 CONVERGENCE_TIME = 5400.0
 CONVERGENCE_DISPLAY_MESHES = CONVERGENCE_MESHES[::-1]
 PATTERN_NAMES = (
@@ -37,12 +39,29 @@ PATTERN_NAMES = (
     "linear decrease",
     "sharp periportal",
     "random",
+    "CYP2E1",
 )
+DOSE_COUNT = 8
 
 
 def pattern_label(pattern: int) -> str:
-    """Use the same A-F names in every manuscript figure."""
-    return f"{chr(65 + pattern)}  {PATTERN_NAMES[pattern].capitalize()}"
+    """Use the same letter and name for a pattern in every manuscript figure.
+
+    Only the first letter is raised, so a name that is already a protein
+    symbol keeps its capitals.
+    """
+    name = PATTERN_NAMES[pattern]
+    return f"{chr(65 + pattern)}  {name[:1].upper() + name[1:]}"
+
+
+def pattern_letters() -> str:
+    """Name the row-label range the figures share, such as ``A-G``."""
+    return f"A-{chr(64 + len(PATTERN_NAMES))}"
+
+
+def truncated_runs(sources: list[PlotSource], time: float = NECROSIS_TIME) -> list[str]:
+    """Name the sources whose solver stopped before a requested snapshot time."""
+    return [source.run.run_id for source in sources if source.end < time]
 
 
 def convergence_view(samples: Samples) -> Samples:
@@ -107,8 +126,8 @@ class ManuscriptData:
         )
         if selected is not None and (
             selected.sim_id != run_id
-            or selected.pattern_key not in range(6)
-            or selected.boundary_flow_key not in range(8)
+            or selected.pattern_key not in range(len(PATTERN_NAMES))
+            or selected.boundary_flow_key not in range(DOSE_COUNT)
         ):
             raise ValueError(f"Invalid manuscript run condition: {run_id}")
         source = PlotSource(

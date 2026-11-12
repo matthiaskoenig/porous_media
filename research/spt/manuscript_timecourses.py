@@ -21,6 +21,7 @@ from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
+    DOSE_COUNT,
     ManuscriptData,
     convergence_view,
 )
@@ -79,7 +80,7 @@ def annotate_timecourses(art: Figure, axes: np.ndarray) -> None:
     """Add the manuscript's field headers, pattern names and dose-shade legend."""
     for column, title in enumerate(FIELD_TITLES):
         axes[0, column].set_title(title, fontsize=14, fontweight="bold", pad=12)
-    for row in range(6):
+    for row in range(axes.shape[0]):
         label_pattern_row(axes[row, 0], row)
     handles = [
         Line2D(
@@ -90,7 +91,7 @@ def annotate_timecourses(art: Figure, axes: np.ndarray) -> None:
             markeredgecolor="black",
             label=f"D{dose}",
         )
-        for dose in range(1, 9)
+        for dose in range(1, DOSE_COUNT + 1)
     ]
     art.legend(
         handles=handles,
@@ -185,12 +186,7 @@ def render_convergence(
         )
         maps = outer[1].subgridspec(1, len(LAYERS))
         for column, original in enumerate(LAYERS):
-            layer = replace(
-                original,
-                show_edges=False,
-                outline=False,
-                limits=(0, 1) if original.sid == "rr_necrosis" else None,
-            )
+            layer = replace(original, show_edges=False, outline=False)
             axis = art.add_subplot(maps[0, column])
             map_panel(
                 art,
@@ -273,7 +269,7 @@ def render_convergence(
             frameon=False,
         )
         short = "; ".join(
-            f"{source.run.run_id.removeprefix('convergence_')}: {source.end / 3600:.2f} h"
+            f"{mesh_key(source.run.run_id)}: {source.end / 3600:.2f} h"
             for source in sources
             if source.end < max(item.end for item in sources)
         )

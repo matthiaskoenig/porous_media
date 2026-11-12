@@ -30,6 +30,8 @@ from research.spt.storage import load_dataset, write_dataset
 
 # Version 3 stores the datasets compressed instead of as uncompressed NetCDF3.
 ANALYSIS_VERSION = 3
+# Tolerance for solver round-off in a value whose physical range is zero to one.
+ROUNDING = 1e-6
 
 
 @dataclass(frozen=True)
@@ -123,10 +125,15 @@ class CellSampler:
         }
         if any(not np.isfinite(values).all() for values in result.values()):
             raise ValueError(f"Nonfinite selected cell values at {time:g} s")
-        if "rr_necrosis" in result and (
-            (result["rr_necrosis"] < 0).any() or (result["rr_necrosis"] > 1).any()
-        ):
-            raise ValueError("Necrosis values must lie between zero and one")
+        necrosis = result.get("rr_necrosis")
+        if necrosis is not None:
+            if (necrosis < -ROUNDING).any() or (necrosis > 1 + ROUNDING).any():
+                raise ValueError("Necrosis values must lie between zero and one")
+            # The solver writes float32, so a cell meant to be exactly alive can
+            # land a few units of round-off below zero: measured over the
+            # 2026-11-12 study the worst was -1.1e-11. Keep the state physical
+            # for the shared 0-1 scale rather than carrying the sign downstream.
+            result["rr_necrosis"] = np.clip(necrosis, 0.0, 1.0)
         return result
 
 
@@ -156,8 +163,8 @@ def spatial_profile(
     position = frame[POSITION]
     if (
         not np.isfinite(position).all()
-        or (position < -1e-6).any()
-        or (position > 1 + 1e-6).any()
+        or (position < -ROUNDING).any()
+        or (position > 1 + ROUNDING).any()
     ):
         raise ValueError("Normalized rr_position must lie between zero and one")
     volumes = frame[VOLUME]
