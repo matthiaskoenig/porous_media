@@ -5,14 +5,13 @@
   "bypass_actors": [],
   "conditions": {
     "ref_name": {
-      "include": ["~DEFAULT_BRANCH"],
+      "include": ["refs/heads/main"],
       "exclude": []
     }
   },
   "rules": [
     {"type": "deletion"},
     {"type": "non_fast_forward"},
-    {"type": "required_linear_history"},
     {
       "type": "pull_request",
       "parameters": {
@@ -22,7 +21,7 @@
         "require_last_push_approval": false,
         "require_extra_approval_for_unattributed_changes": true,
         "required_review_thread_resolution": true,
-        "allowed_merge_methods": ["squash", "rebase"]
+        "allowed_merge_methods": ["merge"]
       }
     },
     {
