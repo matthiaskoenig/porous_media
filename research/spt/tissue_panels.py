@@ -62,7 +62,7 @@ class TissueOptions:
     times: tuple[float, ...] = SIMULATION_TIMES
     width: float = 2.0
     dpi: int = 300
-    formats: tuple[str, ...] = ("svg", "pdf", "png")
+    formats: tuple[str, ...] = ("svg", "png")
     vessel_color: str = "white"
     mesh: bool = False
     seed: int = 0
@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
         "--formats",
         nargs="+",
         choices=("svg", "pdf", "png"),
-        default=["svg", "pdf", "png"],
+        default=["svg", "png"],
     )
     parser.add_argument(
         "--vessel-color", choices=("white", "lightgray"), default="white"

@@ -26,6 +26,17 @@ pattern_idx2name = {
 }
 
 
+def pattern_name(pattern: int) -> str:
+    """Name a zonation pattern, marking one the study has not yet described.
+
+    A generation script may introduce a pattern the FEBio plugin understands and
+    this repository does not. Showing it as ``pattern <index>`` keeps the run in
+    the catalogue and its figures honest about the gap, rather than dropping the
+    run or inventing a label for it.
+    """
+    return pattern_idx2name.get(pattern, f"pattern {pattern}")
+
+
 @dataclass(frozen=True)
 class SimulationCondition:
     """Identify a simulation without deriving its meaning from file ordering."""
@@ -46,8 +57,8 @@ def simulation_conditions(
         raise ValueError("Boundary flows must be nonempty and finite")
     if len(set(flows)) != len(flows) or len(set(patterns)) != len(patterns):
         raise ValueError("Patterns and boundary flows must be unique")
-    if not patterns or any(pattern not in pattern_idx2name for pattern in patterns):
-        raise ValueError("Unknown or empty zonation patterns")
+    if not patterns or any(pattern < 0 for pattern in patterns):
+        raise ValueError("Zonation patterns must be nonempty and nonnegative")
     return [
         SimulationCondition(f"sim{index:03}", pattern, flow_index, flow)
         for index, (pattern, flow_index, flow) in enumerate(
@@ -62,8 +73,18 @@ def simulation_conditions(
 
 
 def generation_script(root: Path) -> Path:
-    """Return the study's archived generation script, which is never executed."""
-    return root / "simulations_sixth/material/feb_manipulation_v2.py"
+    """Return the study's archived generation script, which is never executed.
+
+    The script is versioned in its filename, so the archived name changes with
+    the study design rather than staying fixed.
+    """
+    material = root / "simulations_sixth/material"
+    scripts = sorted(material.glob("feb_manipulation_v*.py"))
+    if len(scripts) > 1:
+        raise ValueError(
+            f"Ambiguous generation scripts: {', '.join(path.name for path in scripts)}"
+        )
+    return scripts[0] if scripts else material / "feb_manipulation_v2.py"
 
 
 def conditions_from_source(root: Path) -> tuple[list[SimulationCondition], str]:

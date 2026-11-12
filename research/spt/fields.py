@@ -47,3 +47,22 @@ ANALYSIS_FIELDS = (
     "rr_zonation_pattern",
     "cell_type",
 )
+
+# Cell fields a reconstructed mesh sidecar keeps: every display layer, every
+# analysis field, and the categorical fields whose temporal rule lives in
+# research.spt.sampling. A source run carries 30 cell fields plus mechanical
+# vectors and 3x3 tensors that nothing downstream reads; measured on one 1.76 GB
+# sidecar, `stress`, `Lagrange_strain` and `solid_stress_TPM` alone were 45% of
+# its storage and the vectors another 16%. Reconstruct with every source field
+# through the `--all-fields` option when the full mechanical state is wanted.
+GEOMETRY_CELL_FIELDS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        (
+            *(layer.sid for layer in SPT_LAYERS),
+            *ANALYSIS_FIELDS,
+            "gauss_points_TPM",
+        )
+    )
+)
+# No point field is read back; the composition writes its own ``sector_id``.
+GEOMETRY_POINT_FIELDS: tuple[str, ...] = ()

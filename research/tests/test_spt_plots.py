@@ -129,7 +129,7 @@ def test_vector_figures_and_unchanged_resume(
 
     for name in (
         "research.spt.plot_data.inspect_run",
-        "meshio.xdmf.TimeSeriesReader",
+        "porous_media.data.xdmf_tools.XDMFTimeSeriesReader.__init__",
         "h5py.File",
         "research.spt.plot_render.Samples.load",
         "research.spt.execution.ProcessPoolExecutor",

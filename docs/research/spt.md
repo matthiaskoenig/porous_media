@@ -16,8 +16,8 @@ available at `/data/koeniglab/spt`, with this structure:
 spt/
 ├── simulations_sixth/
 │   ├── material/
-│   │   ├── feb_manipulation_v2.py
-│   │   └── lobule_zonation_pattern.feb.template
+│   │   ├── feb_manipulation_v3.py
+│   │   └── lobule_zonation_pattern_bc.feb.template
 │   └── xdmf/
 │       ├── sim001.xdmf
 │       ├── sim001.h5
@@ -26,12 +26,19 @@ spt/
 │       └── ...
 └── convergence_sixth/
     ├── material/
-    │   └── convergence_*.feb
+    │   └── *convergence_*.feb
     └── xdmf/
-        ├── convergence_06250.xdmf
-        ├── convergence_06250.h5
+        ├── cbc_convergence_06250.xdmf
+        ├── cbc_convergence_06250.h5
         └── ...
 ```
+
+Both names carry the study design. The generation script is versioned, the
+simulation template names the boundary conditions it was built for, and a
+convergence run is prefixed with the variant it belongs to. The workflow
+discovers the script and the template rather than expecting fixed names, and
+identifies a convergence mesh by the resolution after its last `convergence_`
+marker, so a renamed study is read without changing code.
 
 Use the [development environment](../development.md#environment), or sync just
 research dependencies with `uv sync --locked --group research --no-dev`.
@@ -68,7 +75,7 @@ results/
 ├── index.html           offline report; open this first
 ├── README.md            folder guide
 ├── manuscript/
-│   ├── exports/         stable figure-04.pdf ... figure-s1-convergence.pdf, tissue panels
+│   ├── exports/         stable figure-04.svg ... figure-s1-convergence.svg, tissue panels
 │   └── <figure>/        versioned generation of each manuscript figure
 ├── analysis/<study>/    quantitative tables, NetCDF, figures and provenance
 ├── figures/
@@ -88,6 +95,40 @@ results/
 Each artifact directory holds a `manifest.json` naming its current
 `generation-<id>/` folder; previous generations are removed after a successful
 update. Unused report previews are pruned whenever the report is rebuilt.
+
+### Storage profile
+
+A complete results tree of 48 simulations and 7 convergence meshes is about
+7 GB. The equivalent tree written before these settings was 97 GB. Each setting
+and its measured effect:
+
+| Artifact | Setting | Measured effect |
+| --- | --- | --- |
+| `meshes/` | only the fields the pipeline reads back | one reconstructed lobule fell from 863 MB to 122 MB |
+| `meshes/` | each attribute stacked into one dataset, referenced per step by an XDMF HyperSlab | that same lobule fell further to 26 MB, 34x in total; the tree falls from 71 GB to about 2 GB |
+| `cache/cells/`, `cache/analysis/`, `analysis/*.nc` | NetCDF4 with zlib level 4 and the shuffle filter, instead of uncompressed NetCDF3 | one sixth cache fell from 70 MB to 13 MB and one lobule cache from 419 MB to 36 MB; the tree falls from 21 GB to about 4 GB |
+| `figures/`, `analysis/` | PNG previews by default | per-run SVG averaged 32 MB against 1.0 MB for the same figure as PNG; SVG was 88% of all figure storage |
+| `meshes/` HDF arrays | gzip level 4 with shuffle | level 4 gains 3% over level 1 and levels above 6 under 0.3% |
+| `cache/plots/` | deflated `.npz` sample archives | repetitive face, sector and cell indices compress well |
+
+Stacking is what makes the compression effective rather than nominal. Written one
+step at a time, each array is a chunk of its own and the compressor sees a single
+frame; a chunk spanning consecutive steps exposes how little changes between
+them. meshio cannot read HyperSlab references, so these sidecars are read with
+`porous_media.data.xdmf_tools.XDMFTimeSeriesReader`, which resolves them and
+otherwise behaves exactly like meshio's reader. ParaView reads them directly.
+
+The cell histories are stored as float32 by the source solver, so nothing here
+reduces numerical precision. Everything under `cache/` is rebuilt by rerunning
+the pipeline; `meshes/`, `analysis/`, `figures/` and `manuscript/` are the
+deliverables. Reconstructing with `--all-fields`, or requesting SVG or PDF
+figures, raises these numbers; `--all-fields` multiplies mesh storage by about
+five.
+
+Compression and the mesh field selection are recorded in each artifact's
+`manifest.json`, and both participate in the stale check: changing either
+rebuilds the artifacts that depend on it rather than mixing layouts within one
+tree.
 
 ## Inspect conditions and available runs
 
@@ -116,11 +157,20 @@ The first command writes nothing. The second writes `catalog/runs.tsv`, optional
 without opening windows and are closed after use. Metadata failures and missing
 expected simulations are reported and produce a nonzero exit status.
 
-The dataset inspected on 2026-10-19 contains 48 simulation runs and seven
-convergence runs. `convergence_06250` ends at 36,590 s and `convergence_09375` at
-77,687.6 s, earlier than the model duration of 86,400 s. These runs remain
-available, with `complete=False`. Comparisons must choose a shared time window
-or explicitly handle different end times.
+The dataset inspected on 2026-11-12 contains 56 simulation runs, seven zonation
+patterns by eight boundary flows, and six convergence runs.
+`cbc_convergence_06250` ends at 53,027.1 s, earlier than the model duration of
+86,400 s, and its own model declares no duration, so it is catalogued with an
+unknown `complete`. Comparisons must choose a shared time window or explicitly
+handle different end times.
+
+The seventh zonation pattern has no name in this repository: the FEBio plugin
+interprets the pattern index, and only the six the manuscript describes are
+named here. Such a pattern is catalogued and plotted as `pattern 6` rather than
+dropped or given an invented label, and it keeps a palette of its own. The
+mixed-pattern comparison lobule still requires exactly six patterns, one per
+sector, so it is skipped with `--no-combinations` until the cohort for it is
+chosen.
 
 ## Build or resume local caches
 
@@ -132,7 +182,7 @@ for subsequent analysis, as described below. VTK conversion remains separate.
 uv run --no-sync python -m research.spt.data_processing --status
 uv run --no-sync python -m research.spt.data_processing --workers 2
 uv run --no-sync python -m research.spt.data_processing \
-  --study convergence --runs convergence_06250 --workers 1
+  --study convergence --runs cbc_convergence_06250 --workers 1
 ```
 
 `--status` and `--dry-run` inspect metadata and cache state without writing.
@@ -252,7 +302,7 @@ Individual steps can be run or resumed independently:
 uv run --no-sync python -m research.spt.data_processing --step lobulus
 
 # Compose the mixed convergence view and eight comparisons of zonation patterns.
-# This also saves PNG and PDF figures alongside the time series.
+# This also saves a PNG comparison figure alongside the time series.
 uv run --no-sync python -m research.spt.data_processing --step combinations
 
 # Build both sets of geometries and figures, without numerical cache creation.
@@ -329,8 +379,7 @@ results/meshes/<study>/<run_id>/
     ├── <run_id>_limits.json
     ├── provenance.json
     ├── model.feb          # Homogeneous lobules, when a source model exists.
-    ├── <run_id>.png       # Mixed comparisons only.
-    └── <run_id>.pdf       # Mixed comparisons only.
+    └── <run_id>.png       # Mixed comparisons only.
 ```
 
 XDMF references its colocated HDF sidecar by relative filename. Copying the pair
@@ -341,8 +390,15 @@ Temporary copies are removed after readers close, including on failure. Allow
 space for one source history per lobule worker or six per mixed-view worker,
 in addition to generated outputs. Original inputs remain the provenance source
 and are checked for changes before publication.
-The HDF writer uses gzip compression and shares identical arrays within the
-sidecar to reduce repeated scalar and time-invariant storage. Source fingerprints,
+The HDF writer uses gzip level 4 with the byte-shuffle filter and stacks each
+attribute into one dataset spanning the series, which is what collapses repeated
+scalar and time-invariant storage. A sidecar keeps only the fields the pipeline reads back, listed as
+`GEOMETRY_CELL_FIELDS` in `research/spt/fields.py`: the display layers, the
+analysis fields and the categorical fields. A source run also carries mechanical
+vectors and 3x3 tensors that nothing downstream reads; measured on one 1.76 GB
+sidecar, `stress`, `Lagrange_strain` and `solid_stress_TPM` alone were 45% of its
+storage and the vector fields another 16%. Pass `--all-fields` to reconstruct the
+complete mechanical state instead, which multiplies mesh storage by about five. Source fingerprints,
 conditions, field-transform policy, and temporal alignment are recorded in the
 manifest and provenance file. Only complete generations become visible through
 the manifest. Failed reconstruction or figure generation preserves the previous
@@ -448,7 +504,7 @@ Choose fields, times and outputs explicitly:
 ```bash
 # Final-state figures for only necrosis and toxicant.
 uv run --no-sync python -m research.spt.plot_geometry \
-  --fields rr_necrosis 'rr_(T)' --snapshots 1 --formats svg pdf
+  --fields rr_necrosis 'rr_(T)' --snapshots 1 --formats png svg
 
 # Explicit times in seconds must lie within every selected history's interval.
 uv run --no-sync python -m research.spt.plot_geometry \
@@ -484,10 +540,13 @@ to FFmpeg, without writing intermediate PNG panels. GIF conversion is opt-in.
 `--no-overviews` omits study overviews. Bounded spawned workers own their files
 and rendering state; `--workers 1` runs serially.
 
-Dense SVG time courses can be much larger than compressed vector PDFs. Use
-`--formats pdf png` for smaller batch outputs and reserve SVG for figures that
-need cell-level vector editing. Selecting fewer fields or snapshots also reduces
-rendering time and storage without changing the underlying histories.
+Per-run and study figures default to PNG alone because a dense vector time
+course dwarfs its raster preview: across one results tree the per-run SVG files
+averaged 32 MB against 1.0 MB for the same figures as PNG, and SVG accounted for
+88% of all figure storage. Request `--formats png svg` for the few figures that
+need cell-level vector editing, and `--formats png pdf` when a vector file has to
+stay small. Selecting fewer fields or snapshots also reduces rendering time and
+storage without changing the underlying histories.
 
 The shared Matplotlib renderer runs headlessly without importing PyVista or
 needing a graphics session. It supports planar XY triangles/quads and vertical
@@ -555,8 +614,8 @@ uv run --no-sync python -m research.spt.analysis \
   --study simulations --runs sim001 sim009 --workers 1
 ```
 
-The default `--geometry lobulus` analyzes all 48 simulation lobules and seven
-convergence lobules. `--geometry sixth` explicitly analyzes source-sector
+The default `--geometry lobulus` analyzes every simulation lobule and every
+convergence lobule. `--geometry sixth` explicitly analyzes source-sector
 numerical caches instead. Mixed geometries are excluded. `--data-root` selects
 the numerical-cache root; `--output-root` selects local analysis storage.
 Neither the raw share nor reconstructed simulation histories are modified.
@@ -622,7 +681,7 @@ of error against a continuum solution or an inferred convergence order.
 Convergence includes supplemental symlog figures to expose smaller values beside
 the current coarsest mesh's large substrate/product outliers. `--linear-only`
 omits those supplements. All values remain in the serialized results. Default
-exports are SVG/PDF/PNG; `--formats`, `--dpi`, and `--fields` limit figure output.
+exports are PNG; `--formats`, `--dpi`, and `--fields` select figure output.
 
 ### Reusable analysis results
 
@@ -699,10 +758,13 @@ pipeline does not imply that every source solver run reached its model duration.
 
 `--study` selects a study, and `--runs` selects an explicit subset. A subset
 omits mixed comparisons and manuscript figures, which require complete studies.
+`--no-combinations` skips the mixed comparison lobules, which place one source
+per sector and therefore need exactly six zonation patterns or six resolutions;
+use it for a study whose sources do not fill one lobule.
 `--no-geometry-figures` skips the last two stages when only numerical results
-are needed. `--formats pdf png`
-reduces export size, while `--geometry-snapshots` changes the geometry figure
-panel count. Inspecting a fresh output root reports downstream stages as pending
+are needed. `--formats` selects the per-run and study figure formats and
+`--manuscript-formats` those of the manuscript deliverables, while
+`--geometry-snapshots` changes the geometry figure panel count. Inspecting a fresh output root reports downstream stages as pending
 without creating directories or loading HDF arrays.
 
 Portable regressions run every stage from fresh synthetic raw files, including
@@ -812,12 +874,15 @@ times outside the common interval are rejected. Dashed time-course lines mark
 the map time; dotted lines mark the common interval end.
 
 Stable manuscript filenames are available under `manuscript/exports/`, for
-example `figure-04.pdf` through `figure-07.pdf` and `figure-s1-convergence.pdf`.
+example `figure-04.svg` through `figure-07.svg` and `figure-s1-convergence.svg`.
+A format is exported only when it was rendered, so requesting `--formats pdf`
+adds the matching `.pdf` names.
 These files share storage with validated generations. Regenerating a figure
 refreshes its stable exports, caption and provenance from the complete generation.
 Outputs live under `manuscript/<figure>/manifest.json` in complete generations.
-Each generation contains PNG, SVG and PDF exports, `caption.md` and
-`provenance.json`, including run conditions, snapshot times and native end times.
+Each generation contains the rendered exports, SVG and PNG by default,
+`caption.md` and `provenance.json`, including run conditions, snapshot times and
+native end times.
 Dense map panels are rasterized at the chosen export DPI to keep the composite
 files practical; annotations and time-course curves stay vector in SVG/PDF.
 Each map is rendered as an independent small tile so PDF export never retains
@@ -828,11 +893,11 @@ preserves the spacing between panels. Hidden map-axis rectangles do not add
 empty margins; embedded map tiles are cropped geometrically, independently of
 their scalar colors. SVG/PDF text and time courses remain vector.
 The default is 300 DPI. Select `--dpi 600` when higher-resolution maps are needed.
-For example, regenerate only Figures 4 and 7 as PDF and PNG:
+For example, regenerate only Figures 4 and 7 as SVG and PNG:
 
 ```bash
 uv run --no-sync python -m research.spt.manuscript \
-  --figures 4 7 --formats pdf png --dpi 300
+  --figures 4 7 --formats svg png --dpi 300
 ```
 
 The default representative dose is index 6, matching the original manuscript.
@@ -889,7 +954,7 @@ Widths smaller than 2, negative seeds, invalid dose indices and times outside th
 source history are rejected. `--formats`, `--dpi`, `--mesh` and `--vessel-color`
 control only these new outputs. Existing manuscript figures and numerical
 results are preserved.
-The default stable exports include `linear-increase-tissue-d6.pdf` and individual
+The default stable exports include `linear-increase-tissue-d6.svg` and individual
 files such as `linear-increase-tissue-d6-necrosis-t86400s.png`, under
 `manuscript/exports/`. Exact fractional seconds use `p` instead of a decimal point
 in filenames. Captions and provenance record the source run, time selection,

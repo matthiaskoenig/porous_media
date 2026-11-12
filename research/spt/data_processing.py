@@ -171,6 +171,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Inspect metadata and cache state without writing",
     )
+    parser.add_argument(
+        "--all-fields",
+        action="store_true",
+        help=(
+            "Reconstruct meshes with every source field, including the "
+            "mechanical vectors and tensors nothing downstream reads. Multiplies "
+            "mesh storage by about five"
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         results = []
@@ -188,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
                     workers=args.workers,
                     force=args.force,
                     dry_run=args.dry_run,
+                    all_fields=args.all_fields,
                 )
             )
         if args.step == "cache" or (

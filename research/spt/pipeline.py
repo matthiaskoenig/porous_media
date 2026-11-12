@@ -64,18 +64,22 @@ def run_pipeline(
     study: str = "both",
     run_ids: tuple[str, ...] = (),
     workers: int = 2,
-    formats: tuple[str, ...] = ("svg", "pdf", "png"),
+    formats: tuple[str, ...] = ("png",),
+    manuscript_formats: tuple[str, ...] = ("svg", "png"),
     analysis_options: AnalysisOptions | None = None,
     plot_options: PlotOptions | None = None,
     geometry_figures: bool = True,
     geometry_snapshots: int = 5,
+    combinations: bool = True,
     dry_run: bool = False,
 ) -> PipelineReport:
     """Resume every stage, stop on failure, and record a reviewable execution report.
 
     Existing generations are reused only when their source and output fingerprints
     match. This processes existing simulation results; it does not run FEBio.
-    Explicit run subsets omit mixed geometries, which require complete studies.
+    Explicit run subsets omit mixed geometries, which require complete studies,
+    as does ``combinations=False`` for a study whose sources do not fill the six
+    sectors of one lobule.
     """
     started = time.perf_counter()
     input_root, output_root = validate_roots(input_root, output_root)
@@ -156,7 +160,7 @@ def run_pipeline(
             output_root,
             study=study,
             run_ids=run_ids,
-            combinations=not run_ids,
+            combinations=combinations and not run_ids,
             workers=workers,
             dry_run=dry_run,
         ),
@@ -244,7 +248,9 @@ def run_pipeline(
     elif (
         manuscript
         and not failed
-        and not stage("manuscript", lambda: create_manuscript(output_root, formats))
+        and not stage(
+            "manuscript", lambda: create_manuscript(output_root, manuscript_formats)
+        )
     ):
         failed = True
     report: PipelineReport = {
@@ -277,11 +283,31 @@ def main(argv: list[str] | None = None) -> int:
         "--formats",
         nargs="+",
         choices=("svg", "pdf", "png"),
-        default=["svg", "pdf", "png"],
+        default=["png"],
+        help=(
+            "Formats of the per-run and study figures. PNG only by default: a "
+            "dense per-run SVG measured 32 MB against 1 MB for its PNG"
+        ),
+    )
+    parser.add_argument(
+        "--manuscript-formats",
+        nargs="+",
+        choices=("svg", "pdf", "png"),
+        default=["svg", "png"],
+        help="Formats of the manuscript figures and tissue panels",
     )
     parser.add_argument("--time-points", type=int, default=51)
     parser.add_argument("--bins", type=int, default=20)
     parser.add_argument("--spatial-times", nargs="+", type=float, default=[])
+    parser.add_argument(
+        "--no-combinations",
+        dest="combinations",
+        action="store_false",
+        help=(
+            "Skip the mixed comparison lobules, which need one source per "
+            "sector and therefore exactly six zonation patterns or resolutions"
+        ),
+    )
     parser.add_argument("--no-geometry-figures", action="store_true")
     parser.add_argument("--geometry-snapshots", type=int, default=5)
     parser.add_argument("--status", "--dry-run", action="store_true")
@@ -294,6 +320,7 @@ def main(argv: list[str] | None = None) -> int:
             run_ids=tuple(args.runs),
             workers=args.workers,
             formats=tuple(dict.fromkeys(args.formats)),
+            manuscript_formats=tuple(dict.fromkeys(args.manuscript_formats)),
             analysis_options=AnalysisOptions(
                 time_points=args.time_points,
                 bins=args.bins,
@@ -301,6 +328,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             geometry_figures=not args.no_geometry_figures,
             geometry_snapshots=args.geometry_snapshots,
+            combinations=args.combinations,
             dry_run=args.status,
         )
     except (OSError, ValueError, KeyError) as error:

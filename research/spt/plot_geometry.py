@@ -349,7 +349,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
         "--formats",
         nargs="+",
         choices=("svg", "pdf", "png"),
-        default=["svg", "pdf", "png"],
+        default=["png"],
     )
     parser.add_argument("--snapshots", type=int, default=5)
     parser.add_argument(

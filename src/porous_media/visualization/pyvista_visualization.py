@@ -22,6 +22,7 @@ from porous_media.console import console
 from porous_media.data.xdmf_tools import (
     AttributeType,
     DataLimits,
+    XDMFTimeSeriesReader,
 )
 from porous_media.visualization.image_manipulation import merge_images
 
@@ -144,7 +145,7 @@ def visualize_datalayers_timecourse(
         output_dir.mkdir(parents=True)
         console.print(f"output_dir created: {output_dir}")
 
-    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+    with XDMFTimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
 
         tnum = reader.num_steps
@@ -438,7 +439,7 @@ def visualize_interactive(
 
 def xdmf_to_mesh(xdmf_path: Path, k: int = 0) -> meshio.Mesh:
     """XDMF to mesh."""
-    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+    with XDMFTimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
         _, point_data, cell_data = reader.read_data(k)
 

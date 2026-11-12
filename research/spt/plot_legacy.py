@@ -29,9 +29,7 @@ def _sources(paths: Iterable[Path], output_root: Path) -> list[PlotSource]:
         validate_roots(path.parent, output_root)
         run = RunSource(
             path.parent,
-            "convergence_sixth"
-            if path.stem.startswith("convergence_")
-            else "simulations_sixth",
+            "convergence_sixth" if "convergence_" in path.stem else "simulations_sixth",
             path.stem,
             None,
             "explicit descriptor",
@@ -55,7 +53,7 @@ def visualize_spt_2d(
     create_panels: bool = False,
     *,
     snapshots: int = 5,
-    formats: tuple[str, ...] = ("svg", "pdf", "png"),
+    formats: tuple[str, ...] = ("png",),
     video_frames: int = 0,
 ) -> list[ProcessingResult]:
     """Render selected planar scalar fields without interpolated XDMF copies.

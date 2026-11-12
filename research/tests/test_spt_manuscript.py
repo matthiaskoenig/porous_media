@@ -2,6 +2,7 @@
 
 import json
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -96,17 +97,12 @@ def manuscript_data(tmp_path: Path) -> ManuscriptData:
     return ManuscriptData(root)
 
 
-def _no_hdf(*args: object, **kwargs: object) -> None:
-    pytest.fail("Manuscript figures must not open raw or derived HDF histories")
-
-
 def test_true_times_and_discrete_necrosis_use_local_caches(
     manuscript_data: ManuscriptData,
-    monkeypatch: pytest.MonkeyPatch,
+    reject_history_hdf: Callable[[str], None],
 ) -> None:
     """A 6 h label represents 6 h data, with discrete states held before native changes."""
-    monkeypatch.setattr("h5py.File", _no_hdf)
-    monkeypatch.setattr("meshio.xdmf.TimeSeriesReader", _no_hdf)
+    reject_history_hdf("Manuscript figures must not open raw or derived HDF histories")
     data = manuscript_data
     source = data.source("simulations_lobulus", "sim014")
     samples = data.snapshots(source, SIMULATION_TIMES)
@@ -614,7 +610,8 @@ def test_cached_manuscript_skips_arrays_and_repairs_missing_exports(
 
 
 def test_mixed_readouts_sample_native_cells_at_one_common_time(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    reject_history_hdf: Callable[[str], None],
 ) -> None:
     """Unequal sector meshes retain cell order, interpolation and discrete states."""
     raw, root = tmp_path / "raw", tmp_path / "local"
@@ -631,8 +628,7 @@ def test_mixed_readouts_sample_native_cells_at_one_common_time(
     mixed = plot_sources(raw, root, study="convergence", geometry="combined")[0]
     prepare_samples(mixed, root, AnalysisOptions().fields, (0, 2))
     data = ManuscriptData(root)
-    monkeypatch.setattr("h5py.File", _no_hdf)
-    monkeypatch.setattr("meshio.xdmf.TimeSeriesReader", _no_hdf)
+    reject_history_hdf("Manuscript figures must not open raw or derived HDF histories")
     result = data.mixed_snapshot(0.5)
     np.testing.assert_array_equal(result.times, [0.5])
     for sector in range(6):

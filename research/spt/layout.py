@@ -75,7 +75,7 @@ Keep this directory together; the report uses relative links.
 
 | Directory | Contents |
 | --- | --- |
-| `manuscript/exports/` | Stable manuscript filenames: `figure-04.pdf` to `figure-07.pdf`, `figure-s1-convergence.pdf` and the linear-increase tissue panels, each with caption and provenance |
+| `manuscript/exports/` | Stable manuscript filenames: `figure-04.svg` to `figure-07.svg`, `figure-s1-convergence.svg` and the linear-increase tissue panels, each as SVG and PNG with caption and provenance |
 | `manuscript/<figure>/` | Versioned generation of each manuscript figure |
 | `analysis/<study>/` | Quantitative analysis of homogeneous lobules: `analysis.nc`, time-course and spatial-profile tables, figures and provenance |
 | `figures/runs/<study>/<run>/` | Geometry time course of one sixth, lobule or mixed-sector history |

@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import cast
 
 import matplotlib.pyplot as plt
-import meshio
 import numpy as np
 
+from porous_media.data.xdmf_tools import XDMFTimeSeriesReader
 from research.spt.artifacts import fingerprint, generation_path, publish, run_lock
 from research.spt.conditions import pattern_idx2name
 from research.spt.fields import SPT_LAYERS
@@ -17,7 +17,7 @@ from research.spt.geometry import GeometryJob, geometry_manifest
 from research.spt.plot_render import Samples, panel
 from research.spt.plot_view import face_heights, project
 
-COMPARISON_PLOT_VERSION = 6
+COMPARISON_PLOT_VERSION = 7
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:
@@ -28,7 +28,7 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
     """
     from research.spt.plot_data import projected_faces
 
-    with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
+    with XDMFTimeSeriesReader(descriptor) as reader:
         points, cells = reader.read_points_cells()
         _, _, initial = reader.read_data(0)
         end, _, final = reader.read_data(reader.num_steps - 1)
@@ -113,7 +113,6 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
         figure.suptitle(title)
         figure.supxlabel(" | ".join(labels), fontsize=9)
         figure.savefig(descriptor.with_suffix(".png"), dpi=200)
-        figure.savefig(descriptor.with_suffix(".pdf"))
     finally:
         plt.close(figure)
 

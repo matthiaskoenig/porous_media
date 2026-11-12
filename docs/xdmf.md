@@ -42,6 +42,30 @@ With `overwrite=False`, conversion and interpolation preserve an existing XDMF
 output and refuse to replace an orphaned HDF sidecar. New outputs cannot be
 symbolic links. Regenerating a time series also regenerates its limits cache.
 
+Every array in the HDF sidecar is deflated with the byte-shuffle filter. This is
+a standard HDF5 filter: ParaView, meshio and `h5py` read the result without
+anything special, and the stored values and dtypes are unchanged. Inline
+`data_format="XML"` output is unaffected.
+
+`XDMFTimeSeriesWriter` takes two further options, both off by default, for the
+repetition a fixed mesh produces across a series.
+`share_identical_arrays=True` lets an array identical to one already written
+share its storage through an HDF link instead of being stored twice; it makes
+the sidecar unsafe to edit in place, because writing to one dataset then changes
+every array sharing its storage. `vtks_to_xdmf` and `interpolate_xdmf` use it,
+so a converted series stays readable by any XDMF reader. `stack_time_steps=True`
+stores each attribute as one dataset spanning the whole series and references
+each step's slice with an XDMF HyperSlab, which lets the compressor exploit how
+little changes between consecutive steps rather than only exact repeats: on
+reconstructed scalar fields this measured 3.5x smaller than one dataset per
+step. Stacking subsumes sharing, so the two are not combined.
+
+meshio has no HyperSlab support, so a stacked series must be read with
+`porous_media.data.xdmf_tools.XDMFTimeSeriesReader`. It resolves HyperSlab
+references, reads only the requested slice, and otherwise behaves exactly like
+meshio's reader, so it is a drop-in replacement for any series. ParaView reads
+stacked series directly.
+
 ## Inspect metadata and limits
 
 Continue using `output` from the conversion example:
@@ -100,6 +124,12 @@ with different sizes. Dimensions are `(time, cell)` and `(time, point)`, with
 explicit coordinates. A single cell retains its dimension. Scalar names and
 sizes must remain consistent across time steps; changing numeric types are
 promoted without truncating fractional values.
+
+The cache files are written as NetCDF4 with deflate level 4 and the byte-shuffle
+filter through `porous_media.data.netcdf`. Compression is lossless and leaves
+the stored dtypes unchanged: one cell cache of a simulated lobule sixth measured
+70 MB uncompressed against 13 MB compressed. A cache written before compression
+is still read, so an existing directory needs no conversion.
 
 Returned datasets are fully loaded and do not keep cache files open. Set
 `overwrite=True` after changing the source. Directory conversion accepts a

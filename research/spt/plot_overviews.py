@@ -18,6 +18,7 @@ from research.spt.artifacts import (
     records_current,
     run_lock,
 )
+from research.spt.catalog import mesh_key
 from research.spt.conditions import pattern_idx2name
 from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
@@ -40,7 +41,7 @@ OVERVIEW_VERSION = 5
 
 def _label(source: PlotSource) -> str:
     if source.family == "convergence":
-        return source.run.run_id.removeprefix("convergence_")
+        return mesh_key(source.run.run_id)
     return f"Dose {source.dose + 1}" if source.dose is not None else source.run.run_id
 
 
