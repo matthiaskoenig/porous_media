@@ -197,7 +197,7 @@ def create_manuscript_figures(
     *,
     figures: tuple[str, ...] | None = None,
     dose: int = 6,
-    formats: tuple[str, ...] = ("svg", "pdf", "png"),
+    formats: tuple[str, ...] = ("svg", "png"),
     dpi: int = 300,
     comparison_time: float = CONVERGENCE_TIME,
     force: bool = False,
@@ -226,8 +226,7 @@ def create_manuscript_figures(
     for number in figures:
         if number == "S1":
             sources = [
-                data.source("convergence_lobulus", f"convergence_{mesh}")
-                for mesh in CONVERGENCE_DISPLAY_MESHES
+                data.convergence_source(mesh) for mesh in CONVERGENCE_DISPLAY_MESHES
             ]
             if (
                 not max(source.start for source in sources)
@@ -417,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
         "--formats",
         choices=("svg", "pdf", "png"),
         nargs="+",
-        default=["svg", "pdf", "png"],
+        default=["svg", "png"],
     )
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument(

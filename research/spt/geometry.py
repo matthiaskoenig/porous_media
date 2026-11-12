@@ -7,11 +7,11 @@ runs or inputs to aggregate quantitative analysis.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import tempfile
 import time
+from collections.abc import Collection
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 from functools import partial
@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
 
-from porous_media.data.xdmf_tools import XDMFTimeSeriesWriter
+from porous_media.data.xdmf_tools import XDMFTimeSeriesReader, XDMFTimeSeriesWriter
 from research.geometry_conversion import (
     find_reflection_angle_in_sixth,
     sector_transforms,
@@ -45,15 +45,19 @@ from research.spt.catalog import (
     Study,
     discover_runs,
     inspect_run,
+    mesh_key,
 )
 from research.spt.cli import selected_studies, write_catalog
 from research.spt.conditions import conditions_from_source
 from research.spt.execution import execute_jobs, print_result
+from research.spt.fields import GEOMETRY_CELL_FIELDS, GEOMETRY_POINT_FIELDS
 from research.spt.layout import artifact_directory, log_path
 from research.spt.sampling import DISCRETE_FIELDS as DISCRETE_FIELDS
 from research.spt.sampling import blend, bracket
+from research.spt.storage import COMPLEVEL
 
-GEOMETRY_VERSION = 1
+# Version 2 keeps only the fields the pipeline reads and compresses harder.
+GEOMETRY_VERSION = 2
 CONVERGENCE_MESHES = ("06250", "09375", "12500", "18750", "25000", "37250")
 
 
@@ -65,6 +69,7 @@ class GeometryJob:
     run_id: str
     sources: tuple[RunSource, ...]
     mixed: bool = False
+    all_fields: bool = False
 
     def directory(self, output_root: Path) -> Path:
         """Return a stable manifest directory without following output links."""
@@ -91,37 +96,18 @@ class GeometryJob:
             if self.mixed
             else "native",
             "seams": "separate points; alternating reflections; source orientation preserved",
-            "compression": "gzip level 1 with shuffle; identical arrays share HDF storage",
+            "fields": "every source field"
+            if self.all_fields
+            else {
+                "cell": list(GEOMETRY_CELL_FIELDS),
+                "point": list(GEOMETRY_POINT_FIELDS),
+            },
+            "compression": (
+                f"gzip level {COMPLEVEL} with shuffle; "
+                "attributes stacked across time and referenced per step by an "
+                "XDMF HyperSlab"
+            ),
         }
-
-
-class _CompressedWriter(XDMFTimeSeriesWriter):
-    """Reuse identical arrays and compress HDF datasets within one local sidecar."""
-
-    def __enter__(self) -> _CompressedWriter:
-        super().__enter__()
-        self._datasets: dict[tuple[str, tuple[int, ...], bytes], str] = {}
-        return self
-
-    def numpy_to_xml_string(self, data: np.ndarray) -> str:
-        """Write meshio arrays with portable HDF compression and hard links."""
-        data = np.ascontiguousarray(data)
-        name = f"data{self.data_counter}"
-        self.data_counter += 1
-        key = (
-            data.dtype.str,
-            data.shape,
-            hashlib.blake2b(data, digest_size=32).digest(),
-        )
-        previous = self._datasets.get(key)
-        if previous is None:
-            self.h5_file.create_dataset(
-                name, data=data, compression="gzip", compression_opts=1, shuffle=True
-            )
-            self._datasets[key] = name
-        else:
-            self.h5_file[name] = self.h5_file[previous]
-        return f"{Path(self.h5_filename).name}:/{name}"
 
 
 def geometry_jobs(
@@ -131,6 +117,7 @@ def geometry_jobs(
     run_ids: tuple[str, ...] = (),
     lobulus: bool = True,
     combinations: bool = True,
+    all_fields: bool = False,
 ) -> list[GeometryJob]:
     """Select full lobules and six-pattern views using archived conditions."""
     runs = discover_runs(input_root, selected_studies(study), run_ids)
@@ -147,7 +134,10 @@ def geometry_jobs(
     if lobulus:
         jobs.extend(
             GeometryJob(
-                source.study.replace("_sixth", "_lobulus"), source.run_id, (source,) * 6
+                source.study.replace("_sixth", "_lobulus"),
+                source.run_id,
+                (source,) * 6,
+                all_fields=all_fields,
             )
             for source in runs
         )
@@ -157,18 +147,26 @@ def geometry_jobs(
         raise ValueError("Combinations require complete studies; omit --runs")
     by_id = {source.run_id: source for source in runs}
     if study in {"both", "convergence"}:
-        names = [f"convergence_{key}" for key in CONVERGENCE_MESHES]
-        missing = set(names) - by_id.keys()
+        # The study prefixes its convergence runs, so a mesh is found by its
+        # resolution rather than by a fixed run name.
+        by_mesh = {
+            mesh_key(source.run_id): source.run_id
+            for source in runs
+            if source.study == "convergence_sixth"
+        }
+        missing = set(CONVERGENCE_MESHES) - by_mesh.keys()
         if missing:
             raise ValueError(
                 f"Missing convergence comparison meshes: {', '.join(sorted(missing))}"
             )
+        names = [by_mesh[key] for key in CONVERGENCE_MESHES]
         jobs.append(
             GeometryJob(
                 "convergence_combinations",
                 "convergence_mixed",
                 tuple(by_id[name] for name in names),
                 True,
+                all_fields=all_fields,
             )
         )
     if study in {"both", "simulations"}:
@@ -199,6 +197,7 @@ def geometry_jobs(
                     f"dose_{dose + 1:02}",
                     tuple(selected),
                     True,
+                    all_fields=all_fields,
                 )
             )
     return jobs
@@ -246,14 +245,47 @@ def _status(job: GeometryJob, output_root: Path) -> dict[str, object] | None:
 
 
 class _Sampler:
-    """Keep at most two source frames for interpolation on an explicit time axis."""
+    """Keep at most two source frames for interpolation on an explicit time axis.
 
-    def __init__(self, reader: meshio.xdmf.TimeSeriesReader, times: np.ndarray) -> None:
+    ``point_fields`` and ``cell_fields`` select what a frame retains. Discarding
+    a field as soon as it is read keeps the unread mechanical tensors out of
+    interpolation, memory and the written sidecar. ``None`` retains every source
+    field.
+    """
+
+    def __init__(
+        self,
+        reader: XDMFTimeSeriesReader,
+        times: np.ndarray,
+        *,
+        point_fields: Collection[str] | None = None,
+        cell_fields: Collection[str] | None = None,
+    ) -> None:
         self.reader = reader
         self.times = times
+        self.point_fields = None if point_fields is None else frozenset(point_fields)
+        self.cell_fields = None if cell_fields is None else frozenset(cell_fields)
         self.frames: dict[
             int, tuple[dict[str, np.ndarray], dict[str, list[np.ndarray]]]
         ] = {}
+
+    def _select(
+        self, points: dict[str, np.ndarray], cells: dict[str, list[np.ndarray]]
+    ) -> tuple[dict[str, np.ndarray], dict[str, list[np.ndarray]]]:
+        """Retain the selected fields, ignoring any the source does not provide."""
+        if self.point_fields is not None:
+            points = {
+                name: values
+                for name, values in points.items()
+                if name in self.point_fields
+            }
+        if self.cell_fields is not None:
+            cells = {
+                name: blocks
+                for name, blocks in cells.items()
+                if name in self.cell_fields
+            }
+        return points, cells
 
     def sample(
         self, time_value: float
@@ -266,7 +298,7 @@ class _Sampler:
         for step in (lower, upper):
             if step not in self.frames:
                 _, points, cells = self.reader.read_data(step)
-                self.frames[step] = (points, cells)
+                self.frames[step] = self._select(points, cells)
         points_low, cells_low = self.frames[lower]
         if upper == lower:
             return points_low, cells_low
@@ -289,13 +321,19 @@ class _Sampler:
 
 
 def write_composition(
-    sources: tuple[RunSource, ...], output: Path
+    sources: tuple[RunSource, ...], output: Path, *, all_fields: bool = False
 ) -> dict[str, object]:
-    """Write six independent sectors, preserving all source fields and their types.
+    """Write six independent sectors, keeping the fields the pipeline reads.
 
     Mixed runs use the first sector's native times within the common interval,
     including its endpoints when needed. Continuous fields interpolate linearly;
     categorical fields and necrosis flags hold their previous sampled state.
+
+    By default only :data:`research.spt.fields.GEOMETRY_CELL_FIELDS` and
+    :data:`research.spt.fields.GEOMETRY_POINT_FIELDS` are written, because
+    nothing downstream reads the mechanical vectors and 3x3 tensors that make up
+    most of a sidecar. ``all_fields`` preserves every source field and its
+    type, which is what a full mechanical reconstruction needs.
     """
     if len(sources) != 6:
         raise ValueError("A lobulus requires six source sectors")
@@ -348,7 +386,7 @@ def write_composition(
                     copied.add(target)
         readers = {
             source: stack.enter_context(
-                meshio.xdmf.TimeSeriesReader(
+                XDMFTimeSeriesReader(
                     roots[source.root] / source.xdmf.relative_to(source.root)
                 )
             )
@@ -358,7 +396,12 @@ def write_composition(
             source: reader.read_points_cells() for source, reader in readers.items()
         }
         samplers = {
-            source: _Sampler(readers[source], run.times)
+            source: _Sampler(
+                readers[source],
+                run.times,
+                point_fields=None if all_fields else GEOMETRY_POINT_FIELDS,
+                cell_fields=None if all_fields else GEOMETRY_CELL_FIELDS,
+            )
             for source, run in parsed.items()
         }
         matrices = []
@@ -402,7 +445,13 @@ def write_composition(
                 )
                 source_offset += len(block)
             offset += len(coordinates)
-        with _CompressedWriter(output, data_format="HDF") as writer:
+        # The mesh is fixed, so most of what an attribute holds is unchanged
+        # from one step to the next. Stacking each attribute into a single
+        # dataset lets the compressor see those repeats; written one step at a
+        # time each array would be a chunk of its own.
+        with XDMFTimeSeriesWriter(
+            output, data_format="HDF", stack_time_steps=True
+        ) as writer:
             writer.write_points_cells(
                 np.concatenate(points), [(block.type, block.data) for block in cells]
             )
@@ -530,7 +579,9 @@ def process_geometry(
             ) as temporary:
                 staging = Path(temporary)
                 metadata = write_composition(
-                    job.sources, staging / f"{job.run_id}.xdmf"
+                    job.sources,
+                    staging / f"{job.run_id}.xdmf",
+                    all_fields=job.all_fields,
                 )
                 preview_metadata: dict[str, object] | None = None
                 if job.mixed:
@@ -596,6 +647,7 @@ def process_geometries(
     workers: int = 2,
     force: bool = False,
     dry_run: bool = False,
+    all_fields: bool = False,
 ) -> list[ProcessingResult]:
     """Build independent geometries with bounded workers and cheap resume checks."""
     if workers < 1:
@@ -607,6 +659,7 @@ def process_geometries(
         run_ids=run_ids,
         lobulus=lobulus,
         combinations=combinations,
+        all_fields=all_fields,
     )
     results = []
     pending = []

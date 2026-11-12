@@ -1,11 +1,13 @@
 # Release
 
-Release from `main` after the required checks pass. The release tag must identify
-the reviewed version commit on `main`. Existing tags are immutable.
+A release promotes `develop` to `main` and tags the merged commit on `main`. The
+version change and the release notes land on `develop` first, so the two branches
+never diverge. The release tag must identify the reviewed version commit on
+`main`. Existing tags are immutable.
 
 ## Prepare the release pull request
 
-1. Start from an up-to-date `main` and create a release branch.
+1. Start from an up-to-date `develop` and create a release branch.
 2. Sync the locked environment and run validation:
 
    ```bash
@@ -41,13 +43,22 @@ the reviewed version commit on `main`. Existing tags are immutable.
    ```
 
 6. Commit the version files and release notes, open a pull request against
-   `main`, and wait for all required checks. Merge through the protected branch.
+   `develop`, and wait for all required checks. Merge it by squashing or
+   rebasing.
+
+## Promote develop to main
+
+Open a pull request from `develop` to `main`, wait for the required checks, and
+merge it with a merge commit. The merge commit is the only method `main` accepts:
+squashing or rebasing would rewrite the promoted commits and leave `develop`
+diverged from `main`. Neither branch accepts a direct push, so this pull request
+is the only way a release reaches `main`.
 
 ## Preview the release workflow
 
 Run the `CI-CD` workflow manually with `release_tag` set to the prospective
 version. Select the release branch to validate it before merging, or `main`
-after merging. The run validates the version and release notes, runs the
+after the promotion. The run validates the version and release notes, runs the
 checks, and uploads distributions. Manual runs never publish to PyPI, create a
 GitHub release, or deploy documentation, including runs selected on a tag.
 
@@ -62,7 +73,7 @@ versions. Python 3.15 CI coverage is temporarily disabled.
 
 ## Tag the reviewed commit
 
-Fetch the merged `main`, verify its version and release notes, and create the
+Fetch the promoted `main`, verify its version and release notes, and create the
 annotated tag using the version number without a `v` prefix, for example:
 
 ```bash
@@ -73,8 +84,9 @@ git push origin 0.3.1
 ```
 
 Use the actual release version. Push only that tag. Do not tag a release branch
-commit before merging: squash or rebase merging can change the final commit.
-Never move or delete a published tag. Fix a release with a new version.
+commit before merging: squash or rebase merging into `develop` can change the
+final commit. Never move or delete a published tag. Fix a release with a new
+version.
 
 ## Verify publication
 

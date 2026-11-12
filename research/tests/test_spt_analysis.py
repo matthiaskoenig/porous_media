@@ -2,6 +2,7 @@
 
 import json
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.pipeline import main as pipeline_main
 from research.spt.pipeline import run_pipeline
 from research.spt.plot_data import plot_sources
+from research.spt.storage import open_dataset
 from research.tests.test_spt_geometry import _source
 
 
@@ -98,14 +100,11 @@ def study(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def test_cell_first_statistics_and_serialized_results(
-    study: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+    study: tuple[Path, Path], reject_history_hdf: Callable[[str], None]
 ) -> None:
     """Interpolate cells and weights before reducing; never reopen network HDF data."""
     root, output = study
-    monkeypatch.setattr(
-        "h5py.File",
-        lambda *args, **kwargs: pytest.fail("Analysis must use local numerical caches"),
-    )
+    reject_history_hdf("Analysis must use local numerical caches")
     result = process_analysis(
         root,
         output,
@@ -137,7 +136,7 @@ def test_cell_first_statistics_and_serialized_results(
     directory = output / "analysis/simulations_lobulus"
     manifest = json.loads((directory / "manifest.json").read_text())
     generation = directory / manifest["generation"]
-    with xr.open_dataset(generation / "analysis.nc", engine="scipy") as data:
+    with open_dataset(generation / "analysis.nc") as data:
         assert list(data.run.values) == ["sim001"]
         assert (
             float(data.aligned_mean.sel(run="sim001", time=2, analysis_field="rr_(T)"))
@@ -435,7 +434,9 @@ def test_pipeline_creates_manuscript_only_for_complete_studies(
     report = run_pipeline(root, output)
     assert report["status"] == "passed"
     assert report["stages"][-1]["name"] == "manuscript"
-    assert calls == [(output.resolve(), ("svg", "pdf", "png"))]
+    # The manuscript deliverables keep a vector format; the per-run figures
+    # default to PNG alone.
+    assert calls == [(output.resolve(), ("svg", "png"))]
     subset = run_pipeline(root, output, study="simulations")
     assert "manuscript" not in [item["name"] for item in subset["stages"]]
     assert len(calls) == 1

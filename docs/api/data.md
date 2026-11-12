@@ -15,6 +15,8 @@ metadata, interpolation, and cache behavior.
         - xdmfs_from_directory
         - vtks_to_xdmf
         - interpolate_xdmf
+        - XDMFTimeSeriesWriter
+        - XDMFTimeSeriesReader
 
 ## Scalar datasets
 
@@ -25,3 +27,13 @@ These helpers select scalar fields and do not preserve mesh geometry.
       members:
         - mesh_datasets_from_xdmf
         - mesh_datasets_from_xdmf_dir
+
+## Compressed NetCDF
+
+::: porous_media.data.netcdf
+    options:
+      members:
+        - write_netcdf
+        - load_netcdf
+        - open_netcdf
+        - netcdf_encoding

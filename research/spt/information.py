@@ -8,6 +8,7 @@ import pandas as pd
 
 from research.spt.conditions import (
     SimulationCondition,
+    pattern_name,
     simulation_conditions,
 )
 from research.spt.conditions import boundary_flows as boundary_flows
@@ -33,7 +34,7 @@ def simulation_conditions_df(
         {
             "sim_key": condition.sim_id,
             "pattern_key": condition.pattern_key,
-            "pattern_name": pattern_idx2name[condition.pattern_key],
+            "pattern_name": pattern_name(condition.pattern_key),
             "boundary_flow_key": condition.boundary_flow_key,
             "boundary_flow": condition.boundary_flow,
             "color": simulation_color(

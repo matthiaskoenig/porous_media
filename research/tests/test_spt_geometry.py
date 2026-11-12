@@ -8,11 +8,15 @@ import numpy as np
 import pytest
 from numpy.typing import ArrayLike
 
-from porous_media.data.xdmf_tools import XDMFTimeSeriesWriter
+from porous_media.data.xdmf_tools import (
+    XDMFTimeSeriesReader,
+    XDMFTimeSeriesWriter,
+)
 from research.geometry_conversion import sector_transforms
 from research.spt.cache import ANALYSIS_FIELDS, load_processed_run
 from research.spt.catalog import discover_runs
 from research.spt.data_processing import main, process_studies
+from research.spt.fields import GEOMETRY_CELL_FIELDS
 from research.spt.geometry import (
     CONVERGENCE_MESHES,
     geometry_jobs,
@@ -22,6 +26,7 @@ from research.spt.geometry import (
     process_geometry,
     write_composition,
 )
+from research.spt.storage import COMPLEVEL
 
 
 def _source(root: Path, name: str, count: int, times: tuple[float, ...]) -> Path:
@@ -115,10 +120,10 @@ def test_mixed_mesh_preserves_physics_and_discrete_states(
     root, target = convergence
     job = geometry_jobs(root, study="convergence", lobulus=False)[0]
     path = target / "mixed.xdmf"
-    metadata = write_composition(job.sources, path)
+    metadata = write_composition(job.sources, path, all_fields=True)
     assert metadata["tend_s"] == 2
     assert metadata["num_cells"] == 21
-    with meshio.xdmf.TimeSeriesReader(path) as reader:
+    with XDMFTimeSeriesReader(path) as reader:
         points, cells = reader.read_points_cells()
         assert np.all(_determinants(points, cells) > 0)
         assert reader.num_steps == 3
@@ -166,7 +171,7 @@ def test_mixed_mesh_preserves_physics_and_discrete_states(
     moved.mkdir()
     path.rename(moved / path.name)
     path.with_suffix(".h5").rename(moved / path.with_suffix(".h5").name)
-    with meshio.xdmf.TimeSeriesReader(moved / path.name) as reader:
+    with XDMFTimeSeriesReader(moved / path.name) as reader:
         reader.read_points_cells()
         reader.read_data(2)
 
@@ -243,17 +248,27 @@ def test_comparison_figures_and_hdf_storage(
     assert result.status == "processed", result.message
     path = Path(str(result.row["xdmf"]))
     assert path.with_suffix(".png").stat().st_size > 1000
-    assert path.with_suffix(".pdf").stat().st_size > 1000
+    # The comparison preview is a raster figure; its vector copy was 10 times the
+    # size of the PNG and nothing reads it.
+    assert not path.with_suffix(".pdf").exists()
     monkeypatch.chdir(target.parent)
     assert (
         geometry_path(Path("derived/meshes/convergence_combinations/convergence_mixed"))
         == path
     )
     with h5py.File(path.with_suffix(".h5"), "r") as handle:
-        datasets = [handle[name] for name in handle]
-        assert all(dataset.compression == "gzip" for dataset in datasets)
-        addresses = [hash(dataset.id) for dataset in datasets]
-        assert len(set(addresses)) < len(addresses)
+        # Each attribute is one dataset spanning the series rather than one
+        # array per step, so a chunk covers consecutive steps.
+        stacked = handle["Cell"]
+        assert isinstance(stacked, h5py.Group)
+        assert set(ANALYSIS_FIELDS) <= set(stacked)
+        steps = int(str(result.row["num_steps"]))
+        for name in stacked:
+            dataset = stacked[name]
+            assert isinstance(dataset, h5py.Dataset)
+            assert dataset.shape[0] == steps
+            assert dataset.compression == "gzip"
+            assert dataset.chunks is not None and dataset.chunks[0] > 1
 
 
 def test_pattern_selection_and_cli_dry_run(tmp_path: Path) -> None:
@@ -403,7 +418,7 @@ def test_interrupted_staging_preserves_published_pair(
     assert geometry_path(job.directory(target)) == descriptor
     assert not list(target.rglob(".sources-*"))
     assert not list(target.rglob(".partial-*"))
-    with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
+    with XDMFTimeSeriesReader(descriptor) as reader:
         reader.read_points_cells()
         reader.read_data(0)
 
@@ -446,3 +461,57 @@ def test_preview_style_refresh_reuses_simulation_arrays(
     assert manifest.read_bytes() == before
     assert geometry_path(job.directory(target)) == current
     assert not list(target.rglob(".partial-*"))
+
+
+def test_composition_writes_only_the_fields_the_pipeline_reads(
+    convergence: tuple[Path, Path],
+) -> None:
+    """Drop unread vectors, tensors and coordinates, and keep every analysis field."""
+    root, target = convergence
+    job = geometry_jobs(root, study="convergence", lobulus=False)[0]
+    selected = target / "selected.xdmf"
+    complete = target / "complete.xdmf"
+    write_composition(job.sources, selected)
+    write_composition(job.sources, complete, all_fields=True)
+    with XDMFTimeSeriesReader(selected) as reader:
+        reader.read_points_cells()
+        _, point_data, cell_data = reader.read_data(1)
+    # Every analysis field of this fixture is selected; the composition adds its
+    # own sector metadata. GEOMETRY_CELL_FIELDS also names display-only fields
+    # that these synthetic sources do not provide.
+    assert set(ANALYSIS_FIELDS) <= set(GEOMETRY_CELL_FIELDS)
+    assert set(cell_data) == set(ANALYSIS_FIELDS) | {"sector_id", "source_cell_id"}
+    assert set(point_data) == {"sector_id"}
+    for dropped in ("stress", "flux", "position_x", "position_y", "position_z"):
+        assert dropped not in cell_data
+    assert "displacement" not in point_data
+    # Every analysis field survives, so the downstream stages still have inputs.
+    for required in ANALYSIS_FIELDS:
+        assert required in cell_data
+    assert selected.with_suffix(".h5").stat().st_size < (
+        complete.with_suffix(".h5").stat().st_size
+    )
+
+
+def test_composition_compresses_every_written_array(
+    convergence: tuple[Path, Path],
+) -> None:
+    """Keep gzip and the shuffle filter on each sidecar dataset, as the manifest claims."""
+    root, target = convergence
+    job = geometry_jobs(root, study="convergence", lobulus=False)[0]
+    path = target / "compressed.xdmf"
+    write_composition(job.sources, path)
+    datasets: list[h5py.Dataset] = []
+    with h5py.File(path.with_suffix(".h5"), "r") as handle:
+        # Stacked attributes live in a group per center, so the walk recurses.
+        handle.visititems(
+            lambda _, node: (
+                datasets.append(node) if isinstance(node, h5py.Dataset) else None
+            )
+        )
+        assert datasets
+        for dataset in datasets:
+            assert dataset.compression == "gzip"
+            assert dataset.compression_opts == COMPLEVEL
+            assert dataset.shuffle
+    assert f"gzip level {COMPLEVEL}" in str(job.configuration()["compression"])

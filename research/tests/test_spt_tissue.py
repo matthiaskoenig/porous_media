@@ -1,6 +1,7 @@
 """Verify complete square coverage, native cell identity and flat tissue exports."""
 
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -205,6 +206,7 @@ def test_fractional_time_filenames_are_unique_and_keep_their_extension() -> None
 def test_local_tissue_workflow_exports_and_cached_reads(
     manuscript_data: ManuscriptData,
     monkeypatch: pytest.MonkeyPatch,
+    reject_history_hdf: Callable[[str], None],
     vessel_color: str,
 ) -> None:
     """Export real synthetic native cells, exact square files and a reusable report."""
@@ -216,10 +218,9 @@ def test_local_tissue_workflow_exports_and_cached_reads(
     options = TissueOptions(times=(0, 86400), dpi=40, vessel_color=vessel_color)
 
     def forbidden(*args: object, **kwargs: object) -> None:
-        pytest.fail("Tissue panels must not reopen mesh or HDF histories")
+        pytest.fail("Tissue panels must not reopen cached arrays")
 
-    monkeypatch.setattr("h5py.File", forbidden)
-    monkeypatch.setattr("meshio.xdmf.TimeSeriesReader", forbidden)
+    reject_history_hdf("Tissue panels must not reopen mesh or HDF histories")
     generation = create_tissue_panels(data.root, options)
     pngs = sorted(generation.glob("*.png"))
     assert len(pngs) == 7

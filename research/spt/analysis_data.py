@@ -26,8 +26,10 @@ from research.spt.cache import (
 from research.spt.fields import DIAGNOSTICS, POSITION, SUMMARY_FIELDS, VOLUME
 from research.spt.plot_data import PlotSource, sample_times
 from research.spt.sampling import blend, bracket
+from research.spt.storage import load_dataset, write_dataset
 
-ANALYSIS_VERSION = 2
+# Version 3 stores the datasets compressed instead of as uncompressed NetCDF3.
+ANALYSIS_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -332,7 +334,7 @@ def prepare_analysis(
                     time_units="s",
                     scalar_units="source concentration units; necrosis fraction; volumes retain source units",
                 )
-                dataset.to_netcdf(staging / f"{name}.nc", engine="scipy")
+                write_dataset(dataset, staging / f"{name}.nc")
                 dataset.close()
             publish(directory, staging, configuration, paths, before, metadata)
         return current_manifest(directory, configuration, data_root)
@@ -358,4 +360,4 @@ def load_analysis(source: PlotSource, output_root: Path, name: str) -> xr.Datase
         ):
             raise ValueError("Analysis is stale; rerun analysis")
         generation = generation_path(directory, manifest)
-        return xr.load_dataset(generation / f"{name}.nc", engine="scipy")
+        return load_dataset(generation / f"{name}.nc")

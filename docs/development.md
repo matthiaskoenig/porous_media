@@ -110,18 +110,32 @@ The numerical [quickstart](quickstart.md) and nonvisual
 [zonation example](zonation.md#bundled-example) do not require a display.
 
 The documentation workflow publishes successful builds from `main` to GitHub
-Pages. The configured URL is
+Pages, so a documentation change becomes public with the next release. The
+configured URL is
 [`https://matthiaskoenig.github.io/porous_media/`](https://matthiaskoenig.github.io/porous_media/).
 Publication requires GitHub Pages to use the Actions deployment source and a
 successful deployment run.
 
 ## Repository policies
 
+`develop` is the default branch and the integration branch for all work. `main`
+carries the released versions. Neither branch accepts a direct push; every
+change arrives through a pull request.
+
+The repository ruleset for `develop` requires:
+
+- a pull request and resolved review conversations;
+- passing `tests`, `ruff`, `ty`, `docs`, and `build` checks;
+- linear history, with no force pushes or branch deletion;
+- a squash or rebase merge, so feature branches land as linear history.
+
 The repository ruleset for `main` requires:
 
 - a pull request and resolved review conversations;
 - passing `tests`, `ruff`, `ty`, `docs`, and `build` checks;
-- linear history, with no force pushes or branch deletion.
+- no force pushes and no branch deletion;
+- a merge commit, which is the only merge method that promotes `develop` to
+  `main` without rewriting commits and leaving the two branches diverged.
 
 The solo-maintainer policy requires zero approving reviews so the maintainer
 can merge their own pull requests after checks pass. Contributor pull requests

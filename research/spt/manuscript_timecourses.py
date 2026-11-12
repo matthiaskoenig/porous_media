@@ -15,6 +15,7 @@ from matplotlib.lines import Line2D
 from numpy.typing import ArrayLike
 
 from research.spt.analysis_plots import LABELS, _scale
+from research.spt.catalog import mesh_key
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES
 from research.spt.manuscript_data import (
@@ -112,7 +113,7 @@ def render_convergence(
     sources = sorted(
         sources,
         key=lambda source: CONVERGENCE_DISPLAY_MESHES.index(
-            source.run.run_id.removeprefix("convergence_")
+            mesh_key(source.run.run_id)
         ),
     )
     mixed_samples = convergence_view(data.mixed_snapshot(comparison_time))
@@ -124,7 +125,7 @@ def render_convergence(
     datasets = []
     try:
         for index, source in enumerate(sources):
-            mesh = source.run.run_id.removeprefix("convergence_")
+            mesh = mesh_key(source.run.run_id)
             lobulus = data.mesh(source.run.study, source.run.run_id)
             selected = lobulus.sectors[lobulus.cell_ids] == 0
             samples = Samples(
@@ -223,7 +224,7 @@ def render_convergence(
         for column, field in enumerate(SUMMARY_FIELDS):
             axis = art.add_subplot(grid[0, column])
             for source, dataset in zip(sources, datasets, strict=True):
-                mesh = source.run.run_id.removeprefix("convergence_")
+                mesh = mesh_key(source.run.run_id)
                 color = CONVERGENCE_COLORS[mesh]
                 time = dataset.time.values / 3600
                 values = dataset[f"{field}_mean"].values * (

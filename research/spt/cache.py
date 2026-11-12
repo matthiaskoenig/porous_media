@@ -26,15 +26,21 @@ from research.spt.catalog import (
     CatalogValue,
     ParsedRun,
     RunSource,
-    hdf_reference,
+    hdf_source,
     inspect_run,
 )
 from research.spt.fields import ANALYSIS_FIELDS, SUMMARY_FIELDS, VOLUME
 from research.spt.layout import artifact_directory, category_root
+from research.spt.storage import (
+    compression_record,
+    load_dataset,
+    open_dataset,
+    write_dataset,
+)
 
 type Profile = Literal["analysis", "full"]
 type LegacyPolicy = Literal["sample", "full", "ignore"]
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 @dataclass
@@ -91,6 +97,7 @@ def _configuration(
         "legacy_policy": legacy,
         "analysis_fields": list(ANALYSIS_FIELDS) if profile == "analysis" else None,
         "condition": asdict(source.condition) if source.condition is not None else None,
+        "storage": dict(compression_record()),
     }
 
 
@@ -171,13 +178,14 @@ def _read_frame(
         item = attrs[name].find("DataItem")
         if item is None:
             raise ValueError(f"Missing DataItem for {name}")
-        filename, reference = hdf_reference(item)
+        filename, reference, region = hdf_source(item)
         dataset = handles[filename][reference]
         if not isinstance(dataset, h5py.Dataset):
             raise ValueError(f"Not an HDF dataset: {reference}")
-        values = np.asarray(dataset[()])
+        values = np.asarray(dataset[()] if region is None else dataset[region])
         shape = tuple(int(value) for value in item.attrib["Dimensions"].split())
-        if values.shape != shape:
+        # A stacked attribute keeps the step axis, of length one, in front.
+        if values.shape != (shape if region is None else (1, *shape)):
             raise ValueError(f"HDF shape differs from descriptor for {name}")
         result[name] = values.reshape(-1)
     return result
@@ -227,7 +235,7 @@ def _from_legacy(
             )
             continue
         path = parsed.source.xdmf.with_name(f"{parsed.source.run_id}_{dimension}s.nc")
-        with xr.open_dataset(path, engine="scipy", decode_times=False) as data:
+        with open_dataset(path, decode_times=False) as data:
             if data.sizes.get(dimension) != count or not np.array_equal(
                 data.time.values, parsed.times
             ):
@@ -341,8 +349,8 @@ def _build(
         ) as temporary:
             staging = Path(temporary)
             for center, filename in (("Cell", "cells.nc"), ("Node", "points.nc")):
-                datasets[center].to_netcdf(staging / filename, engine="scipy")
-            summaries.to_netcdf(staging / "summary.nc", engine="scipy")
+                write_dataset(datasets[center], staging / filename)
+            write_dataset(summaries, staging / "summary.nc")
             limits = {}
             for center, data in datasets.items():
                 limits[center] = {}
@@ -439,9 +447,9 @@ def load_processed_run(
     with run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
         return (
-            xr.load_dataset(generation / "cells.nc", engine="scipy"),
-            xr.load_dataset(generation / "points.nc", engine="scipy"),
-            xr.load_dataset(generation / "summary.nc", engine="scipy"),
+            load_dataset(generation / "cells.nc"),
+            load_dataset(generation / "points.nc"),
+            load_dataset(generation / "summary.nc"),
         )
 
 
@@ -451,7 +459,7 @@ def load_summary(source: RunSource, output_root: Path) -> xr.Dataset:
         raise FileNotFoundError(f"No completed cache for {source.run_id}")
     with run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
-        return xr.load_dataset(generation / "summary.nc", engine="scipy")
+        return load_dataset(generation / "summary.nc")
 
 
 @contextmanager
@@ -465,5 +473,5 @@ def open_processed_cells(source: RunSource, output_root: Path) -> Generator[xr.D
         raise FileNotFoundError(f"No completed cache for {source.run_id}")
     with run_lock(run_directory(source, output_root)):
         generation = _current_generation(source, output_root)
-        with xr.open_dataset(generation / "cells.nc", engine="scipy") as cells:
+        with open_dataset(generation / "cells.nc") as cells:
             yield cells

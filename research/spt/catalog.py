@@ -15,7 +15,7 @@ from research.spt.conditions import (
     SimulationCondition,
     conditions_from_source,
     generation_script,
-    pattern_idx2name,
+    pattern_name,
 )
 
 type Study = Literal[
@@ -28,6 +28,18 @@ type Study = Literal[
 ]
 type CatalogValue = str | int | float | bool | None
 STUDIES: tuple[Study, ...] = ("simulations_sixth", "convergence_sixth")
+CONVERGENCE_MARKER = "convergence_"
+
+
+def mesh_key(run_id: str) -> str:
+    """Return the mesh resolution a convergence run carries in its name.
+
+    A study prefixes its convergence runs with the variant they were generated
+    for, so the resolution is what follows the last ``convergence_`` marker
+    rather than the whole name after a fixed prefix.
+    """
+    index = run_id.rfind(CONVERGENCE_MARKER)
+    return run_id if index < 0 else run_id[index + len(CONVERGENCE_MARKER) :]
 
 
 @dataclass(frozen=True)
@@ -51,13 +63,28 @@ class RunSource:
 
     @property
     def material(self) -> Path:
-        """Return the corresponding model or simulation template."""
-        name = (
-            "lobule_zonation_pattern.feb.template"
-            if self.study.startswith("simulations_")
-            else f"{self.run_id}.feb"
+        """Return the corresponding model or simulation template.
+
+        Every simulation of a study is rendered from one template, whose name
+        carries the boundary conditions it was built for and therefore changes
+        with the study design.
+        """
+        if self.model:
+            return self.model
+        folder = self.root / self.study / "material"
+        if not self.study.startswith("simulations_"):
+            return folder / f"{self.run_id}.feb"
+        templates = sorted(folder.glob("*.feb.template"))
+        if len(templates) > 1:
+            raise ValueError(
+                f"Ambiguous simulation templates: "
+                f"{', '.join(path.name for path in templates)}"
+            )
+        return (
+            templates[0]
+            if templates
+            else folder / "lobule_zonation_pattern.feb.template"
         )
-        return self.model or self.root / self.study / "material" / name
 
 
 @dataclass
@@ -120,11 +147,30 @@ def _parse_xml(path: Path) -> ET.ElementTree[ET.Element]:
         raise ValueError(f"Invalid XML in {path}: {error}") from error
 
 
+def _parse_model(path: Path) -> ET.ElementTree[ET.Element]:
+    """Parse a FEBio model, tolerating a comment XML rejects but FEBio accepts.
+
+    One archived template delimits a commented-out load with ``<!---`` and
+    ``--->``. XML forbids a comment whose content ends in a dash, so the file
+    does not parse although FEBio ran it. Comments carry no model semantics,
+    so they are removed and the model is parsed again; a file that still fails
+    keeps its original error.
+    """
+    try:
+        return _parse_xml(path)
+    except ValueError as error:
+        stripped = re.sub(rb"<!--.*?--+>", b"", path.read_bytes(), flags=re.DOTALL)
+        try:
+            return ET.ElementTree(ET.fromstring(stripped))
+        except ET.ParseError:
+            raise error from None
+
+
 def expected_duration(material: Path) -> float | None:
     """Read one explicit FEBio control duration, leaving ambiguous models unknown."""
     if not material.is_file():
         return None
-    controls = _parse_xml(material).findall(".//Control")
+    controls = _parse_model(material).findall(".//Control")
     if len(controls) != 1:
         return None
     steps = controls[0].findtext("time_steps")
@@ -147,6 +193,58 @@ def hdf_reference(item: ET.Element) -> tuple[str, str]:
     if Path(filename).is_absolute() or "\\" in filename:
         raise ValueError("HDF references must be relative to the XDMF descriptor")
     return filename, dataset
+
+
+def hyperslab(item: ET.Element) -> tuple[ET.Element, tuple[slice, ...]]:
+    """Split a HyperSlab into its HDF source and the region it selects.
+
+    Stacked series keep one dataset per attribute and give every step a
+    HyperSlab into it, so the selection is what separates the steps.
+    """
+    children = list(item)
+    if len(children) != 2:
+        raise ValueError("A HyperSlab needs a selection and a source DataItem")
+    selection, source = children
+    if selection.get("Format") != "XML" or len(selection):
+        raise ValueError("HyperSlab selections must be inline XML")
+    values = [int(value) for value in (selection.text or "").split()]
+    if not values or len(values) % 3:
+        raise ValueError("A HyperSlab selection needs start, stride and count")
+    rank = len(values) // 3
+    start, stride, count = values[:rank], values[rank : 2 * rank], values[2 * rank :]
+    if any(begin < 0 for begin in start) or any(step <= 0 for step in stride + count):
+        raise ValueError("HyperSlab selections must be positive and start inside")
+    region = tuple(
+        slice(begin, begin + size * step, step)
+        for begin, step, size in zip(start, stride, count, strict=True)
+    )
+    return source, region
+
+
+def hdf_source(item: ET.Element) -> tuple[str, str, tuple[slice, ...] | None]:
+    """Resolve a data item, which may select one step of a stacked attribute."""
+    if item.get("ItemType") != "HyperSlab":
+        filename, dataset = hdf_reference(item)
+        return filename, dataset, None
+    source, region = hyperslab(item)
+    filename, dataset = hdf_reference(source)
+    return filename, dataset, region
+
+
+def hdf_sources(tree: ET.ElementTree[ET.Element]) -> list[ET.Element]:
+    """List the data items naming HDF datasets, descending into HyperSlabs."""
+    sources: list[ET.Element] = []
+    nested: set[int] = set()
+    for item in tree.iter("DataItem"):
+        if id(item) in nested:
+            continue
+        if item.get("ItemType") == "HyperSlab":
+            source, _ = hyperslab(item)
+            nested.update(id(child) for child in item)
+            sources.append(source)
+        else:
+            sources.append(item)
+    return sources
 
 
 def inspect_run(source: RunSource) -> ParsedRun:
@@ -204,7 +302,7 @@ def inspect_run(source: RunSource) -> ParsedRun:
             raise ValueError("Scalar field schema changes between time steps")
         fields = schema
     references: dict[str, Path] = {}
-    for item in tree.iter("DataItem"):
+    for item in hdf_sources(tree):
         filename, _ = hdf_reference(item)
         if filename not in references:
             path = (source.xdmf.parent / filename).resolve()
@@ -230,13 +328,11 @@ def inspect_run(source: RunSource) -> ParsedRun:
         else bool(times[-1] - times[0] >= duration - 1e-6),
         "cell_fields": "|".join(fields["Cell"]),
         "point_fields": "|".join(fields["Node"]),
-        "resolution_key": source.run_id.removeprefix("convergence_")
-        if condition is None
-        else None,
+        "resolution_key": mesh_key(source.run_id) if condition is None else None,
         "pattern_key": None if condition is None else condition.pattern_key,
         "pattern_name": None
         if condition is None
-        else pattern_idx2name[condition.pattern_key],
+        else pattern_name(condition.pattern_key),
         "boundary_flow_key": None if condition is None else condition.boundary_flow_key,
         "boundary_flow": None if condition is None else condition.boundary_flow,
         "boundary_flow_unit": "unspecified in source" if condition else None,

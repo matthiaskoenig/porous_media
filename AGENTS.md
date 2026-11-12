@@ -104,11 +104,16 @@ uv run --no-sync pre-commit run --all-files
   its instructions.
 - Update affected guides, examples, and docstrings when behavior changes. Use
   bundled or synthetic data in examples, or state external requirements.
-- Start work from the current `main` on a short-lived branch. Preserve existing
-  user edits and deletions; do not reset, overwrite, or stage unrelated work.
-- Merge changes through a pull request against `main`. Required checks are
+- Start work from the current `develop` on a short-lived branch. `develop` is the
+  default and integration branch; `main` carries the released versions. Preserve
+  existing user edits and deletions; do not reset, overwrite, or stage unrelated
+  work.
+- Merge changes through a pull request against `develop`. Required checks are
   `tests`, `ruff`, `ty`, `docs`, and `build`; resolve review conversations and
-  preserve linear history. Do not push directly to `main` or bypass protections.
+  preserve linear history by squashing or rebasing. Do not push directly to
+  `develop` or `main` and do not bypass protections.
+- Promote `develop` to `main` only through a release pull request merged with a
+  merge commit, as described in `docs/release.md`.
 - Keep `.github/workflows/ci-cd.yml` and its README badge aligned. Release tags
   validate notes under `docs/release-notes/` before publishing.
 - Versioned branch and tag rules live in `.github/rulesets/`. Keep their

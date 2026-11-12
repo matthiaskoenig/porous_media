@@ -166,7 +166,7 @@ def test_old_samples_gain_depth_without_resampling_scalars(
         heights = load_heights(directory, manifest, raw, sample_path=legacy)
     np.testing.assert_array_equal(heights, np.tile([0, 0.2], (3, 1)))
     monkeypatch.setattr(
-        "meshio.xdmf.TimeSeriesReader",
+        "porous_media.data.xdmf_tools.XDMFTimeSeriesReader.__init__",
         lambda *args: pytest.fail("Cached depth reopened a mesh"),
     )
     np.testing.assert_array_equal(

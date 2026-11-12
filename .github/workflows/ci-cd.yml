@@ -2,10 +2,11 @@ name: CI-CD
 
 on:
   push:
-    branches: [main]
+    # feature branches are tested through their pull request, tags release
+    branches: [develop, main]
     tags: ['*']
   pull_request:
-    branches: [main]
+    branches: [develop, main]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -18,7 +19,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
 env:
   UV_VERSION: '0.13.7'
