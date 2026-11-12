@@ -48,7 +48,11 @@ from research.spt.catalog import (
     mesh_key,
 )
 from research.spt.cli import selected_studies, write_catalog
-from research.spt.conditions import conditions_from_source
+from research.spt.conditions import (
+    MIXED_EXCLUDED_PATTERN,
+    conditions_from_source,
+    pattern_name,
+)
 from research.spt.execution import execute_jobs, print_result
 from research.spt.fields import GEOMETRY_CELL_FIELDS, GEOMETRY_POINT_FIELDS
 from research.spt.layout import artifact_directory, log_path
@@ -179,15 +183,21 @@ def geometry_jobs(
             raise ValueError(
                 f"Missing expected simulations: {', '.join(sorted(missing))}"
             )
-        patterns = sorted({condition.pattern_key for condition in conditions})
-        if len(patterns) < SECTORS:
+        # Every pattern still has its own lobule and its own row in the study
+        # and manuscript figures; only this comparison view is limited by the
+        # geometry, which offers exactly one sector per compared pattern.
+        shown = sorted(
+            {
+                condition.pattern_key
+                for condition in conditions
+                if pattern_name(condition.pattern_key) != MIXED_EXCLUDED_PATTERN
+            }
+        )
+        if len(shown) != SECTORS:
             raise ValueError(
-                f"A mixed lobule needs {SECTORS} zonation patterns, one per sector"
+                f"A mixed lobule needs {SECTORS} zonation patterns beside "
+                f"{MIXED_EXCLUDED_PATTERN}, one per sector"
             )
-        # One sector per pattern leaves no room beyond the sixth. Every pattern
-        # still has its own lobule and its own row in the study and manuscript
-        # figures; only this comparison view is limited by the geometry.
-        shown = patterns[:SECTORS]
         for dose in sorted({condition.boundary_flow_key for condition in conditions}):
             selected = sorted(
                 (

@@ -174,9 +174,12 @@ catalogued and plotted, as `pattern <index>`, rather than dropped or given an
 invented label.
 
 A lobule is six rotations of one source sector, so the mixed-pattern comparison
-view holds six sources and no more. With seven patterns it compares the first
-six; every pattern still has its own lobule and its own row in the study and
-manuscript figures. `--no-combinations` skips the mixed views entirely.
+view holds six sources and no more. It compares every pattern beside CYP2E1,
+which is the measured profile rather than one of the synthetic ones. Every
+pattern still has its own lobule and its own row in the study and manuscript
+figures. A study that leaves more than six patterns after that exclusion fails
+rather than silently dropping one, because the sector count fixes how many fit.
+`--no-combinations` skips the mixed views entirely.
 
 ## Build or resume local caches
 

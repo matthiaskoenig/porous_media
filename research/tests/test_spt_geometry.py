@@ -15,7 +15,11 @@ from porous_media.data.xdmf_tools import (
 from research.geometry_conversion import sector_transforms
 from research.spt.cache import ANALYSIS_FIELDS, load_processed_run
 from research.spt.catalog import discover_runs
-from research.spt.conditions import simulation_conditions
+from research.spt.conditions import (
+    MIXED_EXCLUDED_PATTERN,
+    pattern_name,
+    simulation_conditions,
+)
 from research.spt.data_processing import main, process_studies
 from research.spt.fields import GEOMETRY_CELL_FIELDS
 from research.spt.geometry import (
@@ -282,14 +286,21 @@ def test_pattern_selection_and_cli_dry_run(tmp_path: Path) -> None:
     doses = len({condition.boundary_flow_key for condition in conditions})
     jobs = geometry_jobs(root, study="simulations", lobulus=False)
     assert len(jobs) == doses
-    # One sector per pattern: a study with more patterns than a lobule has
-    # sectors compares the first six here, each still keeping its own lobule.
+    # One sector per pattern: the comparison shows every pattern beside the
+    # measured CYP2E1 profile, which keeps its own lobule and figure row.
     assert [source.run_id for source in jobs[0].sources] == [
         f"sim{1 + pattern * doses:03}" for pattern in range(SECTORS)
     ]
-    assert [
+    compared = [
         source.condition.pattern_key for source in jobs[-1].sources if source.condition
-    ] == list(range(SECTORS))
+    ]
+    assert compared == list(range(SECTORS))
+    excluded = {
+        condition.pattern_key
+        for condition in conditions
+        if pattern_name(condition.pattern_key) == MIXED_EXCLUDED_PATTERN
+    }
+    assert excluded and not excluded.intersection(compared)
     assert (
         main(
             [
