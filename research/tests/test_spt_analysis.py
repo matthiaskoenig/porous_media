@@ -223,6 +223,21 @@ def test_empty_bins_endpoints_and_invalid_weights() -> None:
     np.testing.assert_array_equal(
         CellSampler(dataset, ("rr_necrosis",)).sample(1)["rr_necrosis"], [0.25, 0]
     )
+    # The solver writes float32, so an alive cell can land a hair below zero.
+    # Round-off is kept as the physical state; a real violation still fails.
+    rounded = xr.Dataset(
+        {"rr_necrosis": (("time", "cell"), [[-1.1e-11, 1.0], [1.0, 1.0]])},
+        coords={"time": [0, 2], "cell": [0, 1]},
+    )
+    np.testing.assert_array_equal(
+        CellSampler(rounded, ("rr_necrosis",)).sample(1)["rr_necrosis"], [0.0, 1.0]
+    )
+    invalid = xr.Dataset(
+        {"rr_necrosis": (("time", "cell"), [[-0.01, 1.0], [1.0, 1.0]])},
+        coords={"time": [0, 2], "cell": [0, 1]},
+    )
+    with pytest.raises(ValueError, match="Necrosis values"):
+        CellSampler(invalid, ("rr_necrosis",)).sample(1)
 
 
 def test_failure_recovery_and_missing_artifact(

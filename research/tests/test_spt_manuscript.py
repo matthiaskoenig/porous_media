@@ -24,6 +24,7 @@ from research.spt.data_processing import process_studies
 from research.spt.fields import LAYERS, SUMMARY_FIELDS, Layer
 from research.spt.geometry import CONVERGENCE_MESHES, process_geometries
 from research.spt.manuscript import (
+    caption,
     create_manuscript_figures,
     simulation_cohort,
 )
@@ -35,6 +36,7 @@ from research.spt.manuscript_data import (
     ManuscriptData,
     convergence_view,
     pattern_label,
+    truncated_runs,
 )
 from research.spt.manuscript_geometry import (
     raster_panel,
@@ -255,6 +257,56 @@ def test_pattern_panels_and_necrosis_doses_are_annotated(
     for figure in (patterns, necrosis):
         for pattern in range(len(PATTERN_NAMES)):
             assert figure.count(f'id="pattern-icon-{chr(97 + pattern)}"') == 1
+
+
+def test_truncated_runs_are_marked_instead_of_extrapolated(
+    manuscript_data: ManuscriptData,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A diverged solver run loses its own panel only, and says why in place."""
+    data = manuscript_data
+    prototype = data.source("simulations_lobulus", "sim014")
+    conditions = simulation_conditions()
+    all_sources = [
+        replace(
+            prototype,
+            run=replace(prototype.run, run_id=c.sim_id, condition=c),
+            dose=c.boundary_flow_key,
+            end=1342.6 if index == 8 else prototype.end,
+        )
+        for index, c in enumerate(conditions)
+    ]
+    stopped = all_sources[8]
+    original = data.snapshots(prototype, SIMULATION_TIMES)
+    requested = []
+
+    def snapshots(source: PlotSource, times: tuple[float, ...]) -> Samples:
+        requested.append(source.run.run_id)
+        return replace(original, times=np.asarray(times), values=original.values[-1:])
+
+    monkeypatch.setattr(data, "snapshots", snapshots)
+    with mpl.rc_context({"svg.fonttype": "none"}):
+        render_necrosis(
+            data, all_sources, tmp_path, RenderOptions(formats=("svg",), dpi=25)
+        )
+    necrosis = (tmp_path / "figure-07.svg").read_text()
+    assert stopped.run.run_id not in requested
+    assert len(requested) == len(conditions) - 1
+    tree = ET.fromstring(necrosis)
+    assert len(list(tree.iter("{http://www.w3.org/2000/svg}image"))) == (
+        len(conditions) - 1
+    )
+    assert f"{stopped.run.run_id} ends at 0.37 h" in necrosis
+    assert "no state at 24 h" in necrosis
+    # The caption names the gap, and the manifest makes the cached figure stale
+    # once the rerun history reaches the full duration.
+    description = caption("7", all_sources, 5)
+    assert f"{stopped.run.run_id} at 0.37 h" in description
+    assert "without extrapolation" in description
+    assert truncated_runs(all_sources) == [stopped.run.run_id]
+    assert not truncated_runs([prototype])
+    assert "stopped" not in caption("7", [prototype], 5)
 
 
 def test_shared_bars_and_tight_geometry_panels(

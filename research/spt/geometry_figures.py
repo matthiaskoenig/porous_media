@@ -18,7 +18,7 @@ from research.spt.geometry import SECTORS, GeometryJob, geometry_manifest
 from research.spt.plot_render import Samples, panel
 from research.spt.plot_view import face_heights, project
 
-COMPARISON_PLOT_VERSION = 8
+COMPARISON_PLOT_VERSION = 9
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:

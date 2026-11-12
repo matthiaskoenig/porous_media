@@ -40,7 +40,7 @@ from research.spt.plot_data import PlotSource, load_heights
 from research.spt.plot_mesh import OUTLINE_VERSION
 from research.spt.plot_view import GEOMETRY_VIEW, SurfaceProjection
 
-RENDER_VERSION = 9
+RENDER_VERSION = 10
 SOLID_CELL_STROKE = 0.2
 
 

@@ -35,11 +35,13 @@ from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
     DOSE_COUNT,
+    NECROSIS_TIME,
     PATTERN_NAMES,
     SIMULATION_TIMES,
     ManuscriptData,
     pattern_label,
     pattern_letters,
+    truncated_runs,
 )
 from research.spt.manuscript_geometry import (
     render_example,
@@ -58,7 +60,7 @@ from research.spt.plot_render import RenderOptions
 from research.spt.plot_view import GEOMETRY_VIEW
 from research.spt.report import build_report
 
-MANUSCRIPT_VERSION = 5
+MANUSCRIPT_VERSION = 6
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
 TITLES = {
@@ -179,6 +181,11 @@ def caption(
             "uncertainty across independent simulations."
         )
     if number == "7":
+        incomplete = [
+            f"{source.run.run_id} at {source.end / 3600:.2f} h"
+            for source in sources
+            if source.end < NECROSIS_TIME
+        ]
         return (
             f"Figure 7. Necrosis at 24 h by protein zonation pattern (rows "
             f"{pattern_letters()}) and increasing substrate inflow "
@@ -186,6 +193,13 @@ def caption(
             "on the right labels black as necrosis and white as no necrosis. "
             "Cell states retain the fixed 0-1 scale. Maps show lobule outlines "
             "without internal mesh edges."
+            + (
+                " Dashed panels mark simulations whose solver stopped before 24 h "
+                "and are labeled with their actual end time, without "
+                "extrapolation: " + ", ".join(incomplete) + "."
+                if incomplete
+                else ""
+            )
         )
     common_end = min(source.end for source in sources)
     return (
@@ -280,9 +294,12 @@ def create_manuscript_figures(
             "dose_index": dose if number in {"4", "5"} else None,
             "snapshot_times_s": list(SIMULATION_TIMES)
             if number in {"4", "5"}
-            else [86400.0]
+            else [NECROSIS_TIME]
             if number == "7"
             else [],
+            # Marked gaps belong to the figure's identity, so a rerun solver
+            # that reaches the full duration invalidates the cached panel.
+            "truncated_runs": truncated_runs(sources) if number == "7" else [],
             "formats": list(formats),
             "dpi": dpi,
             "crop": "visible content with a one-point safety border",

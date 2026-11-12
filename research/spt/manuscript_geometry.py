@@ -17,6 +17,7 @@ from matplotlib.transforms import Bbox
 from research.spt.fields import LAYERS, Layer
 from research.spt.manuscript_data import (
     DOSE_COUNT,
+    NECROSIS_TIME,
     PATTERN_NAMES,
     SIMULATION_TIMES,
     ManuscriptData,
@@ -390,6 +391,27 @@ def render_patterns(
         art.clear()
 
 
+def missing_panel(axis: Axes, source: PlotSource, time: float) -> None:
+    """Mark a panel whose run has no state at a requested time, without guessing."""
+    axis.set_xticks([])
+    axis.set_yticks([])
+    axis.set_facecolor("whitesmoke")
+    for spine in axis.spines.values():
+        spine.set_color("darkgray")
+        spine.set_linestyle((0, (2, 2)))
+    axis.text(
+        0.5,
+        0.5,
+        f"no state at {time / 3600:g} h\n{source.run.run_id} ends at "
+        f"{source.end / 3600:.2f} h",
+        ha="center",
+        va="center",
+        fontsize=8,
+        color="dimgray",
+        transform=axis.transAxes,
+    )
+
+
 def render_necrosis(
     data: ManuscriptData,
     sources: list[PlotSource],
@@ -426,26 +448,33 @@ def render_necrosis(
     grid = outer[1, 0].subgridspec(
         len(PATTERN_NAMES), DOSE_COUNT, hspace=0.02, wspace=0.02
     )
-    layer = replace(LAYERS[-1], limits=(0, 1))
+    # The layer carries the fixed zero to one cell-state scale, so the panels
+    # need no measured fallback range.
+    layer = LAYERS[-1]
     try:
         for source in sources:
             condition = source.run.condition
             assert condition is not None
             row, column = condition.pattern_key, condition.boundary_flow_key
             axis = art.add_subplot(grid[row, column])
-            samples = data.snapshots(source, (86400.0,))
-            map_panel(
-                art,
-                axis,
-                samples,
-                layer,
-                samples.values[0, -1],
-                {layer.sid: (0, 1)},
-                0.45,
-                options.dpi,
-                colorbar=False,
-                tight=True,
-            )
+            if source.end < NECROSIS_TIME:
+                # One diverged solver run must not cost the whole matrix; name
+                # the gap in place instead of extrapolating its final state.
+                missing_panel(axis, source, NECROSIS_TIME)
+            else:
+                samples = data.snapshots(source, (NECROSIS_TIME,))
+                map_panel(
+                    art,
+                    axis,
+                    samples,
+                    layer,
+                    samples.values[0, -1],
+                    {},
+                    0.45,
+                    options.dpi,
+                    colorbar=False,
+                    tight=True,
+                )
             if row == 0:
                 axis.set_title(f"D{column + 1}", fontsize=12, fontweight="bold")
             if column == 0:

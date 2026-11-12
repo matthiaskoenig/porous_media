@@ -28,6 +28,8 @@ from research.spt.plot_data import SAMPLE_VERSION, PlotSource, load_heights
 from research.spt.plot_render import Samples
 
 SIMULATION_TIMES = (0.0, 21600.0, 43200.0, 64800.0, 86400.0)
+# The necrosis matrix shows the final state of the shared model duration.
+NECROSIS_TIME = SIMULATION_TIMES[-1]
 CONVERGENCE_TIME = 5400.0
 CONVERGENCE_DISPLAY_MESHES = CONVERGENCE_MESHES[::-1]
 PATTERN_NAMES = (
@@ -55,6 +57,11 @@ def pattern_label(pattern: int) -> str:
 def pattern_letters() -> str:
     """Name the row-label range the figures share, such as ``A-G``."""
     return f"A-{chr(64 + len(PATTERN_NAMES))}"
+
+
+def truncated_runs(sources: list[PlotSource], time: float = NECROSIS_TIME) -> list[str]:
+    """Name the sources whose solver stopped before a requested snapshot time."""
+    return [source.run.run_id for source in sources if source.end < time]
 
 
 def convergence_view(samples: Samples) -> Samples:

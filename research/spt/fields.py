@@ -23,7 +23,9 @@ class Layer:
 
 
 SPT_LAYERS = (
-    Layer("rr_necrosis", "Necrosis (0: alive, 1: death)", "binary"),
+    # Necrosis is a cell state, so every map shows its physical zero to one
+    # scale instead of the solver round-off a measured range would carry.
+    Layer("rr_necrosis", "Necrosis (0: alive, 1: death)", "binary", (0.0, 1.0)),
     Layer("rr_protein", "Protein", "hot"),
     Layer("rr_(S_ext)", "Substrate S plasma [mM]"),
     Layer("rr_(P_ext)", "Product P plasma [mM]"),

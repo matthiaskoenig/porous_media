@@ -814,7 +814,7 @@ exports are repaired; `--force` regenerates selected manuscript figures.
 | 4 | `sim014`, linear increase, D6; five field rows by five time columns | Pattern/dose heading, field labels, horizontal time arrow and column labels; one vertical colorbar per field row |
 | 5 | One run per zonation pattern at D6, in pattern blocks | Each block has protein, toxic compound and necrosis rows, five time columns, pattern labels and icons; three shared bottom colorbars |
 | 6 | Every homogeneous lobule; one pattern row per pattern and five fields | Consistent pattern labels, field headers and D1-D8 legend |
-| 7 | Necrosis at 24 h; pattern rows by eight doses | Consistent pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right |
+| 7 | Necrosis at 24 h; pattern rows by eight doses | Consistent pattern labels and icons, D1-D8 columns, inflow arrow and one shared binary legend on the right; dashed placeholders name runs that stop early |
 | S1 | Six source-sector meshes, five common-time mixed-sixth readouts and one row of native lobule time courses | Mesh IDs and cell counts, matched boundary/curve colors, A-C panels, exact map time, linear axes, common-window boundary and truncated-history markers |
 
 Figures 4 and 5 explicitly sample **0, 6, 12, 18 and 24 h**, independently of the
@@ -822,7 +822,8 @@ historical overview snapshot selection. Labels are derived from the actual times
 a nonzero overview frame is never relabeled as zero. Continuous cell fields are
 interpolated locally and necrosis holds its preceding native frame. Shared scalar
 limits use full histories of the entire simulation cohort, preserving the mesh
-palettes. Maps of Figures 4, 5 and 7 show lobule outlines without internal mesh
+palettes. Necrosis is a cell state, so every map shows it on the physical 0-1
+scale and float32 round-off just below zero never reaches a colorbar label. Maps of Figures 4, 5 and 7 show lobule outlines without internal mesh
 edges; outline widths scale with panel size. Only the source meshes in Figure S1 A
 show their triangles. Figure 6 reuses the existing volume-weighted means, population SD,
 markers and pattern/dose colors. SD represents spatial heterogeneity, rather than
@@ -831,10 +832,13 @@ uncertainty across replicate simulations.
 Time runs left to right in Figures 4 and 5, with columns for 0, 6, 12, 18 and 24 h.
 Figure 4 retains all five fields as rows, each with one vertical colorbar on the
 right. Figure 5 shows only protein, toxic compound and necrosis. Its three bottom
-colorbars serve all six pattern blocks. Figure 7 uses two swatches
+colorbars serve every pattern block. Figure 7 uses two swatches
 beside the complete grid: black means **necrosis** and white means **no necrosis**.
 Its binary legend has no intermediate values. Individual map panels have no
-colorbars. The field palettes and
+colorbars. A simulation whose solver stops before 24 h keeps its place in the
+pattern-by-dose grid as a dashed panel naming the run and its actual end time;
+nothing is extrapolated, and the caption and manifest list the affected runs, so
+a completed rerun invalidates the cached figure. The field palettes and
 full-cohort limits remain unchanged. Geometry axes use their cropped domain
 extents, including white living tissue; smaller canvases and closely packed grids
 reduce whitespace around the meshes.

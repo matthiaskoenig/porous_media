@@ -186,12 +186,7 @@ def render_convergence(
         )
         maps = outer[1].subgridspec(1, len(LAYERS))
         for column, original in enumerate(LAYERS):
-            layer = replace(
-                original,
-                show_edges=False,
-                outline=False,
-                limits=(0, 1) if original.sid == "rr_necrosis" else None,
-            )
+            layer = replace(original, show_edges=False, outline=False)
             axis = art.add_subplot(maps[0, column])
             map_panel(
                 art,
