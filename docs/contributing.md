@@ -1,7 +1,8 @@
 # Contributing
 
 Contributions to the code, documentation, examples, and tests are welcome.
-Development targets the `main` branch.
+Development targets the `develop` branch. The `main` branch carries the
+released versions and receives `develop` through a release pull request.
 
 ## Report a bug or propose a change
 
@@ -18,7 +19,7 @@ the intended behavior in an issue before starting implementation.
 
 ## Prepare a contribution
 
-Create a short-lived branch from the current `main` branch. Follow the
+Create a short-lived branch from the current `develop` branch. Follow the
 [development environment setup](development.md#environment) to install Python,
 sync the committed lockfile with uv, and install the pre-commit hooks.
 
@@ -37,14 +38,16 @@ request. Include intentional `uv.lock` changes when updating dependencies.
 
 ## Submit a pull request
 
-Submit the pull request against `main`. Describe the problem, the resulting
+Submit the pull request against `develop`. Describe the problem, the resulting
 behavior, and the validation performed. Link the relevant issue and explain any
 external data or program requirements.
 
 Pull requests require passing `tests`, `ruff`, `ty`, `docs`, and `build` checks,
-resolved review conversations, and linear history. Contributor pull requests need
-maintainer review. The solo-maintainer policy does not require approving reviews,
-so the maintainer can merge their own pull requests after checks pass.
+resolved review conversations, and linear history. Merge into `develop` by
+squashing or rebasing; neither `develop` nor `main` accepts a direct push.
+Contributor pull requests need maintainer review. The solo-maintainer policy
+does not require approving reviews, so the maintainer can merge their own pull
+requests after checks pass.
 
 See [repository policies](development.md#repository-policies) for the versioned
 ruleset definitions and maintainer instructions. Existing release tags cannot be
