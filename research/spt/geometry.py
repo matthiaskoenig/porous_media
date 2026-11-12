@@ -59,6 +59,9 @@ from research.spt.storage import COMPLEVEL
 # Version 2 keeps only the fields the pipeline reads and compresses harder.
 GEOMETRY_VERSION = 2
 CONVERGENCE_MESHES = ("06250", "09375", "12500", "18750", "25000", "37250")
+# A lobule is six rotations of one source sector, so a mixed view holds six
+# sources and no more.
+SECTORS = 6
 
 
 @dataclass(frozen=True)
@@ -119,7 +122,7 @@ def geometry_jobs(
     combinations: bool = True,
     all_fields: bool = False,
 ) -> list[GeometryJob]:
-    """Select full lobules and six-pattern views using archived conditions."""
+    """Select full lobules and mixed sector views using archived conditions."""
     runs = discover_runs(input_root, selected_studies(study), run_ids)
     if not run_ids and study in {"both", "simulations"}:
         conditions, _ = conditions_from_source(input_root)
@@ -136,7 +139,7 @@ def geometry_jobs(
             GeometryJob(
                 source.study.replace("_sixth", "_lobulus"),
                 source.run_id,
-                (source,) * 6,
+                (source,) * SECTORS,
                 all_fields=all_fields,
             )
             for source in runs
@@ -176,21 +179,34 @@ def geometry_jobs(
             raise ValueError(
                 f"Missing expected simulations: {', '.join(sorted(missing))}"
             )
+        patterns = sorted({condition.pattern_key for condition in conditions})
+        if len(patterns) < SECTORS:
+            raise ValueError(
+                f"A mixed lobule needs {SECTORS} zonation patterns, one per sector"
+            )
+        # One sector per pattern leaves no room beyond the sixth. Every pattern
+        # still has its own lobule and its own row in the study and manuscript
+        # figures; only this comparison view is limited by the geometry.
+        shown = patterns[:SECTORS]
         for dose in sorted({condition.boundary_flow_key for condition in conditions}):
             selected = sorted(
                 (
                     source
                     for source in runs
-                    if source.condition and source.condition.boundary_flow_key == dose
+                    if source.condition
+                    and source.condition.boundary_flow_key == dose
+                    and source.condition.pattern_key in shown
                 ),
                 key=lambda source: (
                     source.condition.pattern_key if source.condition else -1
                 ),
             )
-            if len(selected) != 6 or {
+            if [
                 source.condition.pattern_key for source in selected if source.condition
-            } != set(range(6)):
-                raise ValueError("Each dose requires all six zonation patterns")
+            ] != shown:
+                raise ValueError(
+                    "Each dose requires one run per compared zonation pattern"
+                )
             jobs.append(
                 GeometryJob(
                     "simulations_combinations",

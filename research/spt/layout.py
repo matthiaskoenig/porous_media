@@ -85,7 +85,7 @@ Keep this directory together; the report uses relative links.
 | `logs/` | Pipeline, processing, analysis, plotting and manuscript reports with per-stage catalogues |
 | `cache/` | Intermediate numerical caches, plot samples and report previews |
 
-Studies: `simulations_*` are the 48 zonation-pattern and dose simulations,
+Studies: `simulations_*` are the zonation-pattern and dose simulations,
 `convergence_*` the mesh-convergence runs. `*_sixth` is the simulated sixth of a
 lobule, `*_lobulus` the reconstructed homogeneous lobule and `*_combinations`
 six different sixths assembled for visual comparison.

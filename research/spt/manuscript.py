@@ -34,9 +34,12 @@ from research.spt.layout import (
 from research.spt.manuscript_data import (
     CONVERGENCE_DISPLAY_MESHES,
     CONVERGENCE_TIME,
+    DOSE_COUNT,
+    PATTERN_NAMES,
     SIMULATION_TIMES,
     ManuscriptData,
     pattern_label,
+    pattern_letters,
 )
 from research.spt.manuscript_geometry import (
     render_example,
@@ -55,7 +58,7 @@ from research.spt.plot_render import RenderOptions
 from research.spt.plot_view import GEOMETRY_VIEW
 from research.spt.report import build_report
 
-MANUSCRIPT_VERSION = 4
+MANUSCRIPT_VERSION = 5
 PAPER = "https://doi.org/10.1101/2024.03.26.586870"
 FIGURES = ("4", "5", "6", "7", "S1")
 TITLES = {
@@ -93,7 +96,7 @@ def export_figure(generation: Path, root: Path, stem: str) -> None:
 
 
 def simulation_cohort(data: ManuscriptData) -> list[PlotSource]:
-    """Require all six patterns and eight doses, identified by recorded conditions."""
+    """Require every zonation pattern and dose, identified by recorded conditions."""
     sources = [
         data.source("simulations_lobulus", path.parent.name)
         for path in sorted(
@@ -107,11 +110,15 @@ def simulation_cohort(data: ManuscriptData) -> list[PlotSource]:
         for source in sources
         if source.run.condition
     ]
-    if len(sources) != 48 or set(conditions) != {
-        (p, d) for p in range(6) for d in range(8)
-    }:
+    expected = {
+        (pattern, dose)
+        for pattern in range(len(PATTERN_NAMES))
+        for dose in range(DOSE_COUNT)
+    }
+    if len(sources) != len(expected) or set(conditions) != expected:
         raise ValueError(
-            "Manuscript figures require six patterns and eight doses; run the complete SPT pipeline"
+            f"Manuscript figures require {len(PATTERN_NAMES)} patterns and "
+            f"{DOSE_COUNT} doses; run the complete SPT pipeline"
         )
     return sorted(
         sources,
@@ -120,6 +127,12 @@ def simulation_cohort(data: ManuscriptData) -> list[PlotSource]:
             source.run.condition.boundary_flow_key if source.run.condition else -1,
         ),
     )
+
+
+def _blocks() -> str:
+    """List the pattern blocks exactly as the figures label them."""
+    labels = [f"{chr(65 + index)}: {name}" for index, name in enumerate(PATTERN_NAMES)]
+    return f"{', '.join(labels[:-1])} and {labels[-1]}"
 
 
 def caption(
@@ -138,14 +151,14 @@ def caption(
             "right. Continuous cell "
             "values are interpolated between native frames; discrete necrosis holds "
             "the preceding frame. One shared vertical colorbar beside each field row uses scalar limits "
-            "from full histories of all 48 runs. Maps show the lobule outline "
+            f"from full histories of all {len(PATTERN_NAMES) * DOSE_COUNT} runs. "
+            "Maps show the lobule outline "
             "without internal mesh edges."
         )
     if number == "5":
         return (
-            f"Figure 5. SPT metabolism at D{dose} for A: constant, B: linear "
-            "increase, C: sharp perivenous, D: linear decrease, E: sharp periportal "
-            "and F: random zonation. Each block has three rows for protein, toxic "
+            f"Figure 5. SPT metabolism at D{dose} for {_blocks()} zonation. "
+            "Each block has three rows for protein, toxic "
             "compound and necrosis. Columns show 0, 6, 12, 18 and 24 h from left to "
             "right. All blocks share full-cohort scalar limits and a single bottom "
             "set of three field colorbars. Maps show lobule outlines without "
@@ -156,8 +169,10 @@ def caption(
     if number == "6":
         return (
             "Figure 6. Volume-weighted mean and population SD over homogeneous "
-            "lobules for all 48 simulations. Rows A-F use the same pattern order as "
-            "Figure 5. Eight shades per pattern encode increasing doses D1-D8. "
+            f"lobules for all {len(PATTERN_NAMES) * DOSE_COUNT} simulations. Rows "
+            f"{pattern_letters()} use the same pattern order as Figure 5. "
+            f"{DOSE_COUNT} shades per pattern encode increasing doses "
+            f"D1-D{DOSE_COUNT}. "
             "Necrosis is expressed as percent tissue volume. Means and SD reuse "
             "the existing matched-time analysis, which interpolates cell values and "
             "volumes before reduction. SD describes spatial heterogeneity, not "
@@ -165,8 +180,9 @@ def caption(
         )
     if number == "7":
         return (
-            "Figure 7. Necrosis at 24 h by protein zonation pattern (rows A-F) and "
-            "increasing substrate inflow (D1-D8, columns). The shared binary legend "
+            f"Figure 7. Necrosis at 24 h by protein zonation pattern (rows "
+            f"{pattern_letters()}) and increasing substrate inflow "
+            f"(D1-D{DOSE_COUNT}, columns). The shared binary legend "
             "on the right labels black as necrosis and white as no necrosis. "
             "Cell states retain the fixed 0-1 scale. Maps show lobule outlines "
             "without internal mesh edges."
@@ -214,8 +230,8 @@ def create_manuscript_figures(
         figures = FIGURES
     if not figures or len(set(figures)) != len(figures) or set(figures) - set(FIGURES):
         raise ValueError("Select unique figure identifiers: 4, 5, 6, 7, S1")
-    if not 1 <= dose <= 8:
-        raise ValueError("Dose index must be between 1 and 8")
+    if not 1 <= dose <= DOSE_COUNT:
+        raise ValueError(f"Dose index must be between 1 and {DOSE_COUNT}")
     if not np.isfinite(comparison_time) or comparison_time < 0:
         raise ValueError("Comparison time must be finite and nonnegative")
     data = ManuscriptData(data_root)
@@ -282,8 +298,10 @@ def create_manuscript_figures(
         if number in {"4", "5", "6", "7"}:
             configuration.update(
                 manuscript_layout_version=3,
-                dose_labels=[f"D{index}" for index in range(1, 9)],
-                pattern_labels=[pattern_label(index) for index in range(6)],
+                dose_labels=[f"D{index}" for index in range(1, DOSE_COUNT + 1)],
+                pattern_labels=[
+                    pattern_label(index) for index in range(len(PATTERN_NAMES))
+                ],
                 pattern_icons=PATTERN_ICON_DESCRIPTION,
                 colorbars="five shared vertical field bars"
                 if number == "4"

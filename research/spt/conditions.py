@@ -23,6 +23,7 @@ pattern_idx2name = {
     3: "linear decrease",
     4: "sharp periportal",
     5: "random",
+    6: "cyp2e1",
 }
 
 

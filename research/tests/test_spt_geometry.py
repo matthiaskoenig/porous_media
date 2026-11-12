@@ -15,10 +15,12 @@ from porous_media.data.xdmf_tools import (
 from research.geometry_conversion import sector_transforms
 from research.spt.cache import ANALYSIS_FIELDS, load_processed_run
 from research.spt.catalog import discover_runs
+from research.spt.conditions import simulation_conditions
 from research.spt.data_processing import main, process_studies
 from research.spt.fields import GEOMETRY_CELL_FIELDS
 from research.spt.geometry import (
     CONVERGENCE_MESHES,
+    SECTORS,
     geometry_jobs,
     geometry_path,
     lobulus_sources,
@@ -274,21 +276,20 @@ def test_comparison_figures_and_hdf_storage(
 def test_pattern_selection_and_cli_dry_run(tmp_path: Path) -> None:
     """Group patterns by archived dose identity rather than adjacent file order."""
     root, target = tmp_path / "raw", tmp_path / "derived"
-    for index in range(1, 49):
-        _source(root, f"sim{index:03}", 1, (0.0, 4.0))
+    conditions = simulation_conditions()
+    for condition in conditions:
+        _source(root, condition.sim_id, 1, (0.0, 4.0))
+    doses = len({condition.boundary_flow_key for condition in conditions})
     jobs = geometry_jobs(root, study="simulations", lobulus=False)
-    assert len(jobs) == 8
+    assert len(jobs) == doses
+    # One sector per pattern: a study with more patterns than a lobule has
+    # sectors compares the first six here, each still keeping its own lobule.
     assert [source.run_id for source in jobs[0].sources] == [
-        "sim001",
-        "sim009",
-        "sim017",
-        "sim025",
-        "sim033",
-        "sim041",
+        f"sim{1 + pattern * doses:03}" for pattern in range(SECTORS)
     ]
     assert [
         source.condition.pattern_key for source in jobs[-1].sources if source.condition
-    ] == list(range(6))
+    ] == list(range(SECTORS))
     assert (
         main(
             [
@@ -306,7 +307,7 @@ def test_pattern_selection_and_cli_dry_run(tmp_path: Path) -> None:
         == 0
     )
     assert not target.exists()
-    (root / "simulations_sixth/xdmf/sim041.xdmf").unlink()
+    (root / f"simulations_sixth/xdmf/{conditions[-1].sim_id}.xdmf").unlink()
     with pytest.raises(ValueError, match="Missing expected"):
         geometry_jobs(root, study="simulations", lobulus=False)
 

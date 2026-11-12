@@ -11,13 +11,14 @@ import numpy as np
 
 from porous_media.data.xdmf_tools import XDMFTimeSeriesReader
 from research.spt.artifacts import fingerprint, generation_path, publish, run_lock
+from research.spt.catalog import mesh_key
 from research.spt.conditions import pattern_idx2name
 from research.spt.fields import SPT_LAYERS
-from research.spt.geometry import GeometryJob, geometry_manifest
+from research.spt.geometry import SECTORS, GeometryJob, geometry_manifest
 from research.spt.plot_render import Samples, panel
 from research.spt.plot_view import face_heights, project
 
-COMPARISON_PLOT_VERSION = 7
+COMPARISON_PLOT_VERSION = 8
 
 
 def render_comparison(job: GeometryJob, descriptor: Path) -> None:
@@ -76,7 +77,7 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
             centers = np.concatenate(
                 [points[block.data, :2].mean(axis=1) for block in cells]
             )
-            for sector in range(6):
+            for sector in range(SECTORS):
                 position = project(
                     centers[sector_ids == sector].mean(axis=0) * 1.8,
                     float(heights[:, 1].max()),
@@ -105,9 +106,9 @@ def render_comparison(job: GeometryJob, descriptor: Path) -> None:
                 if source.condition
             ]
         else:
-            title = "Six convergence resolutions: independent sectors"
+            title = f"{SECTORS} convergence resolutions: independent sectors"
             labels = [
-                f"{index + 1}: {source.run_id.removeprefix('convergence_')}"
+                f"{index + 1}: {mesh_key(source.run_id)}"
                 for index, source in enumerate(job.sources)
             ]
         figure.suptitle(title)

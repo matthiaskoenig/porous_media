@@ -10,10 +10,11 @@ PATTERN_COLORMAPS = {
     3: "Reds",
     4: "Oranges",
     5: "Greens",
+    6: "YlOrBr",
 }
 # A study may add a pattern before this repository names it; keep such a run
-# plottable and visibly distinct from the six the manuscript describes.
-EXTRA_PATTERN_COLORMAPS = ("YlOrBr", "BuGn", "PuRd", "YlGn")
+# plottable and visibly distinct from the named ones above.
+EXTRA_PATTERN_COLORMAPS = ("BuGn", "PuRd", "YlGn", "RdPu")
 # Keep colors stable when plotting a subset of the archived resolutions.
 CONVERGENCE_ORDER = ("50000", "37250", "25000", "18750", "12500", "09375", "06250")
 

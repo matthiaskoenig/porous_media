@@ -16,6 +16,8 @@ from matplotlib.transforms import Bbox
 
 from research.spt.fields import LAYERS, Layer
 from research.spt.manuscript_data import (
+    DOSE_COUNT,
+    PATTERN_NAMES,
     SIMULATION_TIMES,
     ManuscriptData,
     pattern_label,
@@ -33,10 +35,12 @@ from research.spt.plot_render import (
 )
 
 FIELD_TITLES = ("Substrate", "Product", "Protein", "Toxic\ncompound", "Necrosis")
+# Pattern blocks of Figure 5 per row; an incomplete last row is centered.
+BLOCK_COLUMNS = 2
 
 
 def label_pattern_row(axis: Axes, pattern: int, *, offset: float = 65) -> None:
-    """Label one pattern row with the shared A-F name and typography."""
+    """Label one pattern row with the shared letter, name and typography."""
     label = axis.annotate(
         pattern_label(pattern),
         xy=(0, 0.5),
@@ -332,17 +336,29 @@ def render_patterns(
     options: RenderOptions,
 ) -> None:
     """Compare protein, toxic compound and necrosis with time running left to right."""
-    art = figure((14, 16))
+    fields = LAYERS[2:]
+    # Two blocks per row, as the page is taller than it is wide. The block span
+    # is a multiple of the colorbar count and of two, so an incomplete last row
+    # centers on whole grid columns.
+    span = 6
+    rows = -(-len(sources) // BLOCK_COLUMNS)
+    art = figure((14, 5.3 * rows + 0.1))
     try:
         assert sources[0].dose is not None
         art.suptitle(f"D{sources[0].dose + 1}", fontsize=16, fontweight="bold")
         outer = art.add_gridspec(
-            4, 6, height_ratios=(1, 1, 1, 0.025), hspace=0.025, wspace=0.025
+            rows + 1,
+            span * BLOCK_COLUMNS,
+            height_ratios=(*(1.0,) * rows, 0.025),
+            hspace=0.025,
+            wspace=0.025,
         )
         collections = ()
         for pattern, source in enumerate(sources):
-            column = 3 * (pattern % 2)
-            parent = art.add_subfigure(outer[pattern // 2, column : column + 3])
+            row, index = divmod(pattern, BLOCK_COLUMNS)
+            filled = min(BLOCK_COLUMNS, len(sources) - row * BLOCK_COLUMNS)
+            start = (BLOCK_COLUMNS - filled) * span // 2 + index * span
+            parent = art.add_subfigure(outer[row, start : start + span])
             heading = parent.suptitle(
                 pattern_label(pattern),
                 fontsize=16,
@@ -356,14 +372,15 @@ def render_patterns(
                 scale=0.37,
                 dpi=options.dpi,
                 colorbars=False,
-                layers=LAYERS[2:],
+                layers=fields,
             )
+        width = span * BLOCK_COLUMNS // len(fields)
         for column, (layer, collection) in enumerate(
-            zip(LAYERS[2:], collections, strict=True)
+            zip(fields, collections, strict=True)
         ):
             shared_colorbar(
                 art,
-                art.add_subplot(outer[-1, 2 * column : 2 * column + 2]),
+                art.add_subplot(outer[-1, column * width : (column + 1) * width]),
                 collection,
                 layer,
                 scale=1,
@@ -379,10 +396,13 @@ def render_necrosis(
     directory: Path,
     options: RenderOptions,
 ) -> None:
-    """Compare A-F rows and D1-D8 columns with one shared binary state legend."""
-    art = figure((16, 12))
+    """Compare pattern rows and dose columns with one shared binary legend."""
+    # Two inches per pattern row keeps the published panel size whatever the
+    # study's pattern count is.
+    body = 2 * len(PATTERN_NAMES)
+    art = figure((16, body))
     outer = art.add_gridspec(
-        2, 2, height_ratios=(0.45, 12), width_ratios=(24, 0.6), wspace=0.02
+        2, 2, height_ratios=(0.45, body), width_ratios=(24, 0.6), wspace=0.02
     )
     heading = art.add_subplot(outer[0, 0])
     heading.set_axis_off()
@@ -403,7 +423,9 @@ def render_necrosis(
         xycoords="axes fraction",
         arrowprops={"arrowstyle": "-|>", "lw": 2, "color": "black"},
     )
-    grid = outer[1, 0].subgridspec(6, 8, hspace=0.02, wspace=0.02)
+    grid = outer[1, 0].subgridspec(
+        len(PATTERN_NAMES), DOSE_COUNT, hspace=0.02, wspace=0.02
+    )
     layer = replace(LAYERS[-1], limits=(0, 1))
     try:
         for source in sources:
