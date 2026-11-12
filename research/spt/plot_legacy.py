@@ -55,7 +55,7 @@ def visualize_spt_2d(
     create_panels: bool = False,
     *,
     snapshots: int = 5,
-    formats: tuple[str, ...] = ("svg", "pdf", "png"),
+    formats: tuple[str, ...] = ("png",),
     video_frames: int = 0,
 ) -> list[ProcessingResult]:
     """Render selected planar scalar fields without interpolated XDMF copies.

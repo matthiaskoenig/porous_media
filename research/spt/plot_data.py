@@ -14,6 +14,7 @@ import h5py
 import meshio
 import numpy as np
 
+from porous_media.data.xdmf_tools import XDMFTimeSeriesReader
 from research.spt.artifacts import (
     atomic_json,
     current_manifest,
@@ -38,6 +39,7 @@ from research.spt.geometry import geometry_jobs, geometry_path
 from research.spt.layout import artifact_directory
 from research.spt.plot_view import face_heights
 from research.spt.sampling import blend, bracket
+from research.spt.storage import load_array, save_array, save_arrays
 
 SAMPLE_VERSION = 1
 type Geometry = Literal["sixth", "lobulus", "combined"]
@@ -386,15 +388,21 @@ def load_heights(
             generation = generation_path(directory, cached)
         else:
             before = [fingerprint(path) for path in paths]
-            with meshio.xdmf.TimeSeriesReader(descriptor) as reader:
+            with XDMFTimeSeriesReader(descriptor) as reader:
                 points, cells = reader.read_points_cells()
             projected_faces(points, cells)
             heights = face_heights(points, cells)
             with tempfile.TemporaryDirectory(prefix=".partial-", dir=directory) as tmp:
                 staging = Path(tmp)
-                np.save(staging / "heights.npy", heights, allow_pickle=False)
+                save_array(staging / "heights.npz", heights)
                 generation = publish(directory, staging, options, paths, before)
-        return np.load(generation / "heights.npy", allow_pickle=False)
+        # A generation written before compression holds "heights.npy". Reading it
+        # avoids re-reading the mesh for one small array; the configuration is
+        # unchanged, so the generation is still current.
+        heights_path = generation / "heights.npz"
+        if not heights_path.is_file():
+            heights_path = generation / "heights.npy"
+        return load_array(heights_path)
 
 
 def prepare_samples(
@@ -426,7 +434,7 @@ def prepare_samples(
         parsed = inspect_run(source.run)
         paths = tuple(sorted({*parsed.sources, *source.extra_sources}))
         before = [fingerprint(path) for path in paths]
-        with meshio.xdmf.TimeSeriesReader(source.run.xdmf) as reader:
+        with XDMFTimeSeriesReader(source.run.xdmf) as reader:
             points, cells = reader.read_points_cells()
         faces, cell_ids = projected_faces(points, cells)
         with ExitStack() as stack:
@@ -465,7 +473,7 @@ def prepare_samples(
             prefix=".partial-", dir=directory
         ) as temporary:
             staging = Path(temporary)
-            np.savez(
+            save_arrays(
                 staging / "samples.npz",
                 faces=faces,
                 cell_ids=cell_ids,

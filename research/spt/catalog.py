@@ -149,6 +149,58 @@ def hdf_reference(item: ET.Element) -> tuple[str, str]:
     return filename, dataset
 
 
+def hyperslab(item: ET.Element) -> tuple[ET.Element, tuple[slice, ...]]:
+    """Split a HyperSlab into its HDF source and the region it selects.
+
+    Stacked series keep one dataset per attribute and give every step a
+    HyperSlab into it, so the selection is what separates the steps.
+    """
+    children = list(item)
+    if len(children) != 2:
+        raise ValueError("A HyperSlab needs a selection and a source DataItem")
+    selection, source = children
+    if selection.get("Format") != "XML" or len(selection):
+        raise ValueError("HyperSlab selections must be inline XML")
+    values = [int(value) for value in (selection.text or "").split()]
+    if not values or len(values) % 3:
+        raise ValueError("A HyperSlab selection needs start, stride and count")
+    rank = len(values) // 3
+    start, stride, count = values[:rank], values[rank : 2 * rank], values[2 * rank :]
+    if any(begin < 0 for begin in start) or any(step <= 0 for step in stride + count):
+        raise ValueError("HyperSlab selections must be positive and start inside")
+    region = tuple(
+        slice(begin, begin + size * step, step)
+        for begin, step, size in zip(start, stride, count, strict=True)
+    )
+    return source, region
+
+
+def hdf_source(item: ET.Element) -> tuple[str, str, tuple[slice, ...] | None]:
+    """Resolve a data item, which may select one step of a stacked attribute."""
+    if item.get("ItemType") != "HyperSlab":
+        filename, dataset = hdf_reference(item)
+        return filename, dataset, None
+    source, region = hyperslab(item)
+    filename, dataset = hdf_reference(source)
+    return filename, dataset, region
+
+
+def hdf_sources(tree: ET.ElementTree[ET.Element]) -> list[ET.Element]:
+    """List the data items naming HDF datasets, descending into HyperSlabs."""
+    sources: list[ET.Element] = []
+    nested: set[int] = set()
+    for item in tree.iter("DataItem"):
+        if id(item) in nested:
+            continue
+        if item.get("ItemType") == "HyperSlab":
+            source, _ = hyperslab(item)
+            nested.update(id(child) for child in item)
+            sources.append(source)
+        else:
+            sources.append(item)
+    return sources
+
+
 def inspect_run(source: RunSource) -> ParsedRun:
     """Validate time axes and scalar schemas using descriptor and model metadata."""
     tree = _parse_xml(source.xdmf)
@@ -204,7 +256,7 @@ def inspect_run(source: RunSource) -> ParsedRun:
             raise ValueError("Scalar field schema changes between time steps")
         fields = schema
     references: dict[str, Path] = {}
-    for item in tree.iter("DataItem"):
+    for item in hdf_sources(tree):
         filename, _ = hdf_reference(item)
         if filename not in references:
             path = (source.xdmf.parent / filename).resolve()

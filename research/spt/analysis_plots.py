@@ -36,8 +36,9 @@ from research.spt.plot_style import (
     convergence_color,
     simulation_color,
 )
+from research.spt.storage import write_dataset
 
-ANALYSIS_PLOT_VERSION = 6
+ANALYSIS_PLOT_VERSION = 7
 LABELS = {
     "rr_(S_ext)": "Substrate [mM]",
     "rr_(P_ext)": "Product [mM]",
@@ -57,7 +58,7 @@ DIAGNOSTIC_FACTORS = {VOLUME: 1e12, "rr_Vext": 1e9, "rr_Vli": 1e9}
 class PlotOptions:
     """Select manuscript figures and optional population SD or symlog comparisons."""
 
-    formats: tuple[str, ...] = ("svg", "pdf", "png")
+    formats: tuple[str, ...] = ("png",)
     dpi: int = 300
     spread: bool | None = None
     convergence_symlog: bool = True
@@ -722,7 +723,7 @@ def render_analysis(
                 spatial_time_units="s",
                 comparison="matched continuous cell interpolation with previous discrete values; no extrapolation",
             )
-            result.to_netcdf(staging / "analysis.nc", engine="scipy")
+            write_dataset(result, staging / "analysis.nc")
             means, spatial_errors = (
                 comparisons(aligned, all_profiles, sources)
                 if sources[0].family == "convergence"

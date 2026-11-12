@@ -29,7 +29,14 @@ from research.spt.information import main as information_main
 from research.spt.information import simulation_conditions_df
 
 
-def write_run(root: Path, study: str, run_id: str, *, truncated: bool = False) -> None:
+def write_run(
+    root: Path,
+    study: str,
+    run_id: str,
+    *,
+    truncated: bool = False,
+    stacked: bool = False,
+) -> None:
     """Create small mixed-cell HDF fixtures with varying volumes and five frames."""
     path = root / study / "xdmf" / f"{run_id}.xdmf"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -43,7 +50,9 @@ def write_run(root: Path, study: str, run_id: str, *, truncated: bool = False) -
     model.write_text(
         "<febio_spec><Control><time_steps>4</time_steps><step_size>1</step_size></Control></febio_spec>"
     )
-    with XDMFTimeSeriesWriter(path, data_format="HDF") as writer:
+    with XDMFTimeSeriesWriter(
+        path, data_format="HDF", stack_time_steps=stacked
+    ) as writer:
         writer.write_points_cells(
             np.array(
                 [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]]
@@ -55,8 +64,12 @@ def write_run(root: Path, study: str, run_id: str, *, truncated: bool = False) -
             data = {name: [values[:1], values[1:]] for name in ANALYSIS_FIELDS}
             volumes = np.array([1.0 + step, 3.0 + step], dtype="float32")
             data["element_volume_point_TPM"] = [volumes[:1], volumes[1:]]
+            # A stacked attribute is one dataset, so its type cannot change
+            # between steps; the unstacked fixture keeps promoting it.
             count = (
-                np.array([1, 2], dtype="int32") if step == 0 else np.array([1.5, 2.5])
+                np.array([1, 2], dtype="int32")
+                if step == 0 and not stacked
+                else np.array([1.5, 2.5])
             )
             data["counter"] = [count[:1], count[1:]]
             writer.write_data(
@@ -140,6 +153,58 @@ def test_invalid_descriptors_fail_explicitly(
         source.xdmf.with_suffix(".h5").unlink()
     tree.write(source.xdmf)
     with pytest.raises(ValueError):
+        inspect_run(source)
+
+
+def test_stacked_sources_read_the_same_frames(tmp_path: Path) -> None:
+    """Resolve a HyperSlab to one step rather than demanding a dataset per step."""
+    plain, stacked = tmp_path / "plain", tmp_path / "stacked"
+    for root, is_stacked in ((plain, False), (stacked, True)):
+        write_run(root, "convergence_sixth", "convergence_06250", stacked=is_stacked)
+    parsed = inspect_run(discover_runs(stacked, ("convergence_sixth",))[0])
+    item = parsed.grids[1].findall("Attribute")[0].find("DataItem")
+    assert item is not None and item.get("ItemType") == "HyperSlab"
+    results = []
+    for root in (plain, stacked):
+        source = discover_runs(root, ("convergence_sixth",))[0]
+        assert process_run(source, root / "output").status == "processed"
+        results.append(load_processed_run(source, root / "output")[0])
+    for name in results[0].data_vars:
+        np.testing.assert_array_equal(results[0][name], results[1][name])
+
+
+@pytest.mark.parametrize(
+    ("problem", "message"),
+    [
+        ("children", "selection and a source"),
+        ("format", "inline XML"),
+        ("counts", "start, stride and count"),
+        ("negative", "positive and start inside"),
+    ],
+)
+def test_invalid_hyperslabs_fail_explicitly(
+    tmp_path: Path, problem: str, message: str
+) -> None:
+    """Keep rejecting references that are not a plain relative slice of one dataset."""
+    write_run(tmp_path, "convergence_sixth", "convergence_06250", stacked=True)
+    source = discover_runs(tmp_path, ("convergence_sixth",))[0]
+    tree = ET.parse(source.xdmf)
+    item = tree.findall(".//Grid[@CollectionType='Temporal']/Grid")[0].find(
+        "Attribute/DataItem"
+    )
+    assert item is not None
+    selection = next(iter(item))
+    if problem == "children":
+        item.remove(selection)
+    elif problem == "format":
+        selection.set("Format", "HDF")
+    elif problem == "counts":
+        selection.text = "0 0"
+    else:
+        # start, then stride, then count: a step before the first one.
+        selection.text = "-1 0\n1 1\n1 4"
+    tree.write(source.xdmf)
+    with pytest.raises(ValueError, match=message):
         inspect_run(source)
 
 
@@ -403,7 +468,7 @@ def test_summary_does_not_load_spatial_fields(
 
     def summary_only(path: Path, **kwargs: object) -> xr.Dataset:
         assert path.name == "summary.nc"
-        return original(path, engine="scipy")
+        return original(path)
 
     monkeypatch.setattr(xr, "load_dataset", summary_only)
     summary = cache.load_summary(source, output)

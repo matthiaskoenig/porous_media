@@ -49,7 +49,7 @@ class RenderOptions:
     """Select outputs explicitly; videos and standalone panels are opt-in."""
 
     layers: tuple[Layer, ...] = LAYERS
-    formats: tuple[str, ...] = ("svg", "pdf", "png")
+    formats: tuple[str, ...] = ("png",)
     snapshots: tuple[float, ...] = ()
     video_times: tuple[float, ...] = ()
     dpi: int = 150

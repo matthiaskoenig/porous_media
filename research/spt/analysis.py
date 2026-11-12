@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None, *, study: str = "both") -> int:
         "--formats",
         nargs="+",
         choices=("svg", "pdf", "png"),
-        default=["svg", "pdf", "png"],
+        default=["png"],
     )
     parser.add_argument("--dpi", type=int, default=300)
     parser.add_argument(

@@ -6,9 +6,11 @@ from functools import partial
 from multiprocessing import get_context
 from pathlib import Path
 
-import meshio
 import numpy as np
 import xarray as xr
+
+from porous_media.data.netcdf import load_netcdf, write_netcdf
+from porous_media.data.xdmf_tools import XDMFTimeSeriesReader
 
 
 def _scalar_fields(data: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
@@ -101,11 +103,11 @@ def mesh_datasets_from_xdmf(
     cells_path = xdmf_path.with_name(f"{xdmf_path.stem}_cells.nc")
     points_path = xdmf_path.with_name(f"{xdmf_path.stem}_points.nc")
     if not overwrite and cells_path.is_file() and points_path.is_file():
-        return xr.load_dataset(cells_path), xr.load_dataset(points_path)
+        return load_netcdf(cells_path), load_netcdf(points_path)
 
     cells_data: dict[str, np.ndarray] = {}
     points_data: dict[str, np.ndarray] = {}
-    with meshio.xdmf.TimeSeriesReader(xdmf_path) as reader:
+    with XDMFTimeSeriesReader(xdmf_path) as reader:
         points, cells = reader.read_points_cells()
         if reader.num_steps == 0:
             raise ValueError("XDMF time series must contain at least one time step")
@@ -142,6 +144,6 @@ def mesh_datasets_from_xdmf(
         {name: (("time", "point"), values) for name, values in points_data.items()},
         coords={"time": times, "point": np.arange(len(points))},
     )
-    xr_cells.to_netcdf(cells_path, engine="scipy")
-    xr_points.to_netcdf(points_path, engine="scipy")
+    write_netcdf(xr_cells, cells_path)
+    write_netcdf(xr_points, points_path)
     return xr_cells, xr_points

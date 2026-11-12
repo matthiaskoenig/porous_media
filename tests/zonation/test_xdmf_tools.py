@@ -7,12 +7,14 @@ import h5py
 import meshio
 import numpy as np
 import pytest
+from meshio._exceptions import WriteError
 
 from porous_media import RESOURCES_DIR
 from porous_media.data.xdmf_tools import (
     AttributeType,
     DataLimits,
     XDMFInfo,
+    XDMFTimeSeriesReader,
     XDMFTimeSeriesWriter,
     interpolate_xdmf,
     vtks_to_xdmf,
@@ -71,6 +73,181 @@ def test_xdmf_writer_produces_relocatable_hdf(tmp_path: Path) -> None:
         time, point_data, _ = reader.read_data(0)
     assert time == pytest.approx(0.0)
     np.testing.assert_array_equal(point_data["pressure"], [1.0, 2.0, 3.0])
+
+
+def test_xdmf_writer_compresses_and_shares_repeated_arrays(tmp_path: Path) -> None:
+    """Deflate each array and store a repeated time-invariant field only once."""
+    output = tmp_path / "simulation.xdmf"
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    fixed = np.linspace(0.0, 1.0, 3)
+    with XDMFTimeSeriesWriter(output, share_identical_arrays=True) as writer:
+        writer.write_points_cells(points, [("triangle", np.array([[0, 1, 2]]))])
+        for step in range(4):
+            writer.write_data(
+                float(step),
+                # "zonation" never changes, so every step repeats one array.
+                point_data={"zonation": fixed, "pressure": fixed + step},
+            )
+
+    with h5py.File(output.with_suffix(".h5"), "r") as handle:
+        names = list(handle)
+        assert names
+        for name in names:
+            assert handle[name].compression == "gzip"
+            assert handle[name].shuffle
+        # Identical arrays share one HDF object instead of being stored again.
+        identities = {handle[name].id.__hash__() for name in names}
+        assert len(identities) < len(names)
+
+    with meshio.xdmf.TimeSeriesReader(output) as reader:
+        reader.read_points_cells()
+        for step in range(4):
+            _, point_data, _ = reader.read_data(step)
+            np.testing.assert_allclose(point_data["zonation"], fixed)
+            np.testing.assert_allclose(point_data["pressure"], fixed + step)
+
+
+def test_xdmf_writer_keeps_arrays_independent_by_default(tmp_path: Path) -> None:
+    """Store each array separately so a sidecar stays safe to edit in place."""
+    output = tmp_path / "independent.xdmf"
+    fixed = np.linspace(0.0, 1.0, 3)
+    with XDMFTimeSeriesWriter(output) as writer:
+        writer.write_points_cells(
+            np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+            [("triangle", np.array([[0, 1, 2]]))],
+        )
+        for step in range(3):
+            writer.write_data(float(step), point_data={"zonation": fixed})
+
+    with h5py.File(output.with_suffix(".h5"), "r") as handle:
+        names = list(handle)
+        assert len({handle[name].id.__hash__() for name in names}) == len(names)
+        for name in names:
+            assert handle[name].compression == "gzip"
+
+    # Editing one step in place must leave the other steps alone.
+    with meshio.xdmf.TimeSeriesReader(output) as reader:
+        reader.read_points_cells()
+        target = reader.read_data(1)
+    assert target is not None
+    with h5py.File(output.with_suffix(".h5"), "r+") as handle:
+        edited = [
+            name
+            for name in handle
+            if handle[name].shape == fixed.shape
+            and np.allclose(handle[name][...], fixed)
+        ][1]
+        handle[edited][...] = np.full(3, 9.0)
+    with meshio.xdmf.TimeSeriesReader(output) as reader:
+        reader.read_points_cells()
+        changed = sum(
+            bool(np.allclose(reader.read_data(step)[1]["zonation"], 9.0))
+            for step in range(3)
+        )
+    assert changed == 1
+
+
+def test_xdmf_writer_keeps_xml_data_format_uncompressed(tmp_path: Path) -> None:
+    """Leave inline XML output alone; only the HDF sidecar carries filters."""
+    output = tmp_path / "inline.xdmf"
+    with XDMFTimeSeriesWriter(output, data_format="XML") as writer:
+        writer.write_points_cells(
+            np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+            [("triangle", np.array([[0, 1, 2]]))],
+        )
+        writer.write_data(0.0, point_data={"pressure": np.array([1.0, 2.0, 3.0])})
+    assert not output.with_suffix(".h5").exists()
+    with meshio.xdmf.TimeSeriesReader(output) as reader:
+        reader.read_points_cells()
+        _, point_data, _ = reader.read_data(0)
+    np.testing.assert_array_equal(point_data["pressure"], [1.0, 2.0, 3.0])
+
+
+def _write_series_steps(path: Path, steps: int, *, stacked: bool) -> None:
+    """Write a fixed-mesh series whose field changes only slightly per step."""
+    count = 64
+    points = np.zeros((count + 2, 3))
+    points[:, 0] = np.arange(count + 2)
+    points[1::2, 1] = 1.0
+    triangles = np.array([[i, i + 1, i + 2] for i in range(count)])
+    base = np.linspace(0.0, 1.0, count, dtype=np.float32)
+    with XDMFTimeSeriesWriter(path, stack_time_steps=stacked) as writer:
+        writer.write_points_cells(points, [("triangle", triangles)])
+        for step in range(steps):
+            writer.write_data(
+                float(step),
+                point_data={"slow": np.linspace(0.0, 1.0, count + 2) + step * 1e-4},
+                cell_data={"field": [base + step]},
+            )
+
+
+def test_stacked_series_round_trips_through_the_matching_reader(
+    tmp_path: Path,
+) -> None:
+    """Resolve each step's HyperSlab back to the values that were written."""
+    path = tmp_path / "stacked.xdmf"
+    _write_series_steps(path, 12, stacked=True)
+    base = np.linspace(0.0, 1.0, 64, dtype=np.float32)
+
+    with h5py.File(path.with_suffix(".h5"), "r") as handle:
+        # One growing dataset per attribute, chunked across several steps.
+        assert handle["Cell/field"].shape == (12, 64)
+        assert handle["Node/slow"].shape == (12, 66)
+        assert handle["Cell/field"].chunks[0] > 1
+        assert handle["Cell/field"].compression == "gzip"
+
+    with XDMFTimeSeriesReader(path) as reader:
+        reader.read_points_cells()
+        assert reader.num_steps == 12
+        for step in range(12):
+            time, point_data, cell_data = reader.read_data(step)
+            assert time == pytest.approx(step)
+            np.testing.assert_allclose(np.concatenate(cell_data["field"]), base + step)
+            np.testing.assert_allclose(
+                point_data["slow"], np.linspace(0.0, 1.0, 66) + step * 1e-4
+            )
+
+
+def test_stacking_shrinks_a_slowly_changing_series(tmp_path: Path) -> None:
+    """Give the compressor consecutive steps instead of one frame at a time."""
+    per_step = tmp_path / "per-step.xdmf"
+    stacked = tmp_path / "stacked.xdmf"
+    _write_series_steps(per_step, 300, stacked=False)
+    _write_series_steps(stacked, 300, stacked=True)
+    assert (
+        stacked.with_suffix(".h5").stat().st_size
+        < per_step.with_suffix(".h5").stat().st_size / 2
+    )
+
+
+def test_matching_reader_also_reads_an_unstacked_series(tmp_path: Path) -> None:
+    """Stay a drop-in replacement for the plain reader."""
+    path = tmp_path / "per-step.xdmf"
+    _write_series_steps(path, 4, stacked=False)
+    with XDMFTimeSeriesReader(path) as ours:
+        ours.read_points_cells()
+        with meshio.xdmf.TimeSeriesReader(path) as theirs:
+            theirs.read_points_cells()
+            for step in range(4):
+                _, _, mine = ours.read_data(step)
+                _, _, reference = theirs.read_data(step)
+                np.testing.assert_array_equal(
+                    np.concatenate(mine["field"]),
+                    np.concatenate(reference["field"]),
+                )
+
+
+def test_stacked_series_rejects_a_changing_field_shape(tmp_path: Path) -> None:
+    """Refuse a series whose attribute changes shape rather than writing a wrong slab."""
+    path = tmp_path / "changing.xdmf"
+    points = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    with (
+        pytest.raises(WriteError, match="shape or type"),
+        XDMFTimeSeriesWriter(path, stack_time_steps=True) as writer,
+    ):
+        writer.write_points_cells(points, [("triangle", np.array([[0, 1, 2]]))])
+        writer.write_data(0.0, point_data={"p": np.zeros(3)})
+        writer.write_data(1.0, point_data={"p": np.zeros((3, 3))})
 
 
 def test_vtk_single_to_xdmf(tmp_path: Path) -> None:

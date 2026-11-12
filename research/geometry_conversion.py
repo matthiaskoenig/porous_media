@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from rich.progress import track
 
-from porous_media.data.xdmf_tools import XDMFTimeSeriesWriter
+from porous_media.data.xdmf_tools import XDMFTimeSeriesReader, XDMFTimeSeriesWriter
 
 
 def rotate_points(points: np.ndarray, angle: float) -> np.ndarray:
@@ -272,13 +272,15 @@ def reconstruct_lobulus_from_hexagon(xdmf_in: Path, xdmf_out: Path) -> None:
             raise FileExistsError(f"Refusing to overwrite existing geometry: {path}")
     xdmf_out.parent.mkdir(parents=True, exist_ok=True)
     # Read the original sixth of the circle mesh
-    with meshio.xdmf.TimeSeriesReader(xdmf_in) as reader:
+    with XDMFTimeSeriesReader(xdmf_in) as reader:
         # create the mesh
         points, cells = reader.read_points_cells()
         new_points, new_cells = create_lobulus_mesh(points, cells)
         transforms = sector_transforms(find_reflection_angle_in_sixth(points))
 
-        with XDMFTimeSeriesWriter(xdmf_out, data_format="HDF") as writer:
+        with XDMFTimeSeriesWriter(
+            xdmf_out, data_format="HDF", share_identical_arrays=True
+        ) as writer:
             writer.write_points_cells(
                 new_points, [(block.type, block.data) for block in new_cells]
             )

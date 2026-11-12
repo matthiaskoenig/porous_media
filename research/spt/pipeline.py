@@ -64,7 +64,8 @@ def run_pipeline(
     study: str = "both",
     run_ids: tuple[str, ...] = (),
     workers: int = 2,
-    formats: tuple[str, ...] = ("svg", "pdf", "png"),
+    formats: tuple[str, ...] = ("png",),
+    manuscript_formats: tuple[str, ...] = ("svg", "png"),
     analysis_options: AnalysisOptions | None = None,
     plot_options: PlotOptions | None = None,
     geometry_figures: bool = True,
@@ -244,7 +245,9 @@ def run_pipeline(
     elif (
         manuscript
         and not failed
-        and not stage("manuscript", lambda: create_manuscript(output_root, formats))
+        and not stage(
+            "manuscript", lambda: create_manuscript(output_root, manuscript_formats)
+        )
     ):
         failed = True
     report: PipelineReport = {
@@ -277,7 +280,18 @@ def main(argv: list[str] | None = None) -> int:
         "--formats",
         nargs="+",
         choices=("svg", "pdf", "png"),
-        default=["svg", "pdf", "png"],
+        default=["png"],
+        help=(
+            "Formats of the per-run and study figures. PNG only by default: a "
+            "dense per-run SVG measured 32 MB against 1 MB for its PNG"
+        ),
+    )
+    parser.add_argument(
+        "--manuscript-formats",
+        nargs="+",
+        choices=("svg", "pdf", "png"),
+        default=["svg", "png"],
+        help="Formats of the manuscript figures and tissue panels",
     )
     parser.add_argument("--time-points", type=int, default=51)
     parser.add_argument("--bins", type=int, default=20)
@@ -294,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             run_ids=tuple(args.runs),
             workers=args.workers,
             formats=tuple(dict.fromkeys(args.formats)),
+            manuscript_formats=tuple(dict.fromkeys(args.manuscript_formats)),
             analysis_options=AnalysisOptions(
                 time_points=args.time_points,
                 bins=args.bins,
