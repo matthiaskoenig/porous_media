@@ -15,7 +15,7 @@ from research.spt.conditions import (
     SimulationCondition,
     conditions_from_source,
     generation_script,
-    pattern_idx2name,
+    pattern_name,
 )
 
 type Study = Literal[
@@ -28,6 +28,18 @@ type Study = Literal[
 ]
 type CatalogValue = str | int | float | bool | None
 STUDIES: tuple[Study, ...] = ("simulations_sixth", "convergence_sixth")
+CONVERGENCE_MARKER = "convergence_"
+
+
+def mesh_key(run_id: str) -> str:
+    """Return the mesh resolution a convergence run carries in its name.
+
+    A study prefixes its convergence runs with the variant they were generated
+    for, so the resolution is what follows the last ``convergence_`` marker
+    rather than the whole name after a fixed prefix.
+    """
+    index = run_id.rfind(CONVERGENCE_MARKER)
+    return run_id if index < 0 else run_id[index + len(CONVERGENCE_MARKER) :]
 
 
 @dataclass(frozen=True)
@@ -51,13 +63,28 @@ class RunSource:
 
     @property
     def material(self) -> Path:
-        """Return the corresponding model or simulation template."""
-        name = (
-            "lobule_zonation_pattern.feb.template"
-            if self.study.startswith("simulations_")
-            else f"{self.run_id}.feb"
+        """Return the corresponding model or simulation template.
+
+        Every simulation of a study is rendered from one template, whose name
+        carries the boundary conditions it was built for and therefore changes
+        with the study design.
+        """
+        if self.model:
+            return self.model
+        folder = self.root / self.study / "material"
+        if not self.study.startswith("simulations_"):
+            return folder / f"{self.run_id}.feb"
+        templates = sorted(folder.glob("*.feb.template"))
+        if len(templates) > 1:
+            raise ValueError(
+                f"Ambiguous simulation templates: "
+                f"{', '.join(path.name for path in templates)}"
+            )
+        return (
+            templates[0]
+            if templates
+            else folder / "lobule_zonation_pattern.feb.template"
         )
-        return self.model or self.root / self.study / "material" / name
 
 
 @dataclass
@@ -120,11 +147,30 @@ def _parse_xml(path: Path) -> ET.ElementTree[ET.Element]:
         raise ValueError(f"Invalid XML in {path}: {error}") from error
 
 
+def _parse_model(path: Path) -> ET.ElementTree[ET.Element]:
+    """Parse a FEBio model, tolerating a comment XML rejects but FEBio accepts.
+
+    One archived template delimits a commented-out load with ``<!---`` and
+    ``--->``. XML forbids a comment whose content ends in a dash, so the file
+    does not parse although FEBio ran it. Comments carry no model semantics,
+    so they are removed and the model is parsed again; a file that still fails
+    keeps its original error.
+    """
+    try:
+        return _parse_xml(path)
+    except ValueError as error:
+        stripped = re.sub(rb"<!--.*?--+>", b"", path.read_bytes(), flags=re.DOTALL)
+        try:
+            return ET.ElementTree(ET.fromstring(stripped))
+        except ET.ParseError:
+            raise error from None
+
+
 def expected_duration(material: Path) -> float | None:
     """Read one explicit FEBio control duration, leaving ambiguous models unknown."""
     if not material.is_file():
         return None
-    controls = _parse_xml(material).findall(".//Control")
+    controls = _parse_model(material).findall(".//Control")
     if len(controls) != 1:
         return None
     steps = controls[0].findtext("time_steps")
@@ -282,13 +328,11 @@ def inspect_run(source: RunSource) -> ParsedRun:
         else bool(times[-1] - times[0] >= duration - 1e-6),
         "cell_fields": "|".join(fields["Cell"]),
         "point_fields": "|".join(fields["Node"]),
-        "resolution_key": source.run_id.removeprefix("convergence_")
-        if condition is None
-        else None,
+        "resolution_key": mesh_key(source.run_id) if condition is None else None,
         "pattern_key": None if condition is None else condition.pattern_key,
         "pattern_name": None
         if condition is None
-        else pattern_idx2name[condition.pattern_key],
+        else pattern_name(condition.pattern_key),
         "boundary_flow_key": None if condition is None else condition.boundary_flow_key,
         "boundary_flow": None if condition is None else condition.boundary_flow,
         "boundary_flow_unit": "unspecified in source" if condition else None,

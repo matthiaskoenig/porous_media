@@ -45,6 +45,7 @@ from research.spt.catalog import (
     Study,
     discover_runs,
     inspect_run,
+    mesh_key,
 )
 from research.spt.cli import selected_studies, write_catalog
 from research.spt.conditions import conditions_from_source
@@ -146,12 +147,19 @@ def geometry_jobs(
         raise ValueError("Combinations require complete studies; omit --runs")
     by_id = {source.run_id: source for source in runs}
     if study in {"both", "convergence"}:
-        names = [f"convergence_{key}" for key in CONVERGENCE_MESHES]
-        missing = set(names) - by_id.keys()
+        # The study prefixes its convergence runs, so a mesh is found by its
+        # resolution rather than by a fixed run name.
+        by_mesh = {
+            mesh_key(source.run_id): source.run_id
+            for source in runs
+            if source.study == "convergence_sixth"
+        }
+        missing = set(CONVERGENCE_MESHES) - by_mesh.keys()
         if missing:
             raise ValueError(
                 f"Missing convergence comparison meshes: {', '.join(sorted(missing))}"
             )
+        names = [by_mesh[key] for key in CONVERGENCE_MESHES]
         jobs.append(
             GeometryJob(
                 "convergence_combinations",

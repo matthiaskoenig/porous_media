@@ -16,8 +16,8 @@ available at `/data/koeniglab/spt`, with this structure:
 spt/
 ├── simulations_sixth/
 │   ├── material/
-│   │   ├── feb_manipulation_v2.py
-│   │   └── lobule_zonation_pattern.feb.template
+│   │   ├── feb_manipulation_v3.py
+│   │   └── lobule_zonation_pattern_bc.feb.template
 │   └── xdmf/
 │       ├── sim001.xdmf
 │       ├── sim001.h5
@@ -26,12 +26,19 @@ spt/
 │       └── ...
 └── convergence_sixth/
     ├── material/
-    │   └── convergence_*.feb
+    │   └── *convergence_*.feb
     └── xdmf/
-        ├── convergence_06250.xdmf
-        ├── convergence_06250.h5
+        ├── cbc_convergence_06250.xdmf
+        ├── cbc_convergence_06250.h5
         └── ...
 ```
+
+Both names carry the study design. The generation script is versioned, the
+simulation template names the boundary conditions it was built for, and a
+convergence run is prefixed with the variant it belongs to. The workflow
+discovers the script and the template rather than expecting fixed names, and
+identifies a convergence mesh by the resolution after its last `convergence_`
+marker, so a renamed study is read without changing code.
 
 Use the [development environment](../development.md#environment), or sync just
 research dependencies with `uv sync --locked --group research --no-dev`.
@@ -91,7 +98,7 @@ update. Unused report previews are pruned whenever the report is rebuilt.
 
 ### Storage profile
 
-A complete results tree of the 48 simulations and 7 convergence meshes is about
+A complete results tree of 48 simulations and 7 convergence meshes is about
 7 GB. The equivalent tree written before these settings was 97 GB. Each setting
 and its measured effect:
 
@@ -150,11 +157,20 @@ The first command writes nothing. The second writes `catalog/runs.tsv`, optional
 without opening windows and are closed after use. Metadata failures and missing
 expected simulations are reported and produce a nonzero exit status.
 
-The dataset inspected on 2026-10-19 contains 48 simulation runs and seven
-convergence runs. `convergence_06250` ends at 36,590 s and `convergence_09375` at
-77,687.6 s, earlier than the model duration of 86,400 s. These runs remain
-available, with `complete=False`. Comparisons must choose a shared time window
-or explicitly handle different end times.
+The dataset inspected on 2026-11-12 contains 56 simulation runs, seven zonation
+patterns by eight boundary flows, and six convergence runs.
+`cbc_convergence_06250` ends at 53,027.1 s, earlier than the model duration of
+86,400 s, and its own model declares no duration, so it is catalogued with an
+unknown `complete`. Comparisons must choose a shared time window or explicitly
+handle different end times.
+
+The seventh zonation pattern has no name in this repository: the FEBio plugin
+interprets the pattern index, and only the six the manuscript describes are
+named here. Such a pattern is catalogued and plotted as `pattern 6` rather than
+dropped or given an invented label, and it keeps a palette of its own. The
+mixed-pattern comparison lobule still requires exactly six patterns, one per
+sector, so it is skipped with `--no-combinations` until the cohort for it is
+chosen.
 
 ## Build or resume local caches
 
@@ -166,7 +182,7 @@ for subsequent analysis, as described below. VTK conversion remains separate.
 uv run --no-sync python -m research.spt.data_processing --status
 uv run --no-sync python -m research.spt.data_processing --workers 2
 uv run --no-sync python -m research.spt.data_processing \
-  --study convergence --runs convergence_06250 --workers 1
+  --study convergence --runs cbc_convergence_06250 --workers 1
 ```
 
 `--status` and `--dry-run` inspect metadata and cache state without writing.
@@ -598,8 +614,8 @@ uv run --no-sync python -m research.spt.analysis \
   --study simulations --runs sim001 sim009 --workers 1
 ```
 
-The default `--geometry lobulus` analyzes all 48 simulation lobules and seven
-convergence lobules. `--geometry sixth` explicitly analyzes source-sector
+The default `--geometry lobulus` analyzes every simulation lobule and every
+convergence lobule. `--geometry sixth` explicitly analyzes source-sector
 numerical caches instead. Mixed geometries are excluded. `--data-root` selects
 the numerical-cache root; `--output-root` selects local analysis storage.
 Neither the raw share nor reconstructed simulation histories are modified.
@@ -742,6 +758,9 @@ pipeline does not imply that every source solver run reached its model duration.
 
 `--study` selects a study, and `--runs` selects an explicit subset. A subset
 omits mixed comparisons and manuscript figures, which require complete studies.
+`--no-combinations` skips the mixed comparison lobules, which place one source
+per sector and therefore need exactly six zonation patterns or six resolutions;
+use it for a study whose sources do not fill one lobule.
 `--no-geometry-figures` skips the last two stages when only numerical results
 are needed. `--formats` selects the per-run and study figure formats and
 `--manuscript-formats` those of the manuscript deliverables, while

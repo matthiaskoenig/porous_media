@@ -70,13 +70,16 @@ def run_pipeline(
     plot_options: PlotOptions | None = None,
     geometry_figures: bool = True,
     geometry_snapshots: int = 5,
+    combinations: bool = True,
     dry_run: bool = False,
 ) -> PipelineReport:
     """Resume every stage, stop on failure, and record a reviewable execution report.
 
     Existing generations are reused only when their source and output fingerprints
     match. This processes existing simulation results; it does not run FEBio.
-    Explicit run subsets omit mixed geometries, which require complete studies.
+    Explicit run subsets omit mixed geometries, which require complete studies,
+    as does ``combinations=False`` for a study whose sources do not fill the six
+    sectors of one lobule.
     """
     started = time.perf_counter()
     input_root, output_root = validate_roots(input_root, output_root)
@@ -157,7 +160,7 @@ def run_pipeline(
             output_root,
             study=study,
             run_ids=run_ids,
-            combinations=not run_ids,
+            combinations=combinations and not run_ids,
             workers=workers,
             dry_run=dry_run,
         ),
@@ -296,6 +299,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--time-points", type=int, default=51)
     parser.add_argument("--bins", type=int, default=20)
     parser.add_argument("--spatial-times", nargs="+", type=float, default=[])
+    parser.add_argument(
+        "--no-combinations",
+        dest="combinations",
+        action="store_false",
+        help=(
+            "Skip the mixed comparison lobules, which need one source per "
+            "sector and therefore exactly six zonation patterns or resolutions"
+        ),
+    )
     parser.add_argument("--no-geometry-figures", action="store_true")
     parser.add_argument("--geometry-snapshots", type=int, default=5)
     parser.add_argument("--status", "--dry-run", action="store_true")
@@ -316,6 +328,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             geometry_figures=not args.no_geometry_figures,
             geometry_snapshots=args.geometry_snapshots,
+            combinations=args.combinations,
             dry_run=args.status,
         )
     except (OSError, ValueError, KeyError) as error:

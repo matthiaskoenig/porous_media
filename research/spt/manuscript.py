@@ -226,8 +226,7 @@ def create_manuscript_figures(
     for number in figures:
         if number == "S1":
             sources = [
-                data.source("convergence_lobulus", f"convergence_{mesh}")
-                for mesh in CONVERGENCE_DISPLAY_MESHES
+                data.convergence_source(mesh) for mesh in CONVERGENCE_DISPLAY_MESHES
             ]
             if (
                 not max(source.start for source in sources)

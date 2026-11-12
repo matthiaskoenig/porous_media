@@ -22,11 +22,22 @@ from research.spt.cache import (
     process_run,
     run_directory,
 )
-from research.spt.catalog import RunSource, discover_runs, inspect_run
-from research.spt.conditions import conditions_from_source
+from research.spt.catalog import (
+    RunSource,
+    discover_runs,
+    expected_duration,
+    inspect_run,
+    mesh_key,
+)
+from research.spt.conditions import (
+    conditions_from_source,
+    generation_script,
+    pattern_name,
+)
 from research.spt.data_processing import main, process_studies
 from research.spt.information import main as information_main
 from research.spt.information import simulation_conditions_df
+from research.spt.plot_style import simulation_color
 
 
 def write_run(
@@ -154,6 +165,67 @@ def test_invalid_descriptors_fail_explicitly(
     tree.write(source.xdmf)
     with pytest.raises(ValueError):
         inspect_run(source)
+
+
+GENERATOR_V3 = """
+zonation_pattern = [0, 1, 2, 3, 4, 5, 6]
+boundary_flow = [0.01, 0.05]
+feb_data = {}
+counter = 1
+for pattern in zonation_pattern:
+    for flow in boundary_flow:
+        feb_data[f"sim{counter:>03}"] = {"pattern": pattern, "boundary_flow": flow}
+        counter += 1
+"""
+
+
+def test_a_new_study_design_keeps_its_runs_and_names_its_patterns(
+    tmp_path: Path,
+) -> None:
+    """Follow the archived generator version and label a pattern nothing describes."""
+    material = tmp_path / "simulations_sixth/material"
+    material.mkdir(parents=True)
+    (material / "feb_manipulation_v3.py").write_text(GENERATOR_V3)
+    assert generation_script(tmp_path).name == "feb_manipulation_v3.py"
+    conditions, origin = conditions_from_source(tmp_path)
+    assert origin.endswith("feb_manipulation_v3.py")
+    assert len(conditions) == 14
+    assert conditions[-1].sim_id == "sim014"
+    assert conditions[-1].pattern_key == 6
+    assert pattern_name(6) == "pattern 6"
+    assert pattern_name(1) == "linear increase"
+    # Each pattern keeps a distinct shade so a new one stays readable.
+    colors = {simulation_color(key, 1, 2) for key in range(7)}
+    assert len(colors) == 7
+    (material / "feb_manipulation_v2.py").write_text(GENERATOR_V3)
+    with pytest.raises(ValueError, match="Ambiguous generation scripts"):
+        generation_script(tmp_path)
+
+
+def test_model_comment_that_xml_rejects_is_still_read(tmp_path: Path) -> None:
+    """Read a duration from a template FEBio accepts although XML does not."""
+    model = tmp_path / "model.feb"
+    body = (
+        "<febio_spec><Control><time_steps>4</time_steps>"
+        "<step_size>0.5</step_size></Control>{comment}</febio_spec>"
+    )
+    model.write_text(body.format(comment=""))
+    assert expected_duration(model) == 2
+    model.write_text(body.format(comment="<!---<Loads>skipped</Loads>--->"))
+    assert expected_duration(model) == 2
+    model.write_text("<febio_spec><Control>")
+    with pytest.raises(ValueError, match="Invalid XML"):
+        expected_duration(model)
+
+
+def test_prefixed_convergence_runs_keep_their_resolution(tmp_path: Path) -> None:
+    """Identify a convergence mesh by its resolution rather than a fixed name."""
+    assert mesh_key("cbc_convergence_06250") == "06250"
+    assert mesh_key("convergence_06250") == "06250"
+    assert mesh_key("sim001") == "sim001"
+    write_run(tmp_path, "convergence_sixth", "cbc_convergence_06250")
+    source = discover_runs(tmp_path, ("convergence_sixth",))[0]
+    assert inspect_run(source).row["resolution_key"] == "06250"
 
 
 def test_stacked_sources_read_the_same_frames(tmp_path: Path) -> None:

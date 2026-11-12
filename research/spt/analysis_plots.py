@@ -26,7 +26,8 @@ from research.spt.artifacts import (
     run_lock,
 )
 from research.spt.cache import open_processed_cells
-from research.spt.conditions import pattern_idx2name
+from research.spt.catalog import mesh_key
+from research.spt.conditions import pattern_name
 from research.spt.fields import DIAGNOSTICS, POSITION, VOLUME
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions, figure, save_figure
@@ -133,7 +134,7 @@ def _style(source: PlotSource, index: int, count: int) -> tuple[str, str]:
         return source.run.run_id, simulation_color(
             condition.pattern_key, condition.boundary_flow_key + 1
         )
-    mesh = source.run.run_id.removeprefix("convergence_")
+    mesh = mesh_key(source.run.run_id)
     return mesh, convergence_color(mesh, index, count)
 
 
@@ -450,7 +451,7 @@ def _endpoints(
                     markersize=6,
                     markeredgecolor="black",
                     color=simulation_color(group, 8) if group is not None else "black",
-                    label=pattern_idx2name[group] if group is not None else "Mesh mean",
+                    label=pattern_name(group) if group is not None else "Mesh mean",
                 )
                 axis.set_ylabel(LABELS[field], **LABEL_STYLE)
                 axis.set_xlabel(

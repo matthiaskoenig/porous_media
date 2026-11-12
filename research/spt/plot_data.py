@@ -32,6 +32,7 @@ from research.spt.catalog import (
     Study,
     discover_runs,
     inspect_run,
+    mesh_key,
 )
 from research.spt.cli import selected_studies
 from research.spt.conditions import pattern_idx2name
@@ -195,7 +196,7 @@ def plot_sources(
             labels = tuple(
                 pattern_idx2name[source.condition.pattern_key]
                 if source.condition
-                else source.run_id.removeprefix("convergence_")
+                else mesh_key(source.run_id)
                 for source in job.sources
             )
             title = (

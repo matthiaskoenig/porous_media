@@ -19,11 +19,11 @@ from research.spt.analysis_data import (
 )
 from research.spt.artifacts import current_manifest, generation_path
 from research.spt.cache import _current_generation, open_processed_cells
-from research.spt.catalog import RunSource, Study
+from research.spt.catalog import RunSource, Study, mesh_key
 from research.spt.conditions import SimulationCondition
 from research.spt.fields import SUMMARY_FIELDS
 from research.spt.geometry import CONVERGENCE_MESHES
-from research.spt.layout import artifact_directory
+from research.spt.layout import artifact_directory, category_root
 from research.spt.plot_data import SAMPLE_VERSION, PlotSource, load_heights
 from research.spt.plot_render import Samples
 
@@ -130,6 +130,23 @@ class ManuscriptData:
         self._sources[key] = source
         return source
 
+    def convergence_source(self, mesh: str) -> PlotSource:
+        """Return the analyzed convergence run of one resolution.
+
+        A study prefixes its convergence runs with the variant they belong to,
+        so the resolution rather than the whole name identifies a mesh.
+        """
+        matches = sorted(
+            path.parent.name
+            for path in (
+                category_root(self.root, "analysis-data") / "convergence_lobulus"
+            ).glob("*/manifest.json")
+            if mesh_key(path.parent.name) == mesh
+        )
+        if len(matches) != 1:
+            raise ValueError(f"Expected one convergence run for mesh {mesh}")
+        return self.source("convergence_lobulus", matches[0])
+
     def mesh_manifest(self, study: str, run_id: str) -> tuple[Path, dict[str, object]]:
         """Check cached plotting geometry without opening a mesh or numerical array."""
         directory = artifact_directory(self.root, "plot-data", study, run_id)
@@ -228,8 +245,8 @@ class ManuscriptData:
             (descriptor.parent.parent / "manifest.json").read_text()
         )
         recorded = [Path(path).stem for path in composition["configuration"]["sources"]]
-        expected = [f"convergence_{mesh}" for mesh in CONVERGENCE_MESHES]
-        if recorded != expected:
+        expected = list(recorded)
+        if [mesh_key(name) for name in recorded] != list(CONVERGENCE_MESHES):
             raise ValueError("Mixed convergence sector source order differs")
         mixed = self.mesh(study, run_id)
         if set(np.unique(mixed.sectors)) != set(range(6)):
