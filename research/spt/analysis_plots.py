@@ -39,7 +39,7 @@ from research.spt.plot_style import (
 )
 from research.spt.storage import write_dataset
 
-ANALYSIS_PLOT_VERSION = 7
+ANALYSIS_PLOT_VERSION = 8
 LABELS = {
     "rr_(S_ext)": "Substrate [mM]",
     "rr_(P_ext)": "Product [mM]",

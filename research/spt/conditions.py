@@ -23,7 +23,12 @@ pattern_idx2name = {
     3: "linear decrease",
     4: "sharp periportal",
     5: "random",
+    6: "cyp2e1",
 }
+# The mixed-pattern lobule holds one sector per compared pattern. CYP2E1 is the
+# measured profile rather than one of the synthetic ones, so it keeps its own
+# lobule and its own figure row but takes no sector in that comparison.
+MIXED_EXCLUDED_PATTERN = "cyp2e1"
 
 
 def pattern_name(pattern: int) -> str:

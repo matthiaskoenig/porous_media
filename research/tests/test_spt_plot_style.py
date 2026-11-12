@@ -75,8 +75,11 @@ def test_canonical_mesh_layers_and_legacy_adapter() -> None:
         assert canonical.sid == legacy.sid
         assert canonical.colormap == legacy.colormap
         assert canonical.title == legacy.title
-        assert canonical.limits == legacy.color_limits is None
+        assert canonical.limits == legacy.color_limits
         assert canonical.scalar_bar == legacy.scalar_bar is True
+    # Only the binary cell state fixes its display range; measured fields take
+    # the cohort limits instead.
+    assert [layer.sid for layer in SPT_LAYERS if layer.limits] == ["rr_necrosis"]
 
 
 def test_original_geometry_snapshots_and_full_history_limits(tmp_path: Path) -> None:

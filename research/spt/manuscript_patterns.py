@@ -38,6 +38,13 @@ def pattern_profile(pattern: int) -> tuple[np.ndarray, np.ndarray]:
             edges = np.linspace(0, 1, 10)
             abundance = np.random.default_rng(1729).uniform(0.1, 0.9, 9)
             return np.repeat(edges, 2)[1:-1], np.repeat(abundance, 2)
+        case 6:
+            # CYP2E1 rises smoothly rather than linearly or in one step: the
+            # measured profile is flat periportally, steepest just past the
+            # middle and saturated perivenously.
+            curve = np.linspace(0.0, 1.0, 33)
+            shape = 1.0 / (1.0 + np.exp(-9.0 * (curve - 0.6)))
+            return curve, (shape - shape[0]) / (shape[-1] - shape[0])
         case _:
             raise ValueError(f"Unknown zonation pattern: {pattern}")
     return np.asarray(position, dtype=float), np.asarray(values, dtype=float)
