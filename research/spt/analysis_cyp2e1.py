@@ -254,7 +254,7 @@ def render_cyp2e1_cells(
             axes[0].set_ylabel(LABELS[NECROSIS_FIELD])
             axes[0].set_ylim(-0.02 * scale, 1.02 * scale)
             handles, labels = axes[0].get_legend_handles_labels()
-            axes[1].legend(
+            legend = axes[1].legend(
                 handles,
                 labels,
                 title="Substrate flux",
@@ -265,6 +265,10 @@ def render_cyp2e1_cells(
                 borderaxespad=0.0,
                 markerscale=4,
             )
+            # The cells are drawn translucent so dense regions stay readable; the
+            # legend must still show each flux in its own full-strength shade.
+            for handle in legend.legend_handles:
+                handle.set_alpha(1.0)
             art.suptitle(f"CYP2E1 mesh cells at {hours:g} h")
             save_figure(art, directory / "cyp2e1-necrosis-cells.svg", options)
         finally:
