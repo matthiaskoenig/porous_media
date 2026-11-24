@@ -78,6 +78,12 @@ results/
 │   ├── exports/         stable figure-04.svg ... figure-s1-convergence.svg, tissue panels
 │   └── <figure>/        versioned generation of each manuscript figure
 ├── analysis/<study>/    quantitative tables, NetCDF, figures and provenance
+│   ├── cyp2e1-necrosis-position.tsv  CYP2E1 necrosis over position at 24 h
+│   ├── cyp2e1-necrosis-position.png  its figure, one line per substrate flux
+│   ├── cyp2e1-necrosis-protein.tsv   the same necrosis against CYP2E1 protein
+│   ├── cyp2e1-necrosis-protein.png   its figure, one line per substrate flux
+│   ├── cyp2e1-necrosis-cells.tsv     every mesh cell, unreduced, at 24 h
+│   └── cyp2e1-necrosis-cells.png     its two panels, necrosis by protein and position
 ├── figures/
 │   ├── runs/<study>/<run_id>/   geometry time course of one history
 │   └── overviews/<study>/       final-state overview of a study
@@ -691,6 +697,46 @@ Convergence includes supplemental symlog figures to expose smaller values beside
 the current coarsest mesh's large substrate/product outliers. `--linear-only`
 omits those supplements. All values remain in the serialized results. Default
 exports are PNG; `--formats`, `--dpi`, and `--fields` select figure output.
+
+### CYP2E1 necrosis exports
+
+The simulations analysis publishes two extra tables and their figures beside the
+general ones, for the CYP2E1 cohort only:
+
+| File | Rows | Columns beyond the identity block |
+| --- | --- | --- |
+| `cyp2e1-necrosis-position.tsv` | one per run and position bin | `necrosis_mean`, `necrosis_std`, `necrosis_minimum`, `necrosis_maximum`, `cell_count`, `volume` |
+| `cyp2e1-necrosis-protein.tsv` | one per run and position bin | `protein_mean`, `protein_std`, `necrosis_mean`, `necrosis_std` |
+
+The identity block is `run`, `pattern`, `pattern_name`, `dose`, `boundary_flow`,
+`time`, `position`, `bin_left` and `bin_right`, so each row names the substrate
+flux it belongs to without a lookup. `dose` is one-based, matching the D1 to D8
+labels. With the archived eight boundary flows and twenty position bins, each file
+holds 160 rows.
+
+`cyp2e1-necrosis-position.png` plots necrosis against lobular position and
+`cyp2e1-necrosis-protein.png` plots the same necrosis against the protein level of
+the same bin, both with one line per substrate flux in the `YlOrBr` dose shades the
+pattern carries elsewhere. Points follow the position order, so a line reads from
+periportal to perivenous.
+
+Both quantities are read at the final spatial time, 86,400 s. Per-cell protein does
+not change during a run, but the mesh deforms, so cells cross position bins and the
+binned protein profile at 0 s is not the one at 24 h. Taking both from the same
+snapshot keeps each row self-consistent.
+
+`cyp2e1-necrosis-cells.tsv` holds the unreduced state instead: one row per mesh cell
+of every CYP2E1 run, with `cell`, `position`, `protein` and `necrosis` beside the same
+identity block. The two tables above bin that same state into twenty position bins and
+carry its spread; this one keeps the solver's own cells, so a reader who needs the raw
+scatter does not work from a summary. With the archived eight fluxes and a 10,080 cell
+lobule it holds 80,640 rows. Its figure shows two panels, necrosis against CYP2E1
+protein and necrosis against lobular position, sharing one necrosis axis and one
+substrate-flux legend.
+
+The cohort is selected by pattern name, not by run identifier, and the files appear
+only when the selection holds CYP2E1 runs. A selection without them, such as
+`--runs sim001`, writes no `cyp2e1-*` artifact at all.
 
 ### Reusable analysis results
 

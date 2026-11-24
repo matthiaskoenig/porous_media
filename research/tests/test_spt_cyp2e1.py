@@ -1,0 +1,620 @@
+"""Verify the CYP2E1 necrosis exports and their figures."""
+
+import json
+from dataclasses import dataclass, replace
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+import xarray as xr
+from matplotlib.figure import Figure
+
+from research.spt import analysis_cyp2e1
+from research.spt.analysis import process_analysis
+from research.spt.analysis_cyp2e1 import (
+    cyp2e1_cell_frame,
+    cyp2e1_frames,
+    render_cyp2e1_cells,
+    render_cyp2e1_figures,
+)
+from research.spt.analysis_data import AnalysisOptions
+from research.spt.analysis_plots import PlotOptions
+from research.spt.catalog import RunSource
+from research.spt.conditions import SimulationCondition, boundary_flows
+from research.spt.data_processing import process_studies
+from research.spt.geometry import process_geometries
+from research.spt.plot_data import PlotSource
+from research.spt.plot_render import RenderOptions
+from research.spt.plot_style import simulation_color
+from research.tests.test_spt_analysis import _input
+
+FINAL_TIME = 86400.0
+# The value this stage published with before it owed the CYP2E1 files. A tree
+# written by that version must be rebuilt, not reused.
+PREVIOUS_ANALYSIS_PLOT_VERSION = 8
+
+
+@dataclass(frozen=True)
+class Panel:
+    """Hold what one drawn panel showed, read before the renderer clears it."""
+
+    ydata: list[np.ndarray]
+    ylim: tuple[float, float]
+    legend: list[str]
+    axes_right: float
+    legend_left: float
+
+
+def _position_panel(
+    necrosis: pd.DataFrame,
+    paired: pd.DataFrame,
+    directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Panel:
+    """Snapshot the position panel while it is drawn, before the renderer clears it."""
+    captured: list[Panel] = []
+    original = analysis_cyp2e1.save_figure
+
+    def record(art: Figure, destination: Path, options: RenderOptions) -> None:
+        art.canvas.draw()
+        axis = art.axes[0]
+        legend = axis.get_legend()
+        captured.append(
+            Panel(
+                [np.asarray(line.get_ydata()) for line in axis.lines],
+                axis.get_ylim(),
+                [entry.get_text() for entry in legend.get_texts()] if legend else [],
+                float(axis.get_window_extent().x1),
+                float(legend.get_window_extent().x0) if legend else float("inf"),
+            )
+        )
+        original(art, destination, options)
+
+    monkeypatch.setattr(analysis_cyp2e1, "save_figure", record)
+    render_cyp2e1_figures(
+        necrosis, paired, directory, RenderOptions(formats=("png",), dpi=45)
+    )
+    return captured[0]
+
+
+PROFILE_FIELDS = ("rr_necrosis", "rr_protein")
+
+
+def _profiles(
+    patterns: list[int],
+    doses: list[int],
+    bins: int,
+    *,
+    empty_bin: int | None = None,
+) -> tuple[xr.Dataset, list[PlotSource]]:
+    """Build a profile dataset and its sources without touching any solver output."""
+    times = (0.0, FINAL_TIME)
+    edges = np.linspace(0.0, 1.0, bins + 1)
+    centers = (edges[:-1] + edges[1:]) / 2
+    runs, sources = [], []
+    for index, (pattern, dose) in enumerate(zip(patterns, doses, strict=True), start=1):
+        run_id = f"sim{index:03}"
+        runs.append(run_id)
+        condition = SimulationCondition(run_id, pattern, dose, boundary_flows[dose])
+        source = RunSource(
+            Path("raw"), "simulations_lobulus", run_id, condition, "test"
+        )
+        sources.append(
+            PlotSource(source, "lobulus", 0.0, FINAL_TIME, run_id, dose=dose)
+        )
+    shape = (len(runs), len(times), len(PROFILE_FIELDS), bins)
+    # Necrosis rises and protein falls over position, so a frame that swapped the
+    # two fields cannot pass as the right one.
+    per_field = np.stack([np.linspace(0.1, 0.9, bins), np.linspace(0.9, 0.1, bins)])
+    mean = np.tile(per_field, (*shape[:-2], 1, 1))
+    count = np.full((len(runs), len(times), bins), 5, dtype=np.int32)
+    if empty_bin is not None:
+        mean[..., empty_bin] = np.nan
+        count[..., empty_bin] = 0
+    data = {
+        "mean": (("run", "time", "field", "position"), mean),
+        "std": (("run", "time", "field", "position"), mean / 10),
+        "minimum": (("run", "time", "field", "position"), mean / 2),
+        "maximum": (("run", "time", "field", "position"), mean * 2),
+        "cell_count": (("run", "time", "position"), count),
+        "volume": (("run", "time", "position"), count.astype(float) * 1e-12),
+        "bin_left": (
+            ("run", "time", "position"),
+            np.tile(edges[:-1], (len(runs), len(times), 1)),
+        ),
+        "bin_right": (
+            ("run", "time", "position"),
+            np.tile(edges[1:], (len(runs), len(times), 1)),
+        ),
+    }
+    profiles = xr.Dataset(
+        data,
+        coords={
+            "run": list(runs),
+            "time": list(times),
+            "field": list(PROFILE_FIELDS),
+            "position": centers,
+        },
+    )
+    return profiles, sources
+
+
+def test_no_cyp2e1_runs_produce_no_frames() -> None:
+    """Skip the export for a selection that holds no CYP2E1 run."""
+    profiles, sources = _profiles(patterns=[0], doses=[0], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    assert necrosis.empty and paired.empty
+
+
+def test_necrosis_frame_columns_and_rows() -> None:
+    """Name the flux of every row and keep one row per position bin."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 1], bins=4)
+    necrosis, _ = cyp2e1_frames(profiles, sources)
+    assert list(necrosis.columns) == [
+        "run",
+        "pattern",
+        "pattern_name",
+        "dose",
+        "boundary_flow",
+        "time",
+        "position",
+        "bin_left",
+        "bin_right",
+        "necrosis_mean",
+        "necrosis_std",
+        "necrosis_minimum",
+        "necrosis_maximum",
+        "cell_count",
+        "volume",
+    ]
+    assert len(necrosis) == 8
+    assert set(necrosis.pattern_name) == {"cyp2e1"}
+    assert list(necrosis.dose.unique()) == [1, 2]
+    assert necrosis.time.unique().tolist() == [FINAL_TIME]
+
+
+def test_source_without_condition_is_ignored() -> None:
+    """Drop a run whose catalogue row carries no condition instead of failing."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 1], bins=4)
+    sources[1] = replace(sources[1], run=replace(sources[1].run, condition=None))
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    assert list(necrosis.run.unique()) == [sources[0].run.run_id]
+    assert list(paired.run.unique()) == [sources[0].run.run_id]
+
+
+def test_paired_frame_pairs_protein_and_necrosis_in_one_bin() -> None:
+    """Pair both quantities of one position bin in a single row."""
+    profiles, sources = _profiles(patterns=[6], doses=[0], bins=4)
+    _, paired = cyp2e1_frames(profiles, sources)
+    assert list(paired.columns) == [
+        "run",
+        "pattern",
+        "pattern_name",
+        "dose",
+        "boundary_flow",
+        "time",
+        "position",
+        "bin_left",
+        "bin_right",
+        "protein_mean",
+        "protein_std",
+        "necrosis_mean",
+        "necrosis_std",
+    ]
+    assert len(paired) == 4
+    np.testing.assert_allclose(paired.protein_mean, 1 - paired.necrosis_mean)
+    np.testing.assert_allclose(paired.protein_mean, np.linspace(0.9, 0.1, 4))
+
+
+def test_empty_bins_keep_their_rows() -> None:
+    """Keep a bin without cells, so position indexing is never silently shortened."""
+    profiles, sources = _profiles(patterns=[6], doses=[0], bins=4, empty_bin=1)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    assert len(necrosis) == 4 and len(paired) == 4
+    assert int(necrosis.cell_count.iloc[1]) == 0
+    assert np.isnan(necrosis.necrosis_mean.iloc[1])
+    assert np.isnan(paired.protein_mean.iloc[1])
+
+
+def test_figures_are_written_in_every_format(tmp_path: Path) -> None:
+    """Write both figures in each requested format."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 1], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    written = render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("svg", "png"), dpi=45)
+    )
+    assert sorted(path.name for path in written) == [
+        "cyp2e1-necrosis-position.png",
+        "cyp2e1-necrosis-position.svg",
+        "cyp2e1-necrosis-protein.png",
+        "cyp2e1-necrosis-protein.svg",
+    ]
+    assert all(path.is_file() for path in written)
+
+
+def test_figure_labels_and_legend(tmp_path: Path) -> None:
+    """Name both axes and every substrate flux in the legend."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 7], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("svg",), dpi=45)
+    )
+    document = (tmp_path / "cyp2e1-necrosis-position.svg").read_text()
+    assert "D1" in document and "D8" in document
+    assert "Necrosis [%]" in document and "position" in document.lower()
+    assert "24 h" in document
+    protein = (tmp_path / "cyp2e1-necrosis-protein.svg").read_text()
+    assert "CYP2E1" in protein and "Protein [-]" in protein
+
+
+def test_single_run_and_empty_frames(tmp_path: Path) -> None:
+    """Render a one-flux selection and write nothing at all for empty frames."""
+    profiles, sources = _profiles(patterns=[6], doses=[3], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    written = render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("png",), dpi=45)
+    )
+    assert len(written) == 2
+    assert all(path.is_file() for path in written)
+    assert (
+        render_cyp2e1_figures(
+            pd.DataFrame(),
+            pd.DataFrame(),
+            tmp_path,
+            RenderOptions(formats=("png",), dpi=45),
+        )
+        == []
+    )
+
+
+def _cyp2e1_study(tmp_path: Path, run_ids: tuple[str, ...]) -> tuple[Path, Path]:
+    """Prepare CYP2E1 runs through geometry and numerical caches."""
+    root, output = tmp_path / "raw", tmp_path / "local"
+    for run_id in run_ids:
+        _input(root, run_id, 2, (0, 4), changing=True)
+    assert all(
+        item.status == "processed"
+        for item in process_geometries(
+            root,
+            output,
+            study="simulations",
+            run_ids=run_ids,
+            combinations=False,
+            workers=1,
+        )
+    )
+    assert all(
+        item.status == "processed"
+        for item in process_studies(
+            root,
+            output,
+            study="simulations",
+            run_ids=run_ids,
+            geometry="lobulus",
+            workers=1,
+        )
+    )
+    return root, output
+
+
+def test_analysis_publishes_cyp2e1_exports(tmp_path: Path) -> None:
+    """Publish both tables and both figures inside the analysis generation."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049", "sim050"))
+    assert [
+        item.status
+        for item in process_analysis(
+            root,
+            output,
+            output,
+            study="simulations",
+            run_ids=("sim049", "sim050"),
+            options=AnalysisOptions(time_points=3, bins=4),
+            plots=PlotOptions(formats=("svg", "png"), dpi=45),
+            workers=1,
+        )
+    ] == ["processed", "processed"]
+    directory = output / "analysis/simulations_lobulus"
+    generation = (
+        directory / json.loads((directory / "manifest.json").read_text())["generation"]
+    )
+    table = pd.read_csv(generation / "cyp2e1-necrosis-position.tsv", sep="\t")
+    assert len(table) == 8
+    assert sorted(table.dose.unique()) == [1, 2]
+    assert set(table.pattern_name) == {"cyp2e1"}
+    paired = pd.read_csv(generation / "cyp2e1-necrosis-protein.tsv", sep="\t")
+    assert {"protein_mean", "necrosis_mean"} <= set(paired.columns)
+    for name in ("cyp2e1-necrosis-position", "cyp2e1-necrosis-protein"):
+        assert (generation / f"{name}.svg").is_file()
+        assert (generation / f"{name}.png").is_file()
+
+
+def test_selection_without_cyp2e1_writes_no_exports(tmp_path: Path) -> None:
+    """Write no CYP2E1 artifact at all for a selection without that pattern."""
+    root, output = _cyp2e1_study(tmp_path, ("sim001",))
+    process_analysis(
+        root,
+        output,
+        output,
+        study="simulations",
+        run_ids=("sim001",),
+        options=AnalysisOptions(time_points=3, bins=4),
+        plots=PlotOptions(formats=("png",), dpi=45),
+        workers=1,
+    )
+    directory = output / "analysis/simulations_lobulus"
+    generation = (
+        directory / json.loads((directory / "manifest.json").read_text())["generation"]
+    )
+    assert not list(generation.glob("cyp2e1-*"))
+
+
+def test_analysis_catalogue_records_the_export_paths(tmp_path: Path) -> None:
+    """Name both published tables in the stage catalogue."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049", "sim050"))
+    process_analysis(
+        root,
+        output,
+        output,
+        study="simulations",
+        run_ids=("sim049", "sim050"),
+        options=AnalysisOptions(time_points=3, bins=4),
+        plots=PlotOptions(formats=("png",), dpi=45),
+        workers=1,
+    )
+    catalogue = pd.read_csv(output / "logs/analysis-simulations.tsv", sep="\t")
+    assert catalogue.cyp2e1_position.iloc[0].endswith("cyp2e1-necrosis-position.tsv")
+    assert catalogue.cyp2e1_protein.iloc[0].endswith("cyp2e1-necrosis-protein.tsv")
+
+
+def test_pre_feature_generation_is_rebuilt(tmp_path: Path) -> None:
+    """Rebuild a generation published before this stage owed the CYP2E1 files."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049", "sim050"))
+
+    def run() -> None:
+        process_analysis(
+            root,
+            output,
+            output,
+            study="simulations",
+            run_ids=("sim049", "sim050"),
+            options=AnalysisOptions(time_points=3, bins=4),
+            plots=PlotOptions(formats=("png",), dpi=45),
+            workers=1,
+        )
+
+    run()
+    directory = output / "analysis/simulations_lobulus"
+    manifest_path = directory / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["configuration"]["version"] = PREVIOUS_ANALYSIS_PLOT_VERSION
+    manifest["outputs"] = [
+        record
+        for record in manifest["outputs"]
+        if "cyp2e1-" not in Path(str(record["path"])).name
+    ]
+    manifest_path.write_text(json.dumps(manifest))
+    generation = directory / manifest["generation"]
+    for stale in generation.glob("cyp2e1-*"):
+        stale.unlink()
+    run()
+    rebuilt = directory / json.loads(manifest_path.read_text())["generation"]
+    assert (rebuilt / "cyp2e1-necrosis-position.tsv").is_file()
+    assert (rebuilt / "cyp2e1-necrosis-protein.tsv").is_file()
+
+
+def test_missing_necrosis_field_skips_the_export(tmp_path: Path) -> None:
+    """Keep the stage working when a field selection leaves out necrosis."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049",))
+    results = process_analysis(
+        root,
+        output,
+        output,
+        study="simulations",
+        run_ids=("sim049",),
+        options=AnalysisOptions(
+            time_points=3, bins=4, fields=("rr_(S_ext)", "rr_protein")
+        ),
+        plots=PlotOptions(formats=("png",), dpi=45),
+        workers=1,
+    )
+    assert [item.status for item in results] == ["processed"]
+    directory = output / "analysis/simulations_lobulus"
+    generation = (
+        directory / json.loads((directory / "manifest.json").read_text())["generation"]
+    )
+    assert (generation / "analysis.nc").is_file()
+    assert not list(generation.glob("cyp2e1-*"))
+
+
+def test_curve_shades_match_the_catalogue(tmp_path: Path) -> None:
+    """Draw every flux in the one-based shade the rest of the study uses."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 7], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("svg",), dpi=45)
+    )
+    document = (tmp_path / "cyp2e1-necrosis-position.svg").read_text()
+    for dose in (1, 8):
+        assert simulation_color(6, dose)[:7] in document
+    assert simulation_color(6, 0)[:7] not in document
+
+
+def test_necrosis_is_drawn_as_a_percentage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Scale necrosis exactly as the sibling figures of the same generation do."""
+    profiles, sources = _profiles(patterns=[6], doses=[0], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    np.testing.assert_allclose(panel.ydata[0], necrosis.necrosis_mean * 100)
+    assert panel.ylim[1] > 1.5
+
+
+def test_one_flux_draws_one_legend_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Name exactly the selected fluxes in the legend."""
+    profiles, sources = _profiles(patterns=[6], doses=[3], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    assert panel.legend == ["D4"]
+
+
+def test_figures_are_cleared_after_saving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Release the axes of every figure, as the sibling renderers do."""
+    profiles, sources = _profiles(patterns=[6], doses=[0], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    created: list[Figure] = []
+    original = analysis_cyp2e1.figure
+
+    def record(size: tuple[float, float]) -> Figure:
+        art = original(size)
+        created.append(art)
+        return art
+
+    monkeypatch.setattr(analysis_cyp2e1, "figure", record)
+    render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("png",), dpi=45)
+    )
+    assert len(created) == 2
+    assert all(not art.axes for art in created)
+
+
+def test_legend_sits_beside_the_panel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the legend clear of the curves, which reach the top of the axes."""
+    profiles, sources = _profiles(patterns=[6] * 8, doses=list(range(8)), bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    assert panel.legend_left >= panel.axes_right
+
+
+def _cells(
+    patterns: list[int], doses: list[int], count: int
+) -> tuple[list[xr.Dataset], list[PlotSource]]:
+    """Build per-cell histories without touching any solver output."""
+    times = (0.0, FINAL_TIME)
+    position = np.linspace(0.0, 1.0, count)
+    datasets, sources = [], []
+    for index, (pattern, dose) in enumerate(zip(patterns, doses, strict=True), start=1):
+        run_id = f"sim{index:03}"
+        condition = SimulationCondition(run_id, pattern, dose, boundary_flows[dose])
+        run = RunSource(Path("raw"), "simulations_lobulus", run_id, condition, "test")
+        sources.append(PlotSource(run, "lobulus", 0.0, FINAL_TIME, run_id, dose=dose))
+        necrosis = (position > 0.5 - dose / 20).astype(float)
+        datasets.append(
+            xr.Dataset(
+                {
+                    "rr_position": (("time", "cell"), np.tile(position, (2, 1))),
+                    "rr_protein": (("time", "cell"), np.tile(1 - position, (2, 1))),
+                    "rr_necrosis": (
+                        ("time", "cell"),
+                        np.stack([np.zeros(count), necrosis]),
+                    ),
+                },
+                coords={"time": list(times), "cell": np.arange(count)},
+            )
+        )
+    return datasets, sources
+
+
+def test_cell_frame_keeps_every_mesh_cell() -> None:
+    """Export one row per mesh cell, never a binned summary."""
+    datasets, sources = _cells(patterns=[6, 6], doses=[0, 3], count=25)
+    frame = cyp2e1_cell_frame(datasets, sources)
+    assert list(frame.columns) == [
+        "run",
+        "pattern",
+        "pattern_name",
+        "dose",
+        "boundary_flow",
+        "time",
+        "cell",
+        "position",
+        "protein",
+        "necrosis",
+    ]
+    assert len(frame) == 50
+    assert frame.time.unique().tolist() == [FINAL_TIME]
+    assert sorted(frame.cell.unique()) == list(range(25))
+    first = frame[frame.run == "sim001"]
+    np.testing.assert_allclose(first.position, np.linspace(0.0, 1.0, 25))
+    np.testing.assert_allclose(first.protein, 1 - np.linspace(0.0, 1.0, 25))
+
+
+def test_cell_frame_skips_a_selection_without_cyp2e1() -> None:
+    """Write nothing for a cohort this export does not describe."""
+    datasets, sources = _cells(patterns=[0], doses=[0], count=10)
+    assert cyp2e1_cell_frame(datasets, sources).empty
+
+
+def test_cell_figure_has_two_panels(tmp_path: Path) -> None:
+    """Show necrosis against protein and against position side by side."""
+    datasets, sources = _cells(patterns=[6, 6], doses=[0, 3], count=25)
+    frame = cyp2e1_cell_frame(datasets, sources)
+    written = render_cyp2e1_cells(
+        frame, tmp_path, RenderOptions(formats=("svg",), dpi=45)
+    )
+    assert [path.name for path in written] == ["cyp2e1-necrosis-cells.svg"]
+    document = written[0].read_text()
+    assert "CYP2E1 Protein [-]" in document
+    assert "Lobular position" in document
+    assert "Necrosis [%]" in document
+    assert (
+        render_cyp2e1_cells(
+            pd.DataFrame(), tmp_path, RenderOptions(formats=("svg",), dpi=45)
+        )
+        == []
+    )
+
+
+def test_analysis_publishes_the_cell_export(tmp_path: Path) -> None:
+    """Publish the unreduced mesh-cell table and its two-panel figure."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049", "sim050"))
+    process_analysis(
+        root,
+        output,
+        output,
+        study="simulations",
+        run_ids=("sim049", "sim050"),
+        options=AnalysisOptions(time_points=3, bins=4),
+        plots=PlotOptions(formats=("png",), dpi=45),
+        workers=1,
+    )
+    directory = output / "analysis/simulations_lobulus"
+    generation = (
+        directory / json.loads((directory / "manifest.json").read_text())["generation"]
+    )
+    table = pd.read_csv(generation / "cyp2e1-necrosis-cells.tsv", sep="\t")
+    assert set(table.run.unique()) == {"sim049", "sim050"}
+    assert len(table) == 2 * table[table.run == "sim049"].cell.nunique()
+    assert {"position", "protein", "necrosis"} <= set(table.columns)
+    assert (generation / "cyp2e1-necrosis-cells.png").is_file()
+    catalogue = pd.read_csv(output / "logs/analysis-simulations.tsv", sep="\t")
+    assert catalogue.cyp2e1_cells.iloc[0].endswith("cyp2e1-necrosis-cells.tsv")
+
+
+def test_cell_legend_swatches_are_opaque(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Show the flux colors at full strength, not at the scatter's transparency."""
+    datasets, sources = _cells(patterns=[6, 6], doses=[0, 3], count=25)
+    frame = cyp2e1_cell_frame(datasets, sources)
+    alphas: list[float | None] = []
+    original = analysis_cyp2e1.save_figure
+
+    def record(art: Figure, destination: Path, options: RenderOptions) -> None:
+        legend = art.axes[1].get_legend()
+        assert legend is not None
+        alphas.extend(
+            handle.get_alpha() for handle in legend.legend_handles if handle is not None
+        )
+        original(art, destination, options)
+
+    monkeypatch.setattr(analysis_cyp2e1, "save_figure", record)
+    render_cyp2e1_cells(frame, tmp_path, RenderOptions(formats=("png",), dpi=45))
+    assert alphas and all(alpha == 1.0 for alpha in alphas)
