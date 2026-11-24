@@ -198,6 +198,12 @@ def process_analysis(
                 "matched": str(generation / "matched-timecourses.tsv"),
                 "profiles": str(generation / "spatial-profiles.tsv"),
             }
+            for column, name in (
+                ("cyp2e1_position", "cyp2e1-necrosis-position.tsv"),
+                ("cyp2e1_protein", "cyp2e1-necrosis-protein.tsv"),
+            ):
+                if (generation / name).is_file():
+                    row[column] = str(generation / name)
             rows.append(row)
             print(f"figures {row['study']}: ready", flush=True)
         except Exception as error:
