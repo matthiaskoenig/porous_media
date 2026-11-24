@@ -201,6 +201,7 @@ def process_analysis(
             for column, name in (
                 ("cyp2e1_position", "cyp2e1-necrosis-position.tsv"),
                 ("cyp2e1_protein", "cyp2e1-necrosis-protein.tsv"),
+                ("cyp2e1_cells", "cyp2e1-necrosis-cells.tsv"),
             ):
                 if (generation / name).is_file():
                     row[column] = str(generation / name)

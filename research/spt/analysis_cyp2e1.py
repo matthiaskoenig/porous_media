@@ -9,7 +9,7 @@ import pandas as pd
 import xarray as xr
 
 from research.spt.conditions import pattern_name
-from research.spt.fields import LABELS, display_factor
+from research.spt.fields import LABELS, POSITION, display_factor
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions, figure, save_figure
 from research.spt.plot_style import simulation_color
@@ -175,3 +175,98 @@ def render_cyp2e1_figures(
                 directory / f"{name}.{extension}" for extension in options.formats
             )
     return written
+
+
+def cyp2e1_cell_frame(
+    cells: list[xr.Dataset], sources: list[PlotSource]
+) -> pd.DataFrame:
+    """Return one row per mesh cell of the CYP2E1 cohort, at the last stored time.
+
+    This keeps the solver's own cells. The binned profiles beside it summarize the
+    same state, so a reader who needs the unreduced scatter reads this file.
+    """
+    selected = [
+        (dataset, source)
+        for dataset, source in zip(cells, sources, strict=True)
+        if source.run.condition is not None
+        and pattern_name(source.run.condition.pattern_key) == CYP2E1_PATTERN
+    ]
+    required = {POSITION, PROTEIN_FIELD, NECROSIS_FIELD}
+    if not selected or any(
+        not required <= set(map(str, dataset.data_vars)) for dataset, _ in selected
+    ):
+        return pd.DataFrame()
+    frames = []
+    for dataset, source in selected:
+        condition = source.run.condition
+        if condition is None:
+            continue
+        time = float(dataset.time.values[-1])
+        at_time = dataset.sel(time=time)
+        frame = pd.DataFrame(
+            {
+                "run": source.run.run_id,
+                "pattern": condition.pattern_key,
+                "pattern_name": pattern_name(condition.pattern_key),
+                "dose": condition.boundary_flow_key + 1,
+                "boundary_flow": condition.boundary_flow,
+                "time": time,
+                "cell": at_time.cell.values,
+                "position": at_time[POSITION].values,
+                "protein": at_time[PROTEIN_FIELD].values,
+                "necrosis": at_time[NECROSIS_FIELD].values,
+            }
+        )
+        frames.append(frame)
+    return pd.concat(frames, ignore_index=True)
+
+
+def render_cyp2e1_cells(
+    frame: pd.DataFrame, directory: Path, options: RenderOptions
+) -> list[Path]:
+    """Draw the unreduced cells: necrosis against protein and against position."""
+    if frame.empty:
+        return []
+    scale = display_factor(NECROSIS_FIELD)
+    hours = float(frame["time"].iloc[0]) / 3600
+    with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
+        art = figure((9.6, 3.8))
+        try:
+            axes = art.subplots(1, 2, sharey=True)
+            panels = (
+                (axes[0], "protein", f"CYP2E1 {LABELS[PROTEIN_FIELD]}"),
+                (axes[1], "position", POSITION_LABEL),
+            )
+            for axis, column, label in panels:
+                for dose in sorted(frame["dose"].astype(int).unique().tolist()):
+                    block = frame[frame["dose"] == dose]
+                    pattern = int(block["pattern"].astype(int).iloc[0])
+                    axis.scatter(
+                        block[column],
+                        block["necrosis"] * scale,
+                        s=2,
+                        alpha=0.35,
+                        linewidths=0,
+                        color=simulation_color(pattern, dose),
+                        label=f"D{dose}",
+                    )
+                axis.set_xlabel(label)
+            axes[0].set_ylabel(LABELS[NECROSIS_FIELD])
+            axes[0].set_ylim(-0.02 * scale, 1.02 * scale)
+            handles, labels = axes[0].get_legend_handles_labels()
+            axes[1].legend(
+                handles,
+                labels,
+                title="Substrate flux",
+                fontsize="small",
+                title_fontsize="small",
+                loc="center left",
+                bbox_to_anchor=(1.02, 0.5),
+                borderaxespad=0.0,
+                markerscale=4,
+            )
+            art.suptitle(f"CYP2E1 mesh cells at {hours:g} h")
+            save_figure(art, directory / "cyp2e1-necrosis-cells.svg", options)
+        finally:
+            art.clear()
+    return [directory / f"cyp2e1-necrosis-cells.{suffix}" for suffix in options.formats]

@@ -16,7 +16,12 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 
-from research.spt.analysis_cyp2e1 import cyp2e1_frames, render_cyp2e1_figures
+from research.spt.analysis_cyp2e1 import (
+    cyp2e1_cell_frame,
+    cyp2e1_frames,
+    render_cyp2e1_cells,
+    render_cyp2e1_figures,
+)
 from research.spt.analysis_data import load_analysis, weighted_statistics
 from research.spt.artifacts import (
     atomic_json,
@@ -46,7 +51,7 @@ from research.spt.plot_style import (
 )
 from research.spt.storage import write_dataset
 
-ANALYSIS_PLOT_VERSION = 11
+ANALYSIS_PLOT_VERSION = 12
 # These are the unit conversions declared in the manuscript's diagnostic script.
 DIAGNOSTIC_FACTORS = {VOLUME: 1e12, "rr_Vext": 1e9, "rr_Vli": 1e9}
 
@@ -740,6 +745,16 @@ def render_analysis(
                 render_cyp2e1_figures(
                     cyp2e1_necrosis,
                     cyp2e1_protein,
+                    staging,
+                    RenderOptions(formats=options.formats, dpi=options.dpi),
+                )
+            cyp2e1_cells = cyp2e1_cell_frame(cells, sources)
+            if not cyp2e1_cells.empty:
+                cyp2e1_cells.to_csv(
+                    staging / "cyp2e1-necrosis-cells.tsv", sep="\t", index=False
+                )
+                render_cyp2e1_cells(
+                    cyp2e1_cells,
                     staging,
                     RenderOptions(formats=options.formats, dpi=options.dpi),
                 )
