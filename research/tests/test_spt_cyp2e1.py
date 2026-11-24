@@ -4,12 +4,14 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
-from research.spt.analysis_cyp2e1 import cyp2e1_frames
+from research.spt.analysis_cyp2e1 import cyp2e1_frames, render_cyp2e1_figures
 from research.spt.catalog import RunSource
 from research.spt.conditions import SimulationCondition, boundary_flows
 from research.spt.plot_data import PlotSource
+from research.spt.plot_render import RenderOptions
 
 FINAL_TIME = 86400.0
 PROFILE_FIELDS = ("rr_necrosis", "rr_protein")
@@ -144,3 +146,51 @@ def test_empty_bins_keep_their_rows() -> None:
     assert int(necrosis.cell_count.iloc[1]) == 0
     assert np.isnan(necrosis.necrosis_mean.iloc[1])
     assert np.isnan(paired.protein_mean.iloc[1])
+
+
+def test_figures_are_written_in_every_format(tmp_path: Path) -> None:
+    """Write both figures in each requested format."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 1], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    written = render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("svg", "png"), dpi=45)
+    )
+    assert sorted(path.name for path in written) == [
+        "cyp2e1-necrosis-position.png",
+        "cyp2e1-necrosis-position.svg",
+        "cyp2e1-necrosis-protein.png",
+        "cyp2e1-necrosis-protein.svg",
+    ]
+    assert all(path.is_file() for path in written)
+
+
+def test_figure_labels_and_legend(tmp_path: Path) -> None:
+    """Name both axes and every substrate flux in the legend."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 7], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("svg",), dpi=45)
+    )
+    document = (tmp_path / "cyp2e1-necrosis-position.svg").read_text()
+    assert "D1" in document and "D8" in document
+    assert "Necrosis" in document and "position" in document.lower()
+    assert "CYP2E1" in (tmp_path / "cyp2e1-necrosis-protein.svg").read_text()
+
+
+def test_single_run_and_empty_frames(tmp_path: Path) -> None:
+    """Render a one-flux selection and write nothing at all for empty frames."""
+    profiles, sources = _profiles(patterns=[6], doses=[3], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    written = render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("png",), dpi=45)
+    )
+    assert len(written) == 2
+    assert (
+        render_cyp2e1_figures(
+            pd.DataFrame(),
+            pd.DataFrame(),
+            tmp_path,
+            RenderOptions(formats=("png",), dpi=45),
+        )
+        == []
+    )
