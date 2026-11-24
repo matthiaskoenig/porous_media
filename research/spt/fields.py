@@ -38,6 +38,24 @@ SUMMARY_FIELDS = ("rr_(S_ext)", "rr_(P_ext)", "rr_protein", "rr_(T)", "rr_necros
 LAYERS = tuple(
     next(layer for layer in SPT_LAYERS if layer.sid == sid) for sid in SUMMARY_FIELDS
 )
+LABELS = {
+    "rr_(S_ext)": "Substrate [mM]",
+    "rr_(P_ext)": "Product [mM]",
+    "rr_protein": "Protein [-]",
+    "rr_(T)": "Toxic compound [mM]",
+    "rr_necrosis": "Necrosis [%]",
+    "element_volume_point_TPM": "Mesh cell volume [nl]",
+    "rr_Vext": "Fluid volume [nl]",
+    "rr_Vli": "Solid volume [nl]",
+    "pressure": "Pressure [?]",
+}
+
+
+def display_factor(field: str) -> float:
+    """Scale a stored field to the unit its label declares."""
+    return 100.0 if field == "rr_necrosis" else 1.0
+
+
 VOLUME = "element_volume_point_TPM"
 POSITION = "rr_position"
 DIAGNOSTICS = (VOLUME, "rr_Vext", "rr_Vli", "pressure")

@@ -9,6 +9,7 @@ import pandas as pd
 import xarray as xr
 
 from research.spt.conditions import pattern_name
+from research.spt.fields import LABELS, display_factor
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions, figure, save_figure
 from research.spt.plot_style import simulation_color
@@ -17,8 +18,6 @@ CYP2E1_PATTERN = "cyp2e1"
 NECROSIS_FIELD = "rr_necrosis"
 PROTEIN_FIELD = "rr_protein"
 POSITION_LABEL = "Lobular position (0 periportal, 1 perivenous)"
-PROTEIN_LABEL = "CYP2E1 protein (relative)"
-NECROSIS_LABEL = "Necrosis (0 alive, 1 death)"
 IDENTITY_COLUMNS = (
     "run",
     "pattern",
@@ -125,44 +124,46 @@ def render_cyp2e1_figures(
     if necrosis.empty or paired.empty:
         return []
     written: list[Path] = []
+    hours = float(necrosis["time"].iloc[0]) / 3600
+    scale = display_factor(NECROSIS_FIELD)
     panels = (
-        (
-            "cyp2e1-necrosis-position",
-            necrosis,
-            "position",
-            POSITION_LABEL,
-        ),
+        ("cyp2e1-necrosis-position", necrosis, "position", POSITION_LABEL, 1.0),
         (
             "cyp2e1-necrosis-protein",
             paired,
             "protein_mean",
-            PROTEIN_LABEL,
+            f"CYP2E1 {LABELS[PROTEIN_FIELD]}",
+            display_factor(PROTEIN_FIELD),
         ),
     )
     # Vector text keeps the flux labels searchable in the published SVG, exactly as
     # the other analysis figures are written.
     with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
-        for name, frame, x_column, x_label in panels:
+        for name, frame, x_column, x_label, x_scale in panels:
             art = figure((5.2, 3.6))
-            axis = art.add_subplot()
-            for dose in sorted(frame["dose"].astype(int).unique().tolist()):
-                ordered = frame[frame["dose"] == dose].sort_values("position")
-                pattern = int(ordered["pattern"].astype(int).iloc[0])
-                axis.plot(
-                    ordered[x_column],
-                    ordered["necrosis_mean"],
-                    color=simulation_color(pattern, dose),
-                    marker="o",
-                    markersize=3,
-                    label=f"D{dose}",
+            try:
+                axis = art.add_subplot()
+                for dose in sorted(frame["dose"].astype(int).unique().tolist()):
+                    ordered = frame[frame["dose"] == dose].sort_values("position")
+                    pattern = int(ordered["pattern"].astype(int).iloc[0])
+                    axis.plot(
+                        ordered[x_column] * x_scale,
+                        ordered["necrosis_mean"] * scale,
+                        color=simulation_color(pattern, dose),
+                        marker="o",
+                        markersize=3,
+                        label=f"D{dose}",
+                    )
+                axis.set_xlabel(x_label)
+                axis.set_ylabel(LABELS[NECROSIS_FIELD])
+                axis.set_ylim(-0.02 * scale, 1.02 * scale)
+                axis.legend(
+                    title="Substrate flux", fontsize="small", title_fontsize="small"
                 )
-            axis.set_xlabel(x_label)
-            axis.set_ylabel(NECROSIS_LABEL)
-            axis.set_ylim(-0.02, 1.02)
-            axis.legend(
-                title="Substrate flux", fontsize="small", title_fontsize="small"
-            )
-            save_figure(art, directory / f"{name}.svg", options)
+                art.suptitle(f"CYP2E1 necrosis at {hours:g} h")
+                save_figure(art, directory / f"{name}.svg", options)
+            finally:
+                art.clear()
             written.extend(
                 directory / f"{name}.{extension}" for extension in options.formats
             )

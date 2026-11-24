@@ -1,13 +1,16 @@
 """Verify the CYP2E1 necrosis exports and their figures."""
 
 import json
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
+from matplotlib.figure import Figure
 
+from research.spt import analysis_cyp2e1
 from research.spt.analysis import process_analysis
 from research.spt.analysis_cyp2e1 import cyp2e1_frames, render_cyp2e1_figures
 from research.spt.analysis_data import AnalysisOptions
@@ -25,6 +28,46 @@ FINAL_TIME = 86400.0
 # The value this stage published with before it owed the CYP2E1 files. A tree
 # written by that version must be rebuilt, not reused.
 PREVIOUS_ANALYSIS_PLOT_VERSION = 8
+
+
+@dataclass(frozen=True)
+class Panel:
+    """Hold what one drawn panel showed, read before the renderer clears it."""
+
+    ydata: list[np.ndarray]
+    ylim: tuple[float, float]
+    legend: list[str]
+
+
+def _position_panel(
+    necrosis: pd.DataFrame,
+    paired: pd.DataFrame,
+    directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Panel:
+    """Snapshot the position panel while it is drawn, before the renderer clears it."""
+    captured: list[Panel] = []
+    original = analysis_cyp2e1.save_figure
+
+    def record(art: Figure, destination: Path, options: RenderOptions) -> None:
+        axis = art.axes[0]
+        legend = axis.get_legend()
+        captured.append(
+            Panel(
+                [np.asarray(line.get_ydata()) for line in axis.lines],
+                axis.get_ylim(),
+                [entry.get_text() for entry in legend.get_texts()] if legend else [],
+            )
+        )
+        original(art, destination, options)
+
+    monkeypatch.setattr(analysis_cyp2e1, "save_figure", record)
+    render_cyp2e1_figures(
+        necrosis, paired, directory, RenderOptions(formats=("png",), dpi=45)
+    )
+    return captured[0]
+
+
 PROFILE_FIELDS = ("rr_necrosis", "rr_protein")
 
 
@@ -189,8 +232,10 @@ def test_figure_labels_and_legend(tmp_path: Path) -> None:
     )
     document = (tmp_path / "cyp2e1-necrosis-position.svg").read_text()
     assert "D1" in document and "D8" in document
-    assert "Necrosis" in document and "position" in document.lower()
-    assert "CYP2E1" in (tmp_path / "cyp2e1-necrosis-protein.svg").read_text()
+    assert "Necrosis [%]" in document and "position" in document.lower()
+    assert "24 h" in document
+    protein = (tmp_path / "cyp2e1-necrosis-protein.svg").read_text()
+    assert "CYP2E1" in protein and "Protein [-]" in protein
 
 
 def test_single_run_and_empty_frames(tmp_path: Path) -> None:
@@ -201,6 +246,7 @@ def test_single_run_and_empty_frames(tmp_path: Path) -> None:
         necrosis, paired, tmp_path, RenderOptions(formats=("png",), dpi=45)
     )
     assert len(written) == 2
+    assert all(path.is_file() for path in written)
     assert (
         render_cyp2e1_figures(
             pd.DataFrame(),
@@ -382,3 +428,46 @@ def test_curve_shades_match_the_catalogue(tmp_path: Path) -> None:
     for dose in (1, 8):
         assert simulation_color(6, dose)[:7] in document
     assert simulation_color(6, 0)[:7] not in document
+
+
+def test_necrosis_is_drawn_as_a_percentage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Scale necrosis exactly as the sibling figures of the same generation do."""
+    profiles, sources = _profiles(patterns=[6], doses=[0], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    np.testing.assert_allclose(panel.ydata[0], necrosis.necrosis_mean * 100)
+    assert panel.ylim[1] > 1.5
+
+
+def test_one_flux_draws_one_legend_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Name exactly the selected fluxes in the legend."""
+    profiles, sources = _profiles(patterns=[6], doses=[3], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    assert panel.legend == ["D4"]
+
+
+def test_figures_are_cleared_after_saving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Release the axes of every figure, as the sibling renderers do."""
+    profiles, sources = _profiles(patterns=[6], doses=[0], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    created: list[Figure] = []
+    original = analysis_cyp2e1.figure
+
+    def record(size: tuple[float, float]) -> Figure:
+        art = original(size)
+        created.append(art)
+        return art
+
+    monkeypatch.setattr(analysis_cyp2e1, "figure", record)
+    render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("png",), dpi=45)
+    )
+    assert len(created) == 2
+    assert all(not art.axes for art in created)

@@ -29,7 +29,13 @@ from research.spt.artifacts import (
 from research.spt.cache import open_processed_cells
 from research.spt.catalog import mesh_key
 from research.spt.conditions import pattern_name
-from research.spt.fields import DIAGNOSTICS, POSITION, VOLUME
+from research.spt.fields import (
+    DIAGNOSTICS,
+    LABELS,
+    POSITION,
+    VOLUME,
+    display_factor,
+)
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions, figure, save_figure
 from research.spt.plot_style import (
@@ -40,18 +46,7 @@ from research.spt.plot_style import (
 )
 from research.spt.storage import write_dataset
 
-ANALYSIS_PLOT_VERSION = 9
-LABELS = {
-    "rr_(S_ext)": "Substrate [mM]",
-    "rr_(P_ext)": "Product [mM]",
-    "rr_protein": "Protein [-]",
-    "rr_(T)": "Toxic compound [mM]",
-    "rr_necrosis": "Necrosis [%]",
-    VOLUME: "Mesh cell volume [nl]",
-    "rr_Vext": "Fluid volume [nl]",
-    "rr_Vli": "Solid volume [nl]",
-    "pressure": "Pressure [?]",
-}
+ANALYSIS_PLOT_VERSION = 10
 # These are the unit conversions declared in the manuscript's diagnostic script.
 DIAGNOSTIC_FACTORS = {VOLUME: 1e12, "rr_Vext": 1e9, "rr_Vli": 1e9}
 
@@ -123,10 +118,6 @@ def comparisons(
                     }
                 )
     return means, pd.DataFrame(rows)
-
-
-def _factor(field: str) -> float:
-    return 100.0 if field == "rr_necrosis" else 1.0
 
 
 def _style(source: PlotSource, index: int, count: int) -> tuple[str, str]:
@@ -225,7 +216,7 @@ def _curves(
             label, color = _style(source, index, len(sources))
             for column, field in enumerate(fields):
                 axis = axes[row, column]
-                factor = _factor(field)
+                factor = display_factor(field)
                 if spatial_time is None:
                     selected = dataset.sel(field=field)
                     x = selected.time.values / 3600
@@ -444,7 +435,7 @@ def _endpoints(
             for axis, field in zip(axes, fields, strict=True):
                 y = aligned["mean"].isel(time=-1, run=selected).sel(
                     field=field
-                ).values * _factor(field)
+                ).values * display_factor(field)
                 axis.plot(
                     x[order],
                     y[order],
@@ -506,7 +497,7 @@ def _resolution(
                 mean, _ = weighted_statistics(
                     selected[field].values[None, :], selected[VOLUME].values
                 )
-                value = float(mean[0]) * _factor(field)
+                value = float(mean[0]) * display_factor(field)
                 means.append(value)
                 _, color = _style(source, index, len(sources))
                 axis.plot(
@@ -562,7 +553,7 @@ def _errors(
                 selected = selected.sort_values("cells")
                 axes[row, index].plot(
                     selected.cells,
-                    selected[column] * _factor(field),
+                    selected[column] * display_factor(field),
                     marker="o",
                     markersize=3,
                 )
