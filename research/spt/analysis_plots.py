@@ -51,7 +51,7 @@ from research.spt.plot_style import (
 )
 from research.spt.storage import write_dataset
 
-ANALYSIS_PLOT_VERSION = 12
+ANALYSIS_PLOT_VERSION = 13
 # These are the unit conversions declared in the manuscript's diagnostic script.
 DIAGNOSTIC_FACTORS = {VOLUME: 1e12, "rr_Vext": 1e9, "rr_Vli": 1e9}
 

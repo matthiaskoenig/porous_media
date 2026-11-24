@@ -596,3 +596,25 @@ def test_analysis_publishes_the_cell_export(tmp_path: Path) -> None:
     assert (generation / "cyp2e1-necrosis-cells.png").is_file()
     catalogue = pd.read_csv(output / "logs/analysis-simulations.tsv", sep="\t")
     assert catalogue.cyp2e1_cells.iloc[0].endswith("cyp2e1-necrosis-cells.tsv")
+
+
+def test_cell_legend_swatches_are_opaque(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Show the flux colors at full strength, not at the scatter's transparency."""
+    datasets, sources = _cells(patterns=[6, 6], doses=[0, 3], count=25)
+    frame = cyp2e1_cell_frame(datasets, sources)
+    alphas: list[float | None] = []
+    original = analysis_cyp2e1.save_figure
+
+    def record(art: Figure, destination: Path, options: RenderOptions) -> None:
+        legend = art.axes[1].get_legend()
+        assert legend is not None
+        alphas.extend(
+            handle.get_alpha() for handle in legend.legend_handles if handle is not None
+        )
+        original(art, destination, options)
+
+    monkeypatch.setattr(analysis_cyp2e1, "save_figure", record)
+    render_cyp2e1_cells(frame, tmp_path, RenderOptions(formats=("png",), dpi=45))
+    assert alphas and all(alpha == 1.0 for alpha in alphas)
