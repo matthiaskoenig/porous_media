@@ -140,7 +140,7 @@ def render_cyp2e1_figures(
     # the other analysis figures are written.
     with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
         for name, frame, x_column, x_label, x_scale in panels:
-            art = figure((5.2, 3.6))
+            art = figure((6.4, 3.6))
             try:
                 axis = art.add_subplot()
                 for dose in sorted(frame["dose"].astype(int).unique().tolist()):
@@ -157,8 +157,15 @@ def render_cyp2e1_figures(
                 axis.set_xlabel(x_label)
                 axis.set_ylabel(LABELS[NECROSIS_FIELD])
                 axis.set_ylim(-0.02 * scale, 1.02 * scale)
+                # The curves reach the top of the axes at every flux that causes
+                # necrosis, so an inset legend would cover them.
                 axis.legend(
-                    title="Substrate flux", fontsize="small", title_fontsize="small"
+                    title="Substrate flux",
+                    fontsize="small",
+                    title_fontsize="small",
+                    loc="center left",
+                    bbox_to_anchor=(1.02, 0.5),
+                    borderaxespad=0.0,
                 )
                 art.suptitle(f"CYP2E1 necrosis at {hours:g} h")
                 save_figure(art, directory / f"{name}.svg", options)

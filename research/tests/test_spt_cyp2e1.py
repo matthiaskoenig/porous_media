@@ -37,6 +37,8 @@ class Panel:
     ydata: list[np.ndarray]
     ylim: tuple[float, float]
     legend: list[str]
+    axes_right: float
+    legend_left: float
 
 
 def _position_panel(
@@ -50,6 +52,7 @@ def _position_panel(
     original = analysis_cyp2e1.save_figure
 
     def record(art: Figure, destination: Path, options: RenderOptions) -> None:
+        art.canvas.draw()
         axis = art.axes[0]
         legend = axis.get_legend()
         captured.append(
@@ -57,6 +60,8 @@ def _position_panel(
                 [np.asarray(line.get_ydata()) for line in axis.lines],
                 axis.get_ylim(),
                 [entry.get_text() for entry in legend.get_texts()] if legend else [],
+                float(axis.get_window_extent().x1),
+                float(legend.get_window_extent().x0) if legend else float("inf"),
             )
         )
         original(art, destination, options)
@@ -471,3 +476,13 @@ def test_figures_are_cleared_after_saving(
     )
     assert len(created) == 2
     assert all(not art.axes for art in created)
+
+
+def test_legend_sits_beside_the_panel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the legend clear of the curves, which reach the top of the axes."""
+    profiles, sources = _profiles(patterns=[6] * 8, doses=list(range(8)), bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    assert panel.legend_left >= panel.axes_right
