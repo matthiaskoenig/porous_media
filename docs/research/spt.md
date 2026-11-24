@@ -79,7 +79,9 @@ results/
 │   └── <figure>/        versioned generation of each manuscript figure
 ├── analysis/<study>/    quantitative tables, NetCDF, figures and provenance
 │   ├── cyp2e1-necrosis-position.tsv  CYP2E1 necrosis over position at 24 h
-│   └── cyp2e1-necrosis-protein.tsv   the same necrosis against CYP2E1 protein
+│   ├── cyp2e1-necrosis-position.png  its figure, one line per substrate flux
+│   ├── cyp2e1-necrosis-protein.tsv   the same necrosis against CYP2E1 protein
+│   └── cyp2e1-necrosis-protein.png   its figure, one line per substrate flux
 ├── figures/
 │   ├── runs/<study>/<run_id>/   geometry time course of one history
 │   └── overviews/<study>/       final-state overview of a study
@@ -724,12 +726,6 @@ snapshot keeps each row self-consistent.
 The cohort is selected by pattern name, not by run identifier, and the files appear
 only when the selection holds CYP2E1 runs. A selection without them, such as
 `--runs sim001`, writes no `cyp2e1-*` artifact at all.
-
-In the dataset inspected on 2026-11-24, `sim050` carries an imposed fluid flux of
-3.6e-04, about ten times the whole D1-D8 family, which spans 1.8e-05 to 3.6e-05. The
-value is constant from the first step, so it is a boundary condition rather than a
-solver failure. Its rows and its curve in both exports are not trustworthy until the
-run is repeated.
 
 ### Reusable analysis results
 

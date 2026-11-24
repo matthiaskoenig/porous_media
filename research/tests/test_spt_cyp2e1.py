@@ -18,9 +18,13 @@ from research.spt.data_processing import process_studies
 from research.spt.geometry import process_geometries
 from research.spt.plot_data import PlotSource
 from research.spt.plot_render import RenderOptions
+from research.spt.plot_style import simulation_color
 from research.tests.test_spt_analysis import _input
 
 FINAL_TIME = 86400.0
+# The value this stage published with before it owed the CYP2E1 files. A tree
+# written by that version must be rebuilt, not reused.
+PREVIOUS_ANALYSIS_PLOT_VERSION = 8
 PROFILE_FIELDS = ("rr_necrosis", "rr_protein")
 
 
@@ -47,7 +51,10 @@ def _profiles(
             PlotSource(source, "lobulus", 0.0, FINAL_TIME, run_id, dose=dose)
         )
     shape = (len(runs), len(times), len(PROFILE_FIELDS), bins)
-    mean = np.tile(np.linspace(0.1, 0.9, bins), (*shape[:-1], 1))
+    # Necrosis rises and protein falls over position, so a frame that swapped the
+    # two fields cannot pass as the right one.
+    per_field = np.stack([np.linspace(0.1, 0.9, bins), np.linspace(0.9, 0.1, bins)])
+    mean = np.tile(per_field, (*shape[:-2], 1, 1))
     count = np.full((len(runs), len(times), bins), 5, dtype=np.int32)
     if empty_bin is not None:
         mean[..., empty_bin] = np.nan
@@ -143,6 +150,8 @@ def test_paired_frame_pairs_protein_and_necrosis_in_one_bin() -> None:
         "necrosis_std",
     ]
     assert len(paired) == 4
+    np.testing.assert_allclose(paired.protein_mean, 1 - paired.necrosis_mean)
+    np.testing.assert_allclose(paired.protein_mean, np.linspace(0.9, 0.1, 4))
 
 
 def test_empty_bins_keep_their_rows() -> None:
@@ -300,3 +309,76 @@ def test_analysis_catalogue_records_the_export_paths(tmp_path: Path) -> None:
     catalogue = pd.read_csv(output / "logs/analysis-simulations.tsv", sep="\t")
     assert catalogue.cyp2e1_position.iloc[0].endswith("cyp2e1-necrosis-position.tsv")
     assert catalogue.cyp2e1_protein.iloc[0].endswith("cyp2e1-necrosis-protein.tsv")
+
+
+def test_pre_feature_generation_is_rebuilt(tmp_path: Path) -> None:
+    """Rebuild a generation published before this stage owed the CYP2E1 files."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049", "sim050"))
+
+    def run() -> None:
+        process_analysis(
+            root,
+            output,
+            output,
+            study="simulations",
+            run_ids=("sim049", "sim050"),
+            options=AnalysisOptions(time_points=3, bins=4),
+            plots=PlotOptions(formats=("png",), dpi=45),
+            workers=1,
+        )
+
+    run()
+    directory = output / "analysis/simulations_lobulus"
+    manifest_path = directory / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["configuration"]["version"] = PREVIOUS_ANALYSIS_PLOT_VERSION
+    manifest["outputs"] = [
+        record
+        for record in manifest["outputs"]
+        if "cyp2e1-" not in Path(str(record["path"])).name
+    ]
+    manifest_path.write_text(json.dumps(manifest))
+    generation = directory / manifest["generation"]
+    for stale in generation.glob("cyp2e1-*"):
+        stale.unlink()
+    run()
+    rebuilt = directory / json.loads(manifest_path.read_text())["generation"]
+    assert (rebuilt / "cyp2e1-necrosis-position.tsv").is_file()
+    assert (rebuilt / "cyp2e1-necrosis-protein.tsv").is_file()
+
+
+def test_missing_necrosis_field_skips_the_export(tmp_path: Path) -> None:
+    """Keep the stage working when a field selection leaves out necrosis."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049",))
+    results = process_analysis(
+        root,
+        output,
+        output,
+        study="simulations",
+        run_ids=("sim049",),
+        options=AnalysisOptions(
+            time_points=3, bins=4, fields=("rr_(S_ext)", "rr_protein")
+        ),
+        plots=PlotOptions(formats=("png",), dpi=45),
+        workers=1,
+    )
+    assert [item.status for item in results] == ["processed"]
+    directory = output / "analysis/simulations_lobulus"
+    generation = (
+        directory / json.loads((directory / "manifest.json").read_text())["generation"]
+    )
+    assert (generation / "analysis.nc").is_file()
+    assert not list(generation.glob("cyp2e1-*"))
+
+
+def test_curve_shades_match_the_catalogue(tmp_path: Path) -> None:
+    """Draw every flux in the one-based shade the rest of the study uses."""
+    profiles, sources = _profiles(patterns=[6, 6], doses=[0, 7], bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    render_cyp2e1_figures(
+        necrosis, paired, tmp_path, RenderOptions(formats=("svg",), dpi=45)
+    )
+    document = (tmp_path / "cyp2e1-necrosis-position.svg").read_text()
+    for dose in (1, 8):
+        assert simulation_color(6, dose)[:7] in document
+    assert simulation_color(6, 0)[:7] not in document

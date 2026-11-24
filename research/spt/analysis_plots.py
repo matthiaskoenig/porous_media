@@ -40,7 +40,7 @@ from research.spt.plot_style import (
 )
 from research.spt.storage import write_dataset
 
-ANALYSIS_PLOT_VERSION = 8
+ANALYSIS_PLOT_VERSION = 9
 LABELS = {
     "rr_(S_ext)": "Substrate [mM]",
     "rr_(P_ext)": "Product [mM]",
@@ -736,8 +736,10 @@ def render_analysis(
                 spatial_errors.to_csv(
                     staging / "convergence-profiles.tsv", sep="\t", index=False
                 )
+            # Convergence sources carry no condition, so the cohort filter empties
+            # this for every family but the simulations.
             cyp2e1_necrosis, cyp2e1_protein = cyp2e1_frames(all_profiles, sources)
-            if not cyp2e1_necrosis.empty:
+            if not cyp2e1_necrosis.empty and not cyp2e1_protein.empty:
                 cyp2e1_necrosis.to_csv(
                     staging / "cyp2e1-necrosis-position.tsv", sep="\t", index=False
                 )

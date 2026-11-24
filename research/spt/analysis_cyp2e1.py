@@ -64,7 +64,8 @@ def cyp2e1_frames(
     protein profile of the first time is not the one of the last.
     """
     selected = _cyp2e1_sources(sources)
-    if not selected:
+    stored = {str(field) for field in profiles.field.values}
+    if not selected or not {NECROSIS_FIELD, PROTEIN_FIELD} <= stored:
         return pd.DataFrame(), pd.DataFrame()
     conditions = {
         source.run.run_id: source.run.condition
@@ -150,7 +151,7 @@ def render_cyp2e1_figures(
                 axis.plot(
                     ordered[x_column],
                     ordered["necrosis_mean"],
-                    color=simulation_color(pattern, dose - 1),
+                    color=simulation_color(pattern, dose),
                     marker="o",
                     markersize=3,
                     label=f"D{dose}",
