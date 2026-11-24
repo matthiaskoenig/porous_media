@@ -16,6 +16,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import FixedLocator, SymmetricalLogLocator
 
+from research.spt.analysis_cyp2e1 import cyp2e1_frames, render_cyp2e1_figures
 from research.spt.analysis_data import load_analysis, weighted_statistics
 from research.spt.artifacts import (
     atomic_json,
@@ -734,6 +735,20 @@ def render_analysis(
                 means.to_csv(staging / "convergence-means.tsv", sep="\t", index=False)
                 spatial_errors.to_csv(
                     staging / "convergence-profiles.tsv", sep="\t", index=False
+                )
+            cyp2e1_necrosis, cyp2e1_protein = cyp2e1_frames(all_profiles, sources)
+            if not cyp2e1_necrosis.empty:
+                cyp2e1_necrosis.to_csv(
+                    staging / "cyp2e1-necrosis-position.tsv", sep="\t", index=False
+                )
+                cyp2e1_protein.to_csv(
+                    staging / "cyp2e1-necrosis-protein.tsv", sep="\t", index=False
+                )
+                render_cyp2e1_figures(
+                    cyp2e1_necrosis,
+                    cyp2e1_protein,
+                    staging,
+                    RenderOptions(formats=options.formats, dpi=options.dpi),
                 )
             with mpl.rc_context({"svg.fonttype": "none", "pdf.fonttype": 42}):
                 for symlog in (
