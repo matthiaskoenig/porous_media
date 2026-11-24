@@ -12,7 +12,12 @@ from matplotlib.figure import Figure
 
 from research.spt import analysis_cyp2e1
 from research.spt.analysis import process_analysis
-from research.spt.analysis_cyp2e1 import cyp2e1_frames, render_cyp2e1_figures
+from research.spt.analysis_cyp2e1 import (
+    cyp2e1_cell_frame,
+    cyp2e1_frames,
+    render_cyp2e1_cells,
+    render_cyp2e1_figures,
+)
 from research.spt.analysis_data import AnalysisOptions
 from research.spt.analysis_plots import PlotOptions
 from research.spt.catalog import RunSource
@@ -37,6 +42,8 @@ class Panel:
     ydata: list[np.ndarray]
     ylim: tuple[float, float]
     legend: list[str]
+    axes_right: float
+    legend_left: float
 
 
 def _position_panel(
@@ -50,6 +57,7 @@ def _position_panel(
     original = analysis_cyp2e1.save_figure
 
     def record(art: Figure, destination: Path, options: RenderOptions) -> None:
+        art.canvas.draw()
         axis = art.axes[0]
         legend = axis.get_legend()
         captured.append(
@@ -57,6 +65,8 @@ def _position_panel(
                 [np.asarray(line.get_ydata()) for line in axis.lines],
                 axis.get_ylim(),
                 [entry.get_text() for entry in legend.get_texts()] if legend else [],
+                float(axis.get_window_extent().x1),
+                float(legend.get_window_extent().x0) if legend else float("inf"),
             )
         )
         original(art, destination, options)
@@ -471,3 +481,118 @@ def test_figures_are_cleared_after_saving(
     )
     assert len(created) == 2
     assert all(not art.axes for art in created)
+
+
+def test_legend_sits_beside_the_panel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the legend clear of the curves, which reach the top of the axes."""
+    profiles, sources = _profiles(patterns=[6] * 8, doses=list(range(8)), bins=4)
+    necrosis, paired = cyp2e1_frames(profiles, sources)
+    panel = _position_panel(necrosis, paired, tmp_path, monkeypatch)
+    assert panel.legend_left >= panel.axes_right
+
+
+def _cells(
+    patterns: list[int], doses: list[int], count: int
+) -> tuple[list[xr.Dataset], list[PlotSource]]:
+    """Build per-cell histories without touching any solver output."""
+    times = (0.0, FINAL_TIME)
+    position = np.linspace(0.0, 1.0, count)
+    datasets, sources = [], []
+    for index, (pattern, dose) in enumerate(zip(patterns, doses, strict=True), start=1):
+        run_id = f"sim{index:03}"
+        condition = SimulationCondition(run_id, pattern, dose, boundary_flows[dose])
+        run = RunSource(Path("raw"), "simulations_lobulus", run_id, condition, "test")
+        sources.append(PlotSource(run, "lobulus", 0.0, FINAL_TIME, run_id, dose=dose))
+        necrosis = (position > 0.5 - dose / 20).astype(float)
+        datasets.append(
+            xr.Dataset(
+                {
+                    "rr_position": (("time", "cell"), np.tile(position, (2, 1))),
+                    "rr_protein": (("time", "cell"), np.tile(1 - position, (2, 1))),
+                    "rr_necrosis": (
+                        ("time", "cell"),
+                        np.stack([np.zeros(count), necrosis]),
+                    ),
+                },
+                coords={"time": list(times), "cell": np.arange(count)},
+            )
+        )
+    return datasets, sources
+
+
+def test_cell_frame_keeps_every_mesh_cell() -> None:
+    """Export one row per mesh cell, never a binned summary."""
+    datasets, sources = _cells(patterns=[6, 6], doses=[0, 3], count=25)
+    frame = cyp2e1_cell_frame(datasets, sources)
+    assert list(frame.columns) == [
+        "run",
+        "pattern",
+        "pattern_name",
+        "dose",
+        "boundary_flow",
+        "time",
+        "cell",
+        "position",
+        "protein",
+        "necrosis",
+    ]
+    assert len(frame) == 50
+    assert frame.time.unique().tolist() == [FINAL_TIME]
+    assert sorted(frame.cell.unique()) == list(range(25))
+    first = frame[frame.run == "sim001"]
+    np.testing.assert_allclose(first.position, np.linspace(0.0, 1.0, 25))
+    np.testing.assert_allclose(first.protein, 1 - np.linspace(0.0, 1.0, 25))
+
+
+def test_cell_frame_skips_a_selection_without_cyp2e1() -> None:
+    """Write nothing for a cohort this export does not describe."""
+    datasets, sources = _cells(patterns=[0], doses=[0], count=10)
+    assert cyp2e1_cell_frame(datasets, sources).empty
+
+
+def test_cell_figure_has_two_panels(tmp_path: Path) -> None:
+    """Show necrosis against protein and against position side by side."""
+    datasets, sources = _cells(patterns=[6, 6], doses=[0, 3], count=25)
+    frame = cyp2e1_cell_frame(datasets, sources)
+    written = render_cyp2e1_cells(
+        frame, tmp_path, RenderOptions(formats=("svg",), dpi=45)
+    )
+    assert [path.name for path in written] == ["cyp2e1-necrosis-cells.svg"]
+    document = written[0].read_text()
+    assert "CYP2E1 Protein [-]" in document
+    assert "Lobular position" in document
+    assert "Necrosis [%]" in document
+    assert (
+        render_cyp2e1_cells(
+            pd.DataFrame(), tmp_path, RenderOptions(formats=("svg",), dpi=45)
+        )
+        == []
+    )
+
+
+def test_analysis_publishes_the_cell_export(tmp_path: Path) -> None:
+    """Publish the unreduced mesh-cell table and its two-panel figure."""
+    root, output = _cyp2e1_study(tmp_path, ("sim049", "sim050"))
+    process_analysis(
+        root,
+        output,
+        output,
+        study="simulations",
+        run_ids=("sim049", "sim050"),
+        options=AnalysisOptions(time_points=3, bins=4),
+        plots=PlotOptions(formats=("png",), dpi=45),
+        workers=1,
+    )
+    directory = output / "analysis/simulations_lobulus"
+    generation = (
+        directory / json.loads((directory / "manifest.json").read_text())["generation"]
+    )
+    table = pd.read_csv(generation / "cyp2e1-necrosis-cells.tsv", sep="\t")
+    assert set(table.run.unique()) == {"sim049", "sim050"}
+    assert len(table) == 2 * table[table.run == "sim049"].cell.nunique()
+    assert {"position", "protein", "necrosis"} <= set(table.columns)
+    assert (generation / "cyp2e1-necrosis-cells.png").is_file()
+    catalogue = pd.read_csv(output / "logs/analysis-simulations.tsv", sep="\t")
+    assert catalogue.cyp2e1_cells.iloc[0].endswith("cyp2e1-necrosis-cells.tsv")

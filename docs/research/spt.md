@@ -81,7 +81,9 @@ results/
 │   ├── cyp2e1-necrosis-position.tsv  CYP2E1 necrosis over position at 24 h
 │   ├── cyp2e1-necrosis-position.png  its figure, one line per substrate flux
 │   ├── cyp2e1-necrosis-protein.tsv   the same necrosis against CYP2E1 protein
-│   └── cyp2e1-necrosis-protein.png   its figure, one line per substrate flux
+│   ├── cyp2e1-necrosis-protein.png   its figure, one line per substrate flux
+│   ├── cyp2e1-necrosis-cells.tsv     every mesh cell, unreduced, at 24 h
+│   └── cyp2e1-necrosis-cells.png     its two panels, necrosis by protein and position
 ├── figures/
 │   ├── runs/<study>/<run_id>/   geometry time course of one history
 │   └── overviews/<study>/       final-state overview of a study
@@ -722,6 +724,15 @@ Both quantities are read at the final spatial time, 86,400 s. Per-cell protein d
 not change during a run, but the mesh deforms, so cells cross position bins and the
 binned protein profile at 0 s is not the one at 24 h. Taking both from the same
 snapshot keeps each row self-consistent.
+
+`cyp2e1-necrosis-cells.tsv` holds the unreduced state instead: one row per mesh cell
+of every CYP2E1 run, with `cell`, `position`, `protein` and `necrosis` beside the same
+identity block. The two tables above bin that same state into twenty position bins and
+carry its spread; this one keeps the solver's own cells, so a reader who needs the raw
+scatter does not work from a summary. With the archived eight fluxes and a 10,080 cell
+lobule it holds 80,640 rows. Its figure shows two panels, necrosis against CYP2E1
+protein and necrosis against lobular position, sharing one necrosis axis and one
+substrate-flux legend.
 
 The cohort is selected by pattern name, not by run identifier, and the files appear
 only when the selection holds CYP2E1 runs. A selection without them, such as
